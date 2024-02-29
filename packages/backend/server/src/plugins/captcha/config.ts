@@ -8,7 +8,6 @@ declare module '../config' {
 }
 
 defineStartupConfig('plugins.captcha', {
-  enable: false,
   turnstile: {
     secret: '',
   },

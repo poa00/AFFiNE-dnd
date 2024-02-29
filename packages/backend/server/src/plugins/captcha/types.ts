@@ -1,8 +1,6 @@
+import { Field, ObjectType } from '@nestjs/graphql';
+
 export interface CaptchaConfig {
-  /**
-   * whether to enable captcha
-   */
-  enable: boolean;
   turnstile: {
     /**
      * Cloudflare Turnstile CAPTCHA secret
@@ -18,4 +16,13 @@ export interface CaptchaConfig {
      */
     bits: number;
   };
+}
+
+@ObjectType()
+export class ChallengeResponse {
+  @Field()
+  challenge!: string;
+
+  @Field()
+  resource!: string;
 }
