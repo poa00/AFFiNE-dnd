@@ -9,6 +9,10 @@ import { forwardRef } from 'react';
 
 import * as styles from './styles.css';
 
+/**
+ * @deprecated
+ * use {@link Radio} instead
+ */
 export const RadioButton = forwardRef<
   HTMLButtonElement,
   RadioGroupItemProps & { spanStyle?: string }

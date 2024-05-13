@@ -18,6 +18,7 @@ export * from './ui/menu';
 export * from './ui/modal';
 export * from './ui/notification';
 export * from './ui/popover';
+export * from './ui/radio';
 export * from './ui/scrollbar';
 export * from './ui/skeleton';
 export * from './ui/switch';
