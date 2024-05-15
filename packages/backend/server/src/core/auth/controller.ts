@@ -24,8 +24,6 @@ import { TokenService, TokenType } from './token';
 class SignInCredential {
   email!: string;
   password?: string;
-  token?: string;
-  challenge?: string;
 }
 
 class MagicLinkCredential {
