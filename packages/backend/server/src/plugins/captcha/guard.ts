@@ -16,7 +16,11 @@ export class CaptchaGuard implements CanActivate, OnModuleInit {
   constructor(private readonly ref: ModuleRef) {}
 
   onModuleInit() {
-    this.captcha = this.ref.get(CaptchaService, { strict: false });
+    try {
+      this.captcha = this.ref.get(CaptchaService, { strict: false });
+    } catch {
+      // ignore
+    }
   }
 
   async canActivate(context: ExecutionContext) {
