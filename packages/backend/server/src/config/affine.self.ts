@@ -72,7 +72,7 @@ AFFiNE.use('payment', {
 AFFiNE.use('oauth');
 
 /* Captcha Plugin Default Config */
-AFFiNE.plugins.use('captcha', {
+AFFiNE.use('captcha', {
   turnstile: {},
   challenge: {
     bits: 20,
