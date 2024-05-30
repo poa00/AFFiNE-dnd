@@ -4,9 +4,10 @@ import {
   GraphQLRequestListener,
 } from '@apollo/server';
 import { Plugin } from '@nestjs/apollo';
-import { HttpException, Logger } from '@nestjs/common';
+import { HttpStatus, Logger } from '@nestjs/common';
 import { Response } from 'express';
 
+import { UserFriendlyError } from '../error/def';
 import { metrics } from '../metrics/metrics';
 
 export interface RequestContext {
@@ -39,11 +40,10 @@ export class GQLLoggerPlugin implements ApolloServerPlugin {
         return Promise.resolve();
       },
       didEncounterErrors: ctx => {
-        metrics.gql.counter('query_error_counter').add(1, { operation });
-
         ctx.errors.forEach(err => {
           // only log non-user errors
           let msg: string | undefined;
+          let status = HttpStatus.INTERNAL_SERVER_ERROR;
 
           if (!err.originalError) {
             msg = err.toString();
@@ -51,18 +51,23 @@ export class GQLLoggerPlugin implements ApolloServerPlugin {
             const originalError = err.originalError;
 
             // do not log client errors, and put more information in the error extensions.
-            if (!(originalError instanceof HttpException)) {
+            if (!(originalError instanceof UserFriendlyError)) {
               if (originalError.cause && originalError.cause instanceof Error) {
                 msg = originalError.cause.stack ?? originalError.cause.message;
               } else {
                 msg = originalError.stack ?? originalError.message;
               }
+            } else {
+              status = originalError.status;
             }
           }
 
           if (msg) {
             this.logger.error('GraphQL Unhandled Error', msg);
           }
+          metrics.gql
+            .counter('query_error_counter')
+            .add(1, { operation, code: status });
         });
 
         return Promise.resolve();

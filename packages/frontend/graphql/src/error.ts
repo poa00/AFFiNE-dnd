@@ -1,6 +1,8 @@
 import { GraphQLError as BaseGraphQLError } from 'graphql';
 import { identity } from 'lodash-es';
 
+import type { ErrorDataUnion } from './schema';
+
 interface KnownGraphQLErrorExtensions {
   code: number;
   status: string;
@@ -24,3 +26,10 @@ export function findGraphQLError(
     return undefined;
   }
 }
+
+type ErrorNames<T extends string> = T extends `${infer Name}DataType`
+  ? Name
+  : never;
+export type ErrorData<
+  Error extends ErrorNames<NonNullable<ErrorDataUnion['__typename']>>,
+> = Extract<ErrorDataUnion, { __typename?: `${Error}DataType` }>;

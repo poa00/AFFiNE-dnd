@@ -2,6 +2,10 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+type BlobQuotaExceededDataType {
+  limit: Int!
+}
+
 type ChatMessage {
   attachments: [String!]
   content: String!
@@ -139,9 +143,42 @@ type DocHistoryType {
   workspaceId: String!
 }
 
+type DocNotFoundDataType {
+  docId: String!
+  workspaceId: String!
+}
+
 enum EarlyAccessType {
   AI
   App
+}
+
+union ErrorDataUnion = BlobQuotaExceededDataType | DocNotFoundDataType | InvalidPasswordLengthDataType | MemberQuotaExceededDataType | NotInWorkspaceDataType | SubscriptionAlreadyExistsDataType | SubscriptionNotExistsDataType | SubscriptionPlanNotFoundDataType | SubscriptionRecurringExistsDataType | VersionRejectedDataType | WorkspaceNotFoundDataType
+
+enum Errors {
+  AccessDenied
+  ActionForbidden
+  AuthenticationRequired
+  BlobQuotaExceeded
+  CustomerPortalCreateFailed
+  DocNotFound
+  EmailAlreadyUsed
+  InternalServerError
+  InvalidEmail
+  InvalidPasswordLength
+  MemberQuotaExceeded
+  NotInWorkspace
+  SubscriptionAlreadyExists
+  SubscriptionExpired
+  SubscriptionHasBeenCanceled
+  SubscriptionNotExists
+  SubscriptionPlanNotFound
+  SubscriptionRecurringExists
+  UserNotFound
+  VersionRejected
+  WorkspaceNotFound
+  WrongSignInCredentials
+  WrongSignInMethod
 }
 
 """The type of workspace feature"""
@@ -161,6 +198,11 @@ type HumanReadableQuotaType {
   memberLimit: String!
   name: String!
   storageQuota: String!
+}
+
+type InvalidPasswordLengthDataType {
+  max: Int!
+  min: Int!
 }
 
 type InvitationType {
@@ -244,6 +286,10 @@ input ListUserInput {
   skip: Int = 0
 }
 
+type MemberQuotaExceededDataType {
+  limit: Int!
+}
+
 type Mutation {
   acceptInviteById(inviteId: String!, sendAcceptMail: Boolean, workspaceId: String!): Boolean!
   addAdminister(email: String!): Boolean!
@@ -323,6 +369,10 @@ type Mutation {
   verifyEmail(token: String!): Boolean!
 }
 
+type NotInWorkspaceDataType {
+  workspaceId: String!
+}
+
 enum OAuthProviderType {
   GitHub
   Google
@@ -355,6 +405,7 @@ type Query {
   """Get current user"""
   currentUser: UserType
   earlyAccessUsers: [UserType!]!
+  error(name: Errors!): ErrorDataUnion!
 
   """send workspace invitation"""
   getInviteInfo(inviteId: String!): InvitationType!
@@ -483,6 +534,14 @@ type ServerRuntimeConfigType {
   value: JSON!
 }
 
+type SubscriptionAlreadyExistsDataType {
+  plan: String!
+}
+
+type SubscriptionNotExistsDataType {
+  plan: String!
+}
+
 enum SubscriptionPlan {
   AI
   Enterprise
@@ -490,6 +549,11 @@ enum SubscriptionPlan {
   Pro
   SelfHosted
   Team
+}
+
+type SubscriptionPlanNotFoundDataType {
+  plan: String!
+  recurring: String!
 }
 
 type SubscriptionPrice {
@@ -503,6 +567,10 @@ type SubscriptionPrice {
 enum SubscriptionRecurring {
   Monthly
   Yearly
+}
+
+type SubscriptionRecurringExistsDataType {
+  recurring: String!
 }
 
 enum SubscriptionStatus {
@@ -617,8 +685,16 @@ type UserType {
   token: tokenType! @deprecated(reason: "use [/api/auth/authorize]")
 }
 
+type VersionRejectedDataType {
+  version: Int!
+}
+
 type WorkspaceBlobSizes {
   size: SafeInt!
+}
+
+type WorkspaceNotFoundDataType {
+  workspaceId: String!
 }
 
 type WorkspacePage {

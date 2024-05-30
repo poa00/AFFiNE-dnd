@@ -21,6 +21,7 @@ export { MailService } from './mailer';
 export { CallCounter, CallTimer, metrics } from './metrics';
 export { type ILocker, Lock, Locker, MutexService } from './mutex';
 export {
+  GatewayErrorWrapper,
   getOptionalModuleMetadata,
   GlobalExceptionFilter,
   OptionalModule,

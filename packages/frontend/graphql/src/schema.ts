@@ -38,6 +38,48 @@ export interface Scalars {
   Upload: { input: File; output: File };
 }
 
+export interface BlobQuotaExceededDataType {
+  __typename?: 'BlobQuotaExceededDataType';
+  limit: Scalars['Int']['output'];
+}
+
+export interface ChatMessage {
+  __typename?: 'ChatMessage';
+  attachments: Maybe<Array<Scalars['String']['output']>>;
+  content: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  params: Maybe<Scalars['JSON']['output']>;
+  role: Scalars['String']['output'];
+}
+
+export interface Copilot {
+  __typename?: 'Copilot';
+  /** Get the session list of actions in the workspace */
+  actions: Array<Scalars['String']['output']>;
+  /** Get the session list of chats in the workspace */
+  chats: Array<Scalars['String']['output']>;
+  histories: Array<CopilotHistories>;
+  /** Get the quota of the user in the workspace */
+  quota: CopilotQuota;
+  workspaceId: Maybe<Scalars['ID']['output']>;
+}
+
+export interface CopilotHistoriesArgs {
+  docId: InputMaybe<Scalars['String']['input']>;
+  options: InputMaybe<QueryChatHistoriesInput>;
+}
+
+export interface CopilotHistories {
+  __typename?: 'CopilotHistories';
+  /** An mark identifying which view to use to display the session */
+  action: Maybe<Scalars['String']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  messages: Array<ChatMessage>;
+  sessionId: Scalars['String']['output'];
+  /** The number of tokens used in the session */
+  tokens: Scalars['Int']['output'];
+}
+
 export enum CopilotModels {
   DallE3 = 'DallE3',
   Gpt4Omni = 'Gpt4Omni',
@@ -61,6 +103,27 @@ export enum CopilotPromptMessageRole {
   assistant = 'assistant',
   system = 'system',
   user = 'user',
+}
+
+export interface CopilotPromptMessageType {
+  __typename?: 'CopilotPromptMessageType';
+  content: Scalars['String']['output'];
+  params: Maybe<Scalars['JSON']['output']>;
+  role: CopilotPromptMessageRole;
+}
+
+export interface CopilotPromptType {
+  __typename?: 'CopilotPromptType';
+  action: Maybe<Scalars['String']['output']>;
+  messages: Array<CopilotPromptMessageType>;
+  model: CopilotModels;
+  name: Scalars['String']['output'];
+}
+
+export interface CopilotQuota {
+  __typename?: 'CopilotQuota';
+  limit: Maybe<Scalars['SafeInt']['output']>;
+  used: Scalars['SafeInt']['output'];
 }
 
 export interface CreateChatMessageInput {
@@ -99,15 +162,77 @@ export interface CreateUserInput {
   password: InputMaybe<Scalars['String']['input']>;
 }
 
+export interface CredentialsRequirementType {
+  __typename?: 'CredentialsRequirementType';
+  password: PasswordLimitsType;
+}
+
+export interface DeleteAccount {
+  __typename?: 'DeleteAccount';
+  success: Scalars['Boolean']['output'];
+}
+
 export interface DeleteSessionInput {
   docId: Scalars['String']['input'];
   sessionIds: Array<Scalars['String']['input']>;
   workspaceId: Scalars['String']['input'];
 }
 
+export interface DocHistoryType {
+  __typename?: 'DocHistoryType';
+  id: Scalars['String']['output'];
+  timestamp: Scalars['DateTime']['output'];
+  workspaceId: Scalars['String']['output'];
+}
+
+export interface DocNotFoundDataType {
+  __typename?: 'DocNotFoundDataType';
+  docId: Scalars['String']['output'];
+  workspaceId: Scalars['String']['output'];
+}
+
 export enum EarlyAccessType {
   AI = 'AI',
   App = 'App',
+}
+
+export type ErrorDataUnion =
+  | BlobQuotaExceededDataType
+  | DocNotFoundDataType
+  | InvalidPasswordLengthDataType
+  | MemberQuotaExceededDataType
+  | NotInWorkspaceDataType
+  | SubscriptionAlreadyExistsDataType
+  | SubscriptionNotExistsDataType
+  | SubscriptionPlanNotFoundDataType
+  | SubscriptionRecurringExistsDataType
+  | VersionRejectedDataType
+  | WorkspaceNotFoundDataType;
+
+export enum Errors {
+  AccessDenied = 'AccessDenied',
+  ActionForbidden = 'ActionForbidden',
+  AuthenticationRequired = 'AuthenticationRequired',
+  BlobQuotaExceeded = 'BlobQuotaExceeded',
+  CustomerPortalCreateFailed = 'CustomerPortalCreateFailed',
+  DocNotFound = 'DocNotFound',
+  EmailAlreadyUsed = 'EmailAlreadyUsed',
+  InternalServerError = 'InternalServerError',
+  InvalidEmail = 'InvalidEmail',
+  InvalidPasswordLength = 'InvalidPasswordLength',
+  MemberQuotaExceeded = 'MemberQuotaExceeded',
+  NotInWorkspace = 'NotInWorkspace',
+  SubscriptionAlreadyExists = 'SubscriptionAlreadyExists',
+  SubscriptionExpired = 'SubscriptionExpired',
+  SubscriptionHasBeenCanceled = 'SubscriptionHasBeenCanceled',
+  SubscriptionNotExists = 'SubscriptionNotExists',
+  SubscriptionPlanNotFound = 'SubscriptionPlanNotFound',
+  SubscriptionRecurringExists = 'SubscriptionRecurringExists',
+  UserNotFound = 'UserNotFound',
+  VersionRejected = 'VersionRejected',
+  WorkspaceNotFound = 'WorkspaceNotFound',
+  WrongSignInCredentials = 'WrongSignInCredentials',
+  WrongSignInMethod = 'WrongSignInMethod',
 }
 
 /** The type of workspace feature */
@@ -120,6 +245,67 @@ export enum FeatureType {
   UnlimitedWorkspace = 'UnlimitedWorkspace',
 }
 
+export interface HumanReadableQuotaType {
+  __typename?: 'HumanReadableQuotaType';
+  blobLimit: Scalars['String']['output'];
+  copilotActionLimit: Maybe<Scalars['String']['output']>;
+  historyPeriod: Scalars['String']['output'];
+  memberLimit: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  storageQuota: Scalars['String']['output'];
+}
+
+export interface InvalidPasswordLengthDataType {
+  __typename?: 'InvalidPasswordLengthDataType';
+  max: Scalars['Int']['output'];
+  min: Scalars['Int']['output'];
+}
+
+export interface InvitationType {
+  __typename?: 'InvitationType';
+  /** Invitee information */
+  invitee: UserType;
+  /** User information */
+  user: UserType;
+  /** Workspace information */
+  workspace: InvitationWorkspaceType;
+}
+
+export interface InvitationWorkspaceType {
+  __typename?: 'InvitationWorkspaceType';
+  /** Base64 encoded avatar */
+  avatar: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  /** Workspace name */
+  name: Scalars['String']['output'];
+}
+
+export interface InviteUserType {
+  __typename?: 'InviteUserType';
+  /** User accepted */
+  accepted: Scalars['Boolean']['output'];
+  /** User avatar url */
+  avatarUrl: Maybe<Scalars['String']['output']>;
+  /**
+   * User email verified
+   * @deprecated useless
+   */
+  createdAt: Maybe<Scalars['DateTime']['output']>;
+  /** User email */
+  email: Maybe<Scalars['String']['output']>;
+  /** User email verified */
+  emailVerified: Maybe<Scalars['Boolean']['output']>;
+  /** User password has been set */
+  hasPassword: Maybe<Scalars['Boolean']['output']>;
+  id: Scalars['ID']['output'];
+  /** Invite id */
+  inviteId: Scalars['String']['output'];
+  /** User name */
+  name: Maybe<Scalars['String']['output']>;
+  /** User permission in workspace */
+  permission: Permission;
+}
+
 export enum InvoiceStatus {
   Draft = 'Draft',
   Open = 'Open',
@@ -128,15 +314,313 @@ export enum InvoiceStatus {
   Void = 'Void',
 }
 
+export interface LimitedUserType {
+  __typename?: 'LimitedUserType';
+  /** User email */
+  email: Scalars['String']['output'];
+  /** User password has been set */
+  hasPassword: Maybe<Scalars['Boolean']['output']>;
+}
+
 export interface ListUserInput {
   first: InputMaybe<Scalars['Int']['input']>;
   skip: InputMaybe<Scalars['Int']['input']>;
+}
+
+export interface MemberQuotaExceededDataType {
+  __typename?: 'MemberQuotaExceededDataType';
+  limit: Scalars['Int']['output'];
+}
+
+export interface Mutation {
+  __typename?: 'Mutation';
+  acceptInviteById: Scalars['Boolean']['output'];
+  addAdminister: Scalars['Boolean']['output'];
+  addToEarlyAccess: Scalars['Int']['output'];
+  addWorkspaceFeature: Scalars['Int']['output'];
+  cancelSubscription: UserSubscription;
+  changeEmail: UserType;
+  changePassword: UserType;
+  /** Cleanup sessions */
+  cleanupCopilotSession: Scalars['String']['output'];
+  /** Create a subscription checkout link of stripe */
+  createCheckoutSession: Scalars['String']['output'];
+  /** Create a chat message */
+  createCopilotMessage: Scalars['String']['output'];
+  /** Create a copilot prompt */
+  createCopilotPrompt: CopilotPromptType;
+  /** Create a chat session */
+  createCopilotSession: Scalars['String']['output'];
+  /** Create a stripe customer portal to manage payment methods */
+  createCustomerPortal: Scalars['String']['output'];
+  /** Create a new user */
+  createUser: UserType;
+  /** Create a new workspace */
+  createWorkspace: WorkspaceType;
+  deleteAccount: DeleteAccount;
+  deleteBlob: Scalars['Boolean']['output'];
+  /** Delete a user account */
+  deleteUser: DeleteAccount;
+  deleteWorkspace: Scalars['Boolean']['output'];
+  invite: Scalars['String']['output'];
+  leaveWorkspace: Scalars['Boolean']['output'];
+  publishPage: WorkspacePage;
+  recoverDoc: Scalars['DateTime']['output'];
+  /** Remove user avatar */
+  removeAvatar: RemoveAvatar;
+  removeEarlyAccess: Scalars['Int']['output'];
+  removeWorkspaceFeature: Scalars['Int']['output'];
+  resumeSubscription: UserSubscription;
+  revoke: Scalars['Boolean']['output'];
+  /** @deprecated use revokePublicPage */
+  revokePage: Scalars['Boolean']['output'];
+  revokePublicPage: WorkspacePage;
+  sendChangeEmail: Scalars['Boolean']['output'];
+  sendChangePasswordEmail: Scalars['Boolean']['output'];
+  sendSetPasswordEmail: Scalars['Boolean']['output'];
+  sendVerifyChangeEmail: Scalars['Boolean']['output'];
+  sendVerifyEmail: Scalars['Boolean']['output'];
+  setBlob: Scalars['String']['output'];
+  setWorkspaceExperimentalFeature: Scalars['Boolean']['output'];
+  /** @deprecated renamed to publishPage */
+  sharePage: Scalars['Boolean']['output'];
+  /** Update a copilot prompt */
+  updateCopilotPrompt: CopilotPromptType;
+  updateProfile: UserType;
+  /** update server runtime configurable setting */
+  updateRuntimeConfig: ServerRuntimeConfigType;
+  /** update multiple server runtime configurable settings */
+  updateRuntimeConfigs: Array<ServerRuntimeConfigType>;
+  updateSubscriptionRecurring: UserSubscription;
+  /** Update workspace */
+  updateWorkspace: WorkspaceType;
+  /** Upload user avatar */
+  uploadAvatar: UserType;
+  verifyEmail: Scalars['Boolean']['output'];
+}
+
+export interface MutationAcceptInviteByIdArgs {
+  inviteId: Scalars['String']['input'];
+  sendAcceptMail: InputMaybe<Scalars['Boolean']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationAddAdministerArgs {
+  email: Scalars['String']['input'];
+}
+
+export interface MutationAddToEarlyAccessArgs {
+  email: Scalars['String']['input'];
+  type: EarlyAccessType;
+}
+
+export interface MutationAddWorkspaceFeatureArgs {
+  feature: FeatureType;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationCancelSubscriptionArgs {
+  idempotencyKey: Scalars['String']['input'];
+  plan?: InputMaybe<SubscriptionPlan>;
+}
+
+export interface MutationChangeEmailArgs {
+  email: Scalars['String']['input'];
+  token: Scalars['String']['input'];
+}
+
+export interface MutationChangePasswordArgs {
+  newPassword: Scalars['String']['input'];
+  token: Scalars['String']['input'];
+}
+
+export interface MutationCleanupCopilotSessionArgs {
+  options: DeleteSessionInput;
+}
+
+export interface MutationCreateCheckoutSessionArgs {
+  input: CreateCheckoutSessionInput;
+}
+
+export interface MutationCreateCopilotMessageArgs {
+  options: CreateChatMessageInput;
+}
+
+export interface MutationCreateCopilotPromptArgs {
+  input: CreateCopilotPromptInput;
+}
+
+export interface MutationCreateCopilotSessionArgs {
+  options: CreateChatSessionInput;
+}
+
+export interface MutationCreateUserArgs {
+  input: CreateUserInput;
+}
+
+export interface MutationCreateWorkspaceArgs {
+  init: InputMaybe<Scalars['Upload']['input']>;
+}
+
+export interface MutationDeleteBlobArgs {
+  hash: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationDeleteUserArgs {
+  id: Scalars['String']['input'];
+}
+
+export interface MutationDeleteWorkspaceArgs {
+  id: Scalars['String']['input'];
+}
+
+export interface MutationInviteArgs {
+  email: Scalars['String']['input'];
+  permission: Permission;
+  sendInviteMail: InputMaybe<Scalars['Boolean']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationLeaveWorkspaceArgs {
+  sendLeaveMail: InputMaybe<Scalars['Boolean']['input']>;
+  workspaceId: Scalars['String']['input'];
+  workspaceName: Scalars['String']['input'];
+}
+
+export interface MutationPublishPageArgs {
+  mode?: InputMaybe<PublicPageMode>;
+  pageId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationRecoverDocArgs {
+  guid: Scalars['String']['input'];
+  timestamp: Scalars['DateTime']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationRemoveEarlyAccessArgs {
+  email: Scalars['String']['input'];
+}
+
+export interface MutationRemoveWorkspaceFeatureArgs {
+  feature: FeatureType;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationResumeSubscriptionArgs {
+  idempotencyKey: Scalars['String']['input'];
+  plan?: InputMaybe<SubscriptionPlan>;
+}
+
+export interface MutationRevokeArgs {
+  userId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationRevokePageArgs {
+  pageId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationRevokePublicPageArgs {
+  pageId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationSendChangeEmailArgs {
+  callbackUrl: Scalars['String']['input'];
+  email: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface MutationSendChangePasswordEmailArgs {
+  callbackUrl: Scalars['String']['input'];
+  email: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface MutationSendSetPasswordEmailArgs {
+  callbackUrl: Scalars['String']['input'];
+  email: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface MutationSendVerifyChangeEmailArgs {
+  callbackUrl: Scalars['String']['input'];
+  email: Scalars['String']['input'];
+  token: Scalars['String']['input'];
+}
+
+export interface MutationSendVerifyEmailArgs {
+  callbackUrl: Scalars['String']['input'];
+}
+
+export interface MutationSetBlobArgs {
+  blob: Scalars['Upload']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationSetWorkspaceExperimentalFeatureArgs {
+  enable: Scalars['Boolean']['input'];
+  feature: FeatureType;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationSharePageArgs {
+  pageId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationUpdateCopilotPromptArgs {
+  messages: Array<CopilotPromptMessageInput>;
+  name: Scalars['String']['input'];
+}
+
+export interface MutationUpdateProfileArgs {
+  input: UpdateUserInput;
+}
+
+export interface MutationUpdateRuntimeConfigArgs {
+  id: Scalars['String']['input'];
+  value: Scalars['JSON']['input'];
+}
+
+export interface MutationUpdateRuntimeConfigsArgs {
+  updates: Scalars['JSONObject']['input'];
+}
+
+export interface MutationUpdateSubscriptionRecurringArgs {
+  idempotencyKey: Scalars['String']['input'];
+  plan?: InputMaybe<SubscriptionPlan>;
+  recurring: SubscriptionRecurring;
+}
+
+export interface MutationUpdateWorkspaceArgs {
+  input: UpdateWorkspaceInput;
+}
+
+export interface MutationUploadAvatarArgs {
+  avatar: Scalars['Upload']['input'];
+}
+
+export interface MutationVerifyEmailArgs {
+  token: Scalars['String']['input'];
+}
+
+export interface NotInWorkspaceDataType {
+  __typename?: 'NotInWorkspaceDataType';
+  workspaceId: Scalars['String']['output'];
 }
 
 export enum OAuthProviderType {
   GitHub = 'GitHub',
   Google = 'Google',
   OIDC = 'OIDC',
+}
+
+export interface PasswordLimitsType {
+  __typename?: 'PasswordLimitsType';
+  maxLength: Scalars['Int']['output'];
+  minLength: Scalars['Int']['output'];
 }
 
 /** User permission in workspace */
@@ -153,11 +637,108 @@ export enum PublicPageMode {
   Page = 'Page',
 }
 
+export interface Query {
+  __typename?: 'Query';
+  /** @deprecated no more needed */
+  checkBlobSize: WorkspaceBlobSizes;
+  /** @deprecated use `user.storageUsage` instead */
+  collectAllBlobSizes: WorkspaceBlobSizes;
+  /** Get current user */
+  currentUser: Maybe<UserType>;
+  earlyAccessUsers: Array<UserType>;
+  error: ErrorDataUnion;
+  /** send workspace invitation */
+  getInviteInfo: InvitationType;
+  /** Get is owner of workspace */
+  isOwner: Scalars['Boolean']['output'];
+  /**
+   * List blobs of workspace
+   * @deprecated use `workspace.blobs` instead
+   */
+  listBlobs: Array<Scalars['String']['output']>;
+  /** List all copilot prompts */
+  listCopilotPrompts: Array<CopilotPromptType>;
+  listWorkspaceFeatures: Array<WorkspaceType>;
+  prices: Array<SubscriptionPrice>;
+  /** server config */
+  serverConfig: ServerConfigType;
+  /** get all server runtime configurable settings */
+  serverRuntimeConfig: Array<ServerRuntimeConfigType>;
+  /** Get user by email */
+  user: Maybe<UserOrLimitedUser>;
+  /** Get user by id */
+  userById: UserType;
+  /** List registered users */
+  users: Array<UserType>;
+  /** Get workspace by id */
+  workspace: WorkspaceType;
+  /** Get all accessible workspaces for current user */
+  workspaces: Array<WorkspaceType>;
+}
+
+export interface QueryCheckBlobSizeArgs {
+  size: Scalars['SafeInt']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryErrorArgs {
+  name: Errors;
+}
+
+export interface QueryGetInviteInfoArgs {
+  inviteId: Scalars['String']['input'];
+}
+
+export interface QueryIsOwnerArgs {
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryListBlobsArgs {
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryListWorkspaceFeaturesArgs {
+  feature: FeatureType;
+}
+
+export interface QueryUserArgs {
+  email: Scalars['String']['input'];
+}
+
+export interface QueryUserByIdArgs {
+  id: Scalars['String']['input'];
+}
+
+export interface QueryUsersArgs {
+  filter: ListUserInput;
+}
+
+export interface QueryWorkspaceArgs {
+  id: Scalars['String']['input'];
+}
+
 export interface QueryChatHistoriesInput {
   action: InputMaybe<Scalars['Boolean']['input']>;
   limit: InputMaybe<Scalars['Int']['input']>;
   sessionId: InputMaybe<Scalars['String']['input']>;
   skip: InputMaybe<Scalars['Int']['input']>;
+}
+
+export interface QuotaQueryType {
+  __typename?: 'QuotaQueryType';
+  blobLimit: Scalars['SafeInt']['output'];
+  copilotActionLimit: Maybe<Scalars['SafeInt']['output']>;
+  historyPeriod: Scalars['SafeInt']['output'];
+  humanReadable: HumanReadableQuotaType;
+  memberLimit: Scalars['SafeInt']['output'];
+  name: Scalars['String']['output'];
+  storageQuota: Scalars['SafeInt']['output'];
+  usedSize: Scalars['SafeInt']['output'];
+}
+
+export interface RemoveAvatar {
+  __typename?: 'RemoveAvatar';
+  success: Scalars['Boolean']['output'];
 }
 
 export enum RuntimeConfigType {
@@ -166,6 +747,32 @@ export enum RuntimeConfigType {
   Number = 'Number',
   Object = 'Object',
   String = 'String',
+}
+
+export interface ServerConfigType {
+  __typename?: 'ServerConfigType';
+  /** server base url */
+  baseUrl: Scalars['String']['output'];
+  /** credentials requirement */
+  credentialsRequirement: CredentialsRequirementType;
+  /** enable telemetry */
+  enableTelemetry: Scalars['Boolean']['output'];
+  /** enabled server features */
+  features: Array<ServerFeature>;
+  /** server flags */
+  flags: ServerFlagsType;
+  /**
+   * server flavor
+   * @deprecated use `features`
+   */
+  flavor: Scalars['String']['output'];
+  /** server identical name could be shown as badge on user interface */
+  name: Scalars['String']['output'];
+  oauthProviders: Array<OAuthProviderType>;
+  /** server type */
+  type: ServerDeploymentType;
+  /** server version */
+  version: Scalars['String']['output'];
 }
 
 export enum ServerDeploymentType {
@@ -179,6 +786,33 @@ export enum ServerFeature {
   Payment = 'Payment',
 }
 
+export interface ServerFlagsType {
+  __typename?: 'ServerFlagsType';
+  earlyAccessControl: Scalars['Boolean']['output'];
+  syncClientVersionCheck: Scalars['Boolean']['output'];
+}
+
+export interface ServerRuntimeConfigType {
+  __typename?: 'ServerRuntimeConfigType';
+  description: Scalars['String']['output'];
+  id: Scalars['String']['output'];
+  key: Scalars['String']['output'];
+  module: Scalars['String']['output'];
+  type: RuntimeConfigType;
+  updatedAt: Scalars['DateTime']['output'];
+  value: Scalars['JSON']['output'];
+}
+
+export interface SubscriptionAlreadyExistsDataType {
+  __typename?: 'SubscriptionAlreadyExistsDataType';
+  plan: Scalars['String']['output'];
+}
+
+export interface SubscriptionNotExistsDataType {
+  __typename?: 'SubscriptionNotExistsDataType';
+  plan: Scalars['String']['output'];
+}
+
 export enum SubscriptionPlan {
   AI = 'AI',
   Enterprise = 'Enterprise',
@@ -188,9 +822,29 @@ export enum SubscriptionPlan {
   Team = 'Team',
 }
 
+export interface SubscriptionPlanNotFoundDataType {
+  __typename?: 'SubscriptionPlanNotFoundDataType';
+  plan: Scalars['String']['output'];
+  recurring: Scalars['String']['output'];
+}
+
+export interface SubscriptionPrice {
+  __typename?: 'SubscriptionPrice';
+  amount: Maybe<Scalars['Int']['output']>;
+  currency: Scalars['String']['output'];
+  plan: SubscriptionPlan;
+  type: Scalars['String']['output'];
+  yearlyAmount: Maybe<Scalars['Int']['output']>;
+}
+
 export enum SubscriptionRecurring {
   Monthly = 'Monthly',
   Yearly = 'Yearly',
+}
+
+export interface SubscriptionRecurringExistsDataType {
+  __typename?: 'SubscriptionRecurringExistsDataType';
+  recurring: Scalars['String']['output'];
 }
 
 export enum SubscriptionStatus {
@@ -213,6 +867,189 @@ export interface UpdateWorkspaceInput {
   id: Scalars['ID']['input'];
   /** is Public workspace */
   public: InputMaybe<Scalars['Boolean']['input']>;
+}
+
+export interface UserInvoice {
+  __typename?: 'UserInvoice';
+  amount: Scalars['Int']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  currency: Scalars['String']['output'];
+  id: Scalars['String']['output'];
+  lastPaymentError: Maybe<Scalars['String']['output']>;
+  link: Maybe<Scalars['String']['output']>;
+  plan: SubscriptionPlan;
+  reason: Scalars['String']['output'];
+  recurring: SubscriptionRecurring;
+  status: InvoiceStatus;
+  updatedAt: Scalars['DateTime']['output'];
+}
+
+export type UserOrLimitedUser = LimitedUserType | UserType;
+
+export interface UserQuota {
+  __typename?: 'UserQuota';
+  blobLimit: Scalars['SafeInt']['output'];
+  historyPeriod: Scalars['SafeInt']['output'];
+  humanReadable: UserQuotaHumanReadable;
+  memberLimit: Scalars['Int']['output'];
+  name: Scalars['String']['output'];
+  storageQuota: Scalars['SafeInt']['output'];
+}
+
+export interface UserQuotaHumanReadable {
+  __typename?: 'UserQuotaHumanReadable';
+  blobLimit: Scalars['String']['output'];
+  historyPeriod: Scalars['String']['output'];
+  memberLimit: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  storageQuota: Scalars['String']['output'];
+}
+
+export interface UserSubscription {
+  __typename?: 'UserSubscription';
+  canceledAt: Maybe<Scalars['DateTime']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  end: Scalars['DateTime']['output'];
+  id: Scalars['String']['output'];
+  nextBillAt: Maybe<Scalars['DateTime']['output']>;
+  /**
+   * The 'Free' plan just exists to be a placeholder and for the type convenience of frontend.
+   * There won't actually be a subscription with plan 'Free'
+   */
+  plan: SubscriptionPlan;
+  recurring: SubscriptionRecurring;
+  start: Scalars['DateTime']['output'];
+  status: SubscriptionStatus;
+  trialEnd: Maybe<Scalars['DateTime']['output']>;
+  trialStart: Maybe<Scalars['DateTime']['output']>;
+  updatedAt: Scalars['DateTime']['output'];
+}
+
+export interface UserType {
+  __typename?: 'UserType';
+  /** User avatar url */
+  avatarUrl: Maybe<Scalars['String']['output']>;
+  copilot: Copilot;
+  /**
+   * User email verified
+   * @deprecated useless
+   */
+  createdAt: Maybe<Scalars['DateTime']['output']>;
+  /** User email */
+  email: Scalars['String']['output'];
+  /** User email verified */
+  emailVerified: Scalars['Boolean']['output'];
+  /** Enabled features of a user */
+  features: Array<FeatureType>;
+  /** User password has been set */
+  hasPassword: Maybe<Scalars['Boolean']['output']>;
+  id: Scalars['ID']['output'];
+  /** Get user invoice count */
+  invoiceCount: Scalars['Int']['output'];
+  invoices: Array<UserInvoice>;
+  /** User name */
+  name: Scalars['String']['output'];
+  quota: Maybe<UserQuota>;
+  /** @deprecated use `UserType.subscriptions` */
+  subscription: Maybe<UserSubscription>;
+  subscriptions: Array<UserSubscription>;
+  /** @deprecated use [/api/auth/authorize] */
+  token: TokenType;
+}
+
+export interface UserTypeCopilotArgs {
+  workspaceId: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface UserTypeInvoicesArgs {
+  skip: InputMaybe<Scalars['Int']['input']>;
+  take?: InputMaybe<Scalars['Int']['input']>;
+}
+
+export interface UserTypeSubscriptionArgs {
+  plan?: InputMaybe<SubscriptionPlan>;
+}
+
+export interface VersionRejectedDataType {
+  __typename?: 'VersionRejectedDataType';
+  version: Scalars['Int']['output'];
+}
+
+export interface WorkspaceBlobSizes {
+  __typename?: 'WorkspaceBlobSizes';
+  size: Scalars['SafeInt']['output'];
+}
+
+export interface WorkspaceNotFoundDataType {
+  __typename?: 'WorkspaceNotFoundDataType';
+  workspaceId: Scalars['String']['output'];
+}
+
+export interface WorkspacePage {
+  __typename?: 'WorkspacePage';
+  id: Scalars['String']['output'];
+  mode: PublicPageMode;
+  public: Scalars['Boolean']['output'];
+  workspaceId: Scalars['String']['output'];
+}
+
+export interface WorkspaceType {
+  __typename?: 'WorkspaceType';
+  /** Available features of workspace */
+  availableFeatures: Array<FeatureType>;
+  /** List blobs of workspace */
+  blobs: Array<Scalars['String']['output']>;
+  /** Blobs size of workspace */
+  blobsSize: Scalars['Int']['output'];
+  /** Workspace created date */
+  createdAt: Scalars['DateTime']['output'];
+  /** Enabled features of workspace */
+  features: Array<FeatureType>;
+  histories: Array<DocHistoryType>;
+  id: Scalars['ID']['output'];
+  /** member count of workspace */
+  memberCount: Scalars['Int']['output'];
+  /** Members of workspace */
+  members: Array<InviteUserType>;
+  /** Owner of workspace */
+  owner: UserType;
+  /** Permission of current signed in user in workspace */
+  permission: Permission;
+  /** is Public workspace */
+  public: Scalars['Boolean']['output'];
+  /** Get public page of a workspace by page id. */
+  publicPage: Maybe<WorkspacePage>;
+  /** Public pages of a workspace */
+  publicPages: Array<WorkspacePage>;
+  /** quota of workspace */
+  quota: QuotaQueryType;
+  /**
+   * Shared pages of workspace
+   * @deprecated use WorkspaceType.publicPages
+   */
+  sharedPages: Array<Scalars['String']['output']>;
+}
+
+export interface WorkspaceTypeHistoriesArgs {
+  before: InputMaybe<Scalars['DateTime']['input']>;
+  guid: Scalars['String']['input'];
+  take: InputMaybe<Scalars['Int']['input']>;
+}
+
+export interface WorkspaceTypeMembersArgs {
+  skip: InputMaybe<Scalars['Int']['input']>;
+  take: InputMaybe<Scalars['Int']['input']>;
+}
+
+export interface WorkspaceTypePublicPageArgs {
+  pageId: Scalars['String']['input'];
+}
+
+export interface TokenType {
+  __typename?: 'tokenType';
+  refresh: Scalars['String']['output'];
+  sessionToken: Maybe<Scalars['String']['output']>;
+  token: Scalars['String']['output'];
 }
 
 export type DeleteBlobMutationVariables = Exact<{
