@@ -174,5 +174,97 @@ describe.each([{ name: 'idb', backend: IndexedDBJobQueue }])(
         ]);
       }
     });
+
+    test('waitForAccept', async () => {
+      const abort = new AbortController();
+
+      let result = null as any;
+      queue.waitForAccept(abort.signal).then(jobs => (result = jobs));
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      expect(result).toBeNull();
+
+      await queue.enqueue([
+        {
+          batchKey: '1',
+          payload: { a: 'hello' },
+        },
+      ]);
+
+      await vitest.waitFor(() => {
+        expect(result).toEqual([
+          {
+            id: expect.any(String),
+            batchKey: '1',
+            payload: { a: 'hello' },
+          },
+        ]);
+      });
+    });
+
+    test('waitForAccept race', async () => {
+      const abort = new AbortController();
+
+      let result1 = null as any;
+      let result2 = null as any;
+      queue.waitForAccept(abort.signal).then(jobs => (result1 = jobs));
+      queue.waitForAccept(abort.signal).then(jobs => (result2 = jobs));
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      expect(result1).toBeNull();
+      expect(result2).toBeNull();
+
+      await queue.enqueue([
+        {
+          batchKey: '1',
+          payload: { a: 'hello' },
+        },
+      ]);
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      expect([result1, result2]).toEqual(
+        expect.arrayContaining([
+          [
+            {
+              id: expect.any(String),
+              batchKey: '1',
+              payload: { a: 'hello' },
+            },
+          ],
+          null,
+        ])
+      );
+
+      await queue.enqueue([
+        {
+          batchKey: '2',
+          payload: { a: 'world' },
+        },
+      ]);
+
+      await vitest.waitFor(() => {
+        expect([result1, result2]).toEqual(
+          expect.arrayContaining([
+            [
+              {
+                id: expect.any(String),
+                batchKey: '1',
+                payload: { a: 'hello' },
+              },
+            ],
+            [
+              {
+                id: expect.any(String),
+                batchKey: '2',
+                payload: { a: 'world' },
+              },
+            ],
+          ])
+        );
+      });
+    });
   }
 );

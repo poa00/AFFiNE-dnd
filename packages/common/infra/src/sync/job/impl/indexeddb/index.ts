@@ -54,6 +54,11 @@ export class IndexedDBJobQueue<J> implements JobQueue<J> {
         startTime: null,
       });
     }
+
+    trx.commit();
+
+    // send broadcast to notify new jobs
+    this.broadcast.postMessage('new-jobs');
   }
 
   async accept(): Promise<Job[] | null> {
@@ -136,7 +141,18 @@ export class IndexedDBJobQueue<J> implements JobQueue<J> {
       };
 
       while (throwIfAborted(signal)) {
-        await deferred.promise;
+        await Promise.race([
+          deferred.promise,
+          new Promise((_, reject) => {
+            // exit if manually stopped
+            if (signal?.aborted) {
+              reject(signal.reason);
+            }
+            signal?.addEventListener('abort', () => {
+              reject(signal.reason);
+            });
+          }),
+        ]);
         deferred = defer();
         const jobs = await this.accept();
         if (jobs !== null) {
