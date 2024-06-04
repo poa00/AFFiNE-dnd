@@ -1,8 +1,8 @@
 import type { WorkflowNode } from './node';
 
 export enum WorkflowNodeType {
-  Basic,
-  Decision,
+  Basic = 'basic',
+  Decision = 'decision',
 }
 
 export type NodeData = { id: string; name: string } & (

@@ -1,3 +1,5 @@
+import { Injectable } from '@nestjs/common';
+
 import { ChatPrompt, PromptService } from '../../prompt';
 import { CopilotProviderService } from '../../providers';
 import { CopilotChatOptions, CopilotTextProvider } from '../../types';
@@ -7,40 +9,48 @@ import {
   WorkflowResult,
   WorkflowResultType,
 } from '../types';
-import { WorkflowExecutor, WorkflowExecutorType } from './types';
+import { WorkflowExecutorType } from './types';
+import { AutoRegisteredWorkflowExecutor } from './utils';
 
-export class CopilotChatTextExecutor extends WorkflowExecutor {
-  private data: (NodeData & { nodeType: WorkflowNodeType.Basic }) | null = null;
-  private prompt: ChatPrompt | null = null;
-  private provider: CopilotTextProvider | null = null;
-
-  override async initExecutor(
-    data: NodeData,
-    prompt: PromptService,
-    provider: CopilotProviderService
+@Injectable()
+export class CopilotChatTextExecutor extends AutoRegisteredWorkflowExecutor {
+  constructor(
+    private readonly promptService: PromptService,
+    private readonly providerService: CopilotProviderService
   ) {
-    if (this.prompt && this.provider) return;
+    super();
+  }
 
+  private async initExecutor(
+    data: NodeData
+  ): Promise<
+    [
+      NodeData & { nodeType: WorkflowNodeType.Basic },
+      ChatPrompt,
+      CopilotTextProvider,
+    ]
+  > {
     if (data.nodeType !== WorkflowNodeType.Basic) {
       throw new Error(
         `Executor ${this.type} not support ${data.nodeType} node`
       );
     }
-    this.data = data;
 
-    this.prompt = await prompt.get(this.data.promptName);
-    if (!this.prompt) {
+    const prompt = await this.promptService.get(data.promptName);
+    if (!prompt) {
       throw new Error(
-        `Prompt ${this.data.promptName} not found when running workflow node ${this.data.name}`
+        `Prompt ${data.promptName} not found when running workflow node ${data.name}`
       );
     }
-    const p = await provider.getProviderByModel(this.prompt.model);
-    if (p && 'generateText' in p) {
-      this.provider = p;
+    const provider = await this.providerService.getProviderByModel(
+      prompt.model
+    );
+    if (provider && 'generateText' in provider) {
+      return [data, prompt, provider];
     }
 
     throw new Error(
-      `Provider not found for model ${this.prompt.model} when running workflow node ${this.data.name}`
+      `Provider not found for model ${prompt.model} when running workflow node ${data.name}`
     );
   }
 
@@ -49,39 +59,36 @@ export class CopilotChatTextExecutor extends WorkflowExecutor {
   }
 
   override async *next(
+    data: NodeData,
     params: Record<string, string>,
     options?: CopilotChatOptions
   ): AsyncIterable<WorkflowResult> {
-    if (!this.data || !this.prompt || !this.provider) {
-      throw new Error(`Node ${this.data?.name || 'unnamed'} not initialized`);
-    }
+    const [{ paramKey, id }, prompt, provider] = await this.initExecutor(data);
 
-    if (this.data.nodeType === WorkflowNodeType.Basic) {
-      const finalMessage = this.prompt.finish(params);
-      if (this.data.paramKey) {
-        // update params with custom key
+    const finalMessage = prompt.finish(params);
+    if (paramKey) {
+      // update params with custom key
+      yield {
+        type: WorkflowResultType.Params,
+        params: {
+          [paramKey]: await provider.generateText(
+            finalMessage,
+            prompt.model,
+            options
+          ),
+        },
+      };
+    } else {
+      for await (const content of provider.generateTextStream(
+        finalMessage,
+        prompt.model,
+        options
+      )) {
         yield {
-          type: WorkflowResultType.Params,
-          params: {
-            [this.data.paramKey]: await this.provider.generateText(
-              finalMessage,
-              this.prompt.model,
-              options
-            ),
-          },
+          type: WorkflowResultType.Content,
+          nodeId: id,
+          content,
         };
-      } else {
-        for await (const content of this.provider.generateTextStream(
-          finalMessage,
-          this.prompt.model,
-          options
-        )) {
-          yield {
-            type: WorkflowResultType.Content,
-            nodeId: this.data.id,
-            content,
-          };
-        }
       }
     }
   }

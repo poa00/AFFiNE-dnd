@@ -1,24 +1,6 @@
-import { NodeData } from '../types';
-import {
-  WorkflowExecutor,
-  WorkflowExecutorDefinition,
-  WorkflowExecutorType,
-} from './types';
+import { CopilotChatTextExecutor } from './chat-text';
 
-const WORKFLOW_EXECUTOR: Map<string, WorkflowExecutorDefinition> = new Map();
+export const CopilotWorkflowExecutors = [CopilotChatTextExecutor];
 
-export function registerWorkflowExecutor(e: WorkflowExecutorDefinition) {
-  WORKFLOW_EXECUTOR.set(e.type, e);
-}
-
-export async function getWorkflowExecutor(
-  type: WorkflowExecutorType,
-  data: NodeData
-): Promise<WorkflowExecutor> {
-  const executor = WORKFLOW_EXECUTOR.get(type);
-  if (!executor) {
-    throw new Error(`Executor ${type} not defined`);
-  }
-  const instance = new executor(data);
-  return instance;
-}
+export { type WorkflowExecutor, WorkflowExecutorType } from './types';
+export { getWorkflowExecutor } from './utils';
