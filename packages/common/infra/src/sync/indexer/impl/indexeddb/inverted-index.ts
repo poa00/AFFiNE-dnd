@@ -97,12 +97,12 @@ export class FullTextInvertedIndex implements InvertedIndex {
           IDBKeyRange.bound(key.buffer(), key.add1().buffer(), false, true)
         );
       for (const obj of objs) {
-        const position = obj.position ?? {
-          index: 0,
-          length: 0,
-          ranges: [],
+        const position = obj.pos ?? {
+          i: 0,
+          l: 0,
+          rs: [],
         };
-        const termFreq = position.ranges.length;
+        const termFreq = position.rs.length;
         const totalCount = objs.length;
         const avgFieldLength =
           (
@@ -110,7 +110,7 @@ export class FullTextInvertedIndex implements InvertedIndex {
               .objectStore('kvMetadata')
               .get(`full-text:avg-field-length:${this.fieldKey}`)
           )?.value ?? 0;
-        const fieldLength = position.length;
+        const fieldLength = position.l;
         const score = bm25(
           termFreq,
           1,
@@ -123,9 +123,9 @@ export class FullTextInvertedIndex implements InvertedIndex {
           positions: new Map(),
         };
         match.score.push(score);
-        const ranges = match.positions.get(position.index) || [];
-        ranges.push(...position.ranges);
-        match.positions.set(position.index, ranges);
+        const ranges = match.positions.get(position.i) || [];
+        ranges.push(...position.rs);
+        match.positions.set(position.i, ranges);
         matched.set(obj.nid, match);
       }
     }
@@ -183,10 +183,10 @@ export class FullTextInvertedIndex implements InvertedIndex {
         await trx.objectStore('invertedIndex').add({
           key: InvertedIndexKey.forString(this.fieldKey, term).buffer(),
           nid: id,
-          position: {
-            length: term.length,
-            index: i,
-            ranges: tokens.map(token => [token.start, token.end]),
+          pos: {
+            l: term.length,
+            i: i,
+            rs: tokens.map(token => [token.start, token.end]),
           },
         });
       }

@@ -3,6 +3,7 @@ import {
   type IDBPDatabase,
   type IDBPTransaction,
   openDB,
+  type StoreNames,
 } from 'idb';
 
 import type {
@@ -42,10 +43,10 @@ export interface IndexDB extends DBSchema {
     key: number;
     value: {
       nid: number;
-      position?: {
-        index: number;
-        length: number;
-        ranges: [number, number][] /* [start, end] */;
+      pos?: {
+        i: number /* index */;
+        l: number /* length */;
+        rs: [number, number][] /* ranges: [start, end] */;
       };
       key: ArrayBuffer;
     };
@@ -105,13 +106,11 @@ export class DataStruct {
     }
   }
 
-  async insert(document: Document) {
+  async insert(
+    trx: IDBPTransaction<IndexDB, ArrayLike<StoreNames<IndexDB>>, 'readwrite'>,
+    document: Document
+  ) {
     this.ensureInitialized(this.database);
-
-    const trx = this.database.transaction(
-      ['kvMetadata', 'records', 'invertedIndex'],
-      'readwrite'
-    );
 
     const exists = await trx
       .objectStore('records')
@@ -138,14 +137,31 @@ export class DataStruct {
     }
   }
 
-  async delete(id: string) {
+  async delete(
+    trx: IDBPTransaction<IndexDB, ArrayLike<StoreNames<IndexDB>>, 'readwrite'>,
+    id: string
+  ) {
     this.ensureInitialized(this.database);
-    const trx = this.database.transaction(['records'], 'readwrite');
 
     const nid = await trx.objectStore('records').index('id').getKey(id);
 
     if (nid) {
       await trx.objectStore('records').delete(nid);
+    }
+  }
+
+  async batchWrite(deletes: string[], inserts: Document[]) {
+    this.ensureInitialized(this.database);
+    const trx = this.database.transaction(
+      ['records', 'invertedIndex', 'kvMetadata'],
+      'readwrite'
+    );
+
+    for (const del of deletes) {
+      await this.delete(trx, del);
+    }
+    for (const inst of inserts) {
+      await this.insert(trx, inst);
     }
   }
 

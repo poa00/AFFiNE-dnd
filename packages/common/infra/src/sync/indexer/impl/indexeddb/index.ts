@@ -12,7 +12,7 @@ import type {
 import { DataStruct } from './data-struct';
 
 export class IndexedDBIndex implements BackendIndex {
-  private data: DataStruct | null = null;
+  data: DataStruct | null = null;
 
   constructor(private readonly databaseName: string = 'indexer') {}
 
@@ -66,13 +66,7 @@ export class IndexedDBIndexWriter implements BackendWriter {
     this.deletes.push(id);
   }
   async commit(): Promise<void> {
-    for (const del of this.deletes) {
-      await this.data.delete(del);
-    }
-    for (const inst of this.inserts) {
-      await this.data.insert(inst);
-    }
-    return;
+    return this.data.batchWrite(this.deletes, this.inserts);
   }
   rollback(): void {}
   has(id: string): Promise<boolean> {

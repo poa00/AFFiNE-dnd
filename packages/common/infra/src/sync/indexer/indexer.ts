@@ -12,8 +12,8 @@ import type {
 
 export class Index<S extends Schema> implements Searcher<S> {
   constructor(
-    private readonly schema: S,
-    private readonly backend: BackendIndex
+    readonly schema: S,
+    readonly backend: BackendIndex
   ) {}
 
   async initialize(cleanup: boolean): Promise<void> {
