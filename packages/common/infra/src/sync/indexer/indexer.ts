@@ -1,41 +1,29 @@
-import type { BackendIndex } from './backend';
-import { IndexWriter } from './index-writer';
-import type { Query } from './query';
+import type { Document } from './document';
 import type { Schema } from './schema';
-import type {
-  AggregateOptions,
-  AggregateResult,
-  Searcher,
-  SearchOptions,
-  SearchResult,
-} from './searcher';
+import type { Searcher } from './searcher';
 
-export class Index<S extends Schema> implements Searcher<S> {
-  constructor(
-    readonly schema: S,
-    readonly backend: BackendIndex
-  ) {}
+export interface Index<S extends Schema> extends IndexReader, Searcher<S> {
+  initialize(schema: S, cleanup?: boolean): Promise<void>;
 
-  async initialize(cleanup: boolean): Promise<void> {
-    return this.backend.initialize(this.schema, cleanup);
-  }
+  write(): Promise<IndexWriter<S>>;
+}
 
-  search<const O extends SearchOptions<S>>(
-    query: Query<S>,
-    options: O = {} as O
-  ): Promise<SearchResult<S, O>> {
-    return this.backend.search(query, options);
-  }
+export interface IndexWriter<S extends Schema> extends IndexReader {
+  insert(document: Document<S>): void;
 
-  aggregate<const O extends AggregateOptions<S>>(
-    query: Query<S>,
-    field: keyof S,
-    options: O = {} as O
-  ): Promise<AggregateResult<S, O>> {
-    return this.backend.aggregate(query, field, options);
-  }
+  put(document: Document<S>): void;
 
-  async write(): Promise<IndexWriter<S>> {
-    return new IndexWriter(await this.backend.write());
-  }
+  delete(id: string): void;
+
+  commit(): Promise<void>;
+
+  rollback(): void;
+}
+
+export interface IndexReader {
+  has(id: string): Promise<boolean>;
+}
+
+export interface IndexStorage {
+  getIndex<S extends Schema>(name: string): Index<S>;
 }

@@ -14,4 +14,15 @@ export class Document<S extends Schema = any> {
     }
     this.fields.set(field, values);
   }
+
+  static from<S extends Schema>(
+    id: string,
+    map: Record<keyof S, string | string[]>
+  ): Document<S> {
+    const doc = new Document(id);
+    for (const key in map) {
+      doc.insert(key, map[key] as string | string[]);
+    }
+    return doc;
+  }
 }

@@ -27,7 +27,10 @@ export class IndexedDBJobQueue<J> implements JobQueue<J> {
 
   constructor(private readonly databaseName: string = 'jobs') {}
 
-  async initialize(cleanup: boolean): Promise<void> {
+  async initialize(cleanup: boolean = false): Promise<void> {
+    if (this.database) {
+      return;
+    }
     this.database = await openDB(this.databaseName, 1, {
       upgrade(database) {
         const jobs = database.createObjectStore('jobs', {
@@ -135,6 +138,8 @@ export class IndexedDBJobQueue<J> implements JobQueue<J> {
 
     try {
       let deferred = defer();
+
+      deferred.resolve();
 
       broadcast.onmessage = () => {
         deferred.resolve();

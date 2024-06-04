@@ -33,6 +33,7 @@ export class JobRunner<J> {
   }
 
   async loop(signal: AbortSignal) {
+    await this.queue.initialize();
     while (throwIfAborted(signal)) {
       const jobs = await this.queue.waitForAccept(signal);
 
@@ -42,6 +43,7 @@ export class JobRunner<J> {
           await this.queue.complete(jobs);
         } catch (err) {
           await this.queue.return(jobs);
+          // TODO: error handling
           throw err;
         }
       } else {

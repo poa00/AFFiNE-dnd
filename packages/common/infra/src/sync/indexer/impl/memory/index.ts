@@ -1,9 +1,10 @@
 import type {
   AggregateOptions,
   AggregateResult,
-  BackendIndex,
-  BackendWriter,
   Document,
+  Index,
+  IndexStorage,
+  IndexWriter,
   Query,
   Schema,
   SearchOptions,
@@ -12,7 +13,7 @@ import type {
 import { DataStruct } from './data-struct';
 import type { Match } from './match';
 
-export class MemoryIndex implements BackendIndex {
+export class MemoryIndex<S extends Schema> implements Index<S> {
   private data: DataStruct | null = null;
 
   private ensureInitialized(
@@ -23,12 +24,15 @@ export class MemoryIndex implements BackendIndex {
     }
   }
 
-  initialize(schema: Schema): Promise<void> {
+  async initialize(schema: Schema): Promise<void> {
+    if (this.data) {
+      throw new Error('MemoryBackend already initialized');
+    }
     this.data = new DataStruct(schema);
-    return Promise.resolve();
+    return;
   }
 
-  write(): Promise<BackendWriter> {
+  write(): Promise<IndexWriter<S>> {
     this.ensureInitialized(this.data);
     return Promise.resolve(new MemoryIndexWriter(this.data));
   }
@@ -40,7 +44,7 @@ export class MemoryIndex implements BackendIndex {
 
   search(
     query: Query<any>,
-    options: SearchOptions<any>
+    options: SearchOptions<any> = {}
   ): Promise<SearchResult<any, any>> {
     this.ensureInitialized(this.data);
     const data = this.data;
@@ -70,7 +74,7 @@ export class MemoryIndex implements BackendIndex {
   aggregate(
     query: Query<any>,
     field: string,
-    options: AggregateOptions<any>
+    options: AggregateOptions<any> = {}
   ): Promise<AggregateResult<any, any>> {
     this.ensureInitialized(this.data);
     const data = this.data;
@@ -182,7 +186,7 @@ export class MemoryIndex implements BackendIndex {
   }
 }
 
-export class MemoryIndexWriter implements BackendWriter {
+export class MemoryIndexWriter<S extends Schema> implements IndexWriter<S> {
   inserts: Document[] = [];
   deletes: string[] = [];
 
@@ -193,6 +197,10 @@ export class MemoryIndexWriter implements BackendWriter {
   }
   delete(id: string): void {
     this.deletes.push(id);
+  }
+  put(document: Document): void {
+    this.delete(document.id);
+    this.insert(document);
   }
   commit(): Promise<void> {
     for (const del of this.deletes) {
@@ -206,5 +214,11 @@ export class MemoryIndexWriter implements BackendWriter {
   rollback(): void {}
   has(id: string): Promise<boolean> {
     return Promise.resolve(this.data.has(id));
+  }
+}
+
+export class MemoryIndexStorage implements IndexStorage {
+  getIndex<S extends Schema>(_: string): Index<S> {
+    return new MemoryIndex();
   }
 }

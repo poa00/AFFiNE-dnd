@@ -5,7 +5,7 @@ import 'fake-indexeddb/auto';
 
 import { beforeEach, describe, expect, test } from 'vitest';
 
-import { Document, Index } from '..';
+import { Document, type Index } from '..';
 import { IndexedDBIndex } from '../impl/indexeddb';
 import { MemoryIndex } from '../impl/memory';
 
@@ -30,8 +30,8 @@ describe.each([
   { name: 'idb', backend: IndexedDBIndex },
 ])('movies tests($name)', ({ backend }) => {
   beforeEach(async () => {
-    index = new Index(schema, new backend());
-    await index.initialize(true);
+    index = new backend();
+    await index.initialize(schema, true);
 
     const writer = await index.write();
 
