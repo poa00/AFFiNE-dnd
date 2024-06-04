@@ -1,3 +1,4 @@
+import { WorkflowExecutorType } from './executor';
 import { type WorkflowGraphList, WorkflowNodeType } from './types';
 
 export const WorkflowGraphs: WorkflowGraphList = [
@@ -8,7 +9,7 @@ export const WorkflowGraphs: WorkflowGraphList = [
         id: 'start',
         name: 'Start: check language',
         nodeType: WorkflowNodeType.Basic,
-        type: 'text',
+        type: WorkflowExecutorType.ChatText,
         promptName: 'workflow:presentation:step1',
         paramKey: 'language',
         edges: ['step2'],
@@ -17,7 +18,7 @@ export const WorkflowGraphs: WorkflowGraphList = [
         id: 'step2',
         name: 'Step 2: generate presentation',
         nodeType: WorkflowNodeType.Basic,
-        type: 'text',
+        type: WorkflowExecutorType.ChatText,
         promptName: 'workflow:presentation:step2',
         edges: [],
         // edges: ['step3'],
@@ -26,7 +27,7 @@ export const WorkflowGraphs: WorkflowGraphList = [
       //     id: 'step3',
       //     name: 'Step 3: check format',
       //     nodeType: WorkflowNodeType.Basic,
-      //     type: 'text',
+      //     type: WorkflowExecutorType.ChatText,
       //     promptName: 'workflow:presentation:step3',
       //     paramKey: 'needFormat',
       //     edges: ['step4'],
@@ -48,7 +49,7 @@ export const WorkflowGraphs: WorkflowGraphList = [
       //   id: 'step5',
       //   name: 'Step 5: format presentation',
       //   nodeType: WorkflowNodeType.Basic,
-      //   type: 'text',
+      //   type: WorkflowExecutorType.ChatText,
       //   promptName: 'workflow:presentation:step5',
       //   edges: ['step6'],
       // },
@@ -56,7 +57,7 @@ export const WorkflowGraphs: WorkflowGraphList = [
       //   id: 'step6',
       //   name: 'Step 6: finish',
       //   nodeType: WorkflowNodeType.Basic,
-      //   type: 'text',
+      //   type: WorkflowExecutorType.ChatText,
       //   promptName: 'workflow:presentation:step6',
       //   edges: [],
       // },

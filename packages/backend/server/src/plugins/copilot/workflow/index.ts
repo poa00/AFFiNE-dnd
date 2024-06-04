@@ -74,3 +74,5 @@ export class CopilotWorkflowService {
     }
   }
 }
+
+export { CopilotWorkflowExecutors } from './executor';

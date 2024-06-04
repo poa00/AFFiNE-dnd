@@ -1,3 +1,4 @@
+import type { WorkflowExecutorType } from './executor';
 import type { WorkflowNode } from './node';
 
 export enum WorkflowNodeType {
@@ -9,7 +10,7 @@ export type NodeData = { id: string; name: string } & (
   | {
       nodeType: WorkflowNodeType.Basic;
       promptName: string;
-      type: 'text' | 'image';
+      type: WorkflowExecutorType;
       // update the prompt params by output with the custom key
       paramKey?: string;
     }
