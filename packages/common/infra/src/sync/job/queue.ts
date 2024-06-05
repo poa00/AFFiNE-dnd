@@ -8,8 +8,6 @@ export interface Job<Payload = any> extends JobParams<Payload> {
 }
 
 export interface JobQueue<Payload> {
-  initialize(cleanup?: boolean): Promise<void>;
-
   enqueue(jobs: JobParams<Payload>[]): Promise<void>;
 
   accept(): Promise<Job<Payload>[] | null>;

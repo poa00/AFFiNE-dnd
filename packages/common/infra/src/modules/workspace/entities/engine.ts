@@ -27,6 +27,7 @@ export class WorkspaceEngine extends Entity<{
   );
 
   crawler = new CrawlerEngine(
+    this.workspaceService.workspace.id,
     new IndexedDBJobQueue('jq:' + this.workspaceService.workspace.id),
     this.doc,
     new IndexedDBIndexStorage('idx:' + this.workspaceService.workspace.id)

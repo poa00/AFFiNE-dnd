@@ -33,7 +33,6 @@ export class JobRunner<J> {
   }
 
   async loop(signal: AbortSignal) {
-    await this.queue.initialize();
     while (throwIfAborted(signal)) {
       const jobs = await this.queue.waitForAccept(signal);
 

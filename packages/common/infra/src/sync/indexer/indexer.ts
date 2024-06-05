@@ -2,13 +2,15 @@ import type { Document } from './document';
 import type { Schema } from './schema';
 import type { Searcher } from './searcher';
 
-export interface Index<S extends Schema> extends IndexReader, Searcher<S> {
-  initialize(schema: S, cleanup?: boolean): Promise<void>;
-
+export interface Index<S extends Schema> extends IndexReader<S>, Searcher<S> {
   write(): Promise<IndexWriter<S>>;
+
+  clear(): Promise<void>;
 }
 
-export interface IndexWriter<S extends Schema> extends IndexReader {
+export interface IndexWriter<S extends Schema>
+  extends IndexReader<S>,
+    Searcher<S> {
   insert(document: Document<S>): void;
 
   put(document: Document<S>): void;
@@ -20,10 +22,14 @@ export interface IndexWriter<S extends Schema> extends IndexReader {
   rollback(): void;
 }
 
-export interface IndexReader {
+export interface IndexReader<S extends Schema> {
+  get(id: string): Promise<Document<S> | null>;
+
+  getAll(ids: string[]): Promise<Document<S>[]>;
+
   has(id: string): Promise<boolean>;
 }
 
 export interface IndexStorage {
-  getIndex<S extends Schema>(name: string): Index<S>;
+  getIndex<S extends Schema>(name: string, schema: S): Index<S>;
 }

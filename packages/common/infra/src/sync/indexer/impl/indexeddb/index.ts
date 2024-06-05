@@ -10,55 +10,54 @@ import {
   type SearchOptions,
   type SearchResult,
 } from '../../';
-import { DataStruct } from './data-struct';
+import { DataStruct, type DataStructRWTransaction } from './data-struct';
 
 export class IndexedDBIndex<S extends Schema> implements Index<S> {
-  data: DataStruct | null = null;
+  data: DataStruct = new DataStruct(this.databaseName, this.schema);
 
-  constructor(private readonly databaseName: string = 'indexer') {}
+  constructor(
+    private readonly schema: S,
+    private readonly databaseName: string = 'indexer'
+  ) {}
 
-  private ensureInitialized(
-    data: DataStruct | null
-  ): asserts data is DataStruct {
-    if (!data) {
-      throw new Error('IndexedDBIndex not initialized');
-    }
+  async get(id: string): Promise<Document<S> | null> {
+    return (await this.getAll([id]))[0] ?? null;
   }
 
-  async initialize(schema: Schema, cleanup: boolean = false): Promise<void> {
-    if (this.data) {
-      throw new Error('IndexedDBIndex already initialized');
-    }
-    const data = new DataStruct(this.databaseName, schema);
-    await data.initialize(cleanup);
-    this.data = data;
+  async getAll(ids: string[]): Promise<Document<S>[]> {
+    const trx = await this.data.readonly();
+    return this.data.getAll(trx, ids);
   }
 
   async write(): Promise<IndexWriter<S>> {
-    this.ensureInitialized(this.data);
-    return new IndexedDBIndexWriter(this.data);
+    return new IndexedDBIndexWriter(this.data, await this.data.readwrite());
   }
 
   async has(id: string): Promise<boolean> {
-    this.ensureInitialized(this.data);
-    return this.data.has(id);
+    const trx = await this.data.readonly();
+    return this.data.has(trx, id);
   }
 
   async search(
     query: Query<any>,
     options: SearchOptions<any> = {}
   ): Promise<SearchResult<any, SearchOptions<any>>> {
-    this.ensureInitialized(this.data);
-    return this.data.search(query, options);
+    const trx = await this.data.readonly();
+    return this.data.search(trx, query, options);
   }
 
-  aggregate(
+  async aggregate(
     query: Query<any>,
     field: string,
     options: AggregateOptions<any> = {}
   ): Promise<AggregateResult<any, AggregateOptions<any>>> {
-    this.ensureInitialized(this.data);
-    return this.data.aggregate(query, field, options);
+    const trx = await this.data.readonly();
+    return this.data.aggregate(trx, query, field, options);
+  }
+
+  async clear(): Promise<void> {
+    const trx = await this.data.readwrite();
+    return this.data.clear(trx);
   }
 }
 
@@ -66,7 +65,19 @@ export class IndexedDBIndexWriter<S extends Schema> implements IndexWriter<S> {
   inserts: Document[] = [];
   deletes: string[] = [];
 
-  constructor(private readonly data: DataStruct) {}
+  constructor(
+    private readonly data: DataStruct,
+    private readonly trx: DataStructRWTransaction
+  ) {}
+
+  async get(id: string): Promise<Document<S> | null> {
+    return (await this.getAll([id]))[0] ?? null;
+  }
+
+  async getAll(ids: string[]): Promise<Document<S>[]> {
+    const trx = await this.data.readonly();
+    return this.data.getAll(trx, ids);
+  }
 
   insert(document: Document): void {
     this.inserts.push(document);
@@ -78,18 +89,36 @@ export class IndexedDBIndexWriter<S extends Schema> implements IndexWriter<S> {
     this.delete(document.id);
     this.insert(document);
   }
+
   async commit(): Promise<void> {
-    return this.data.batchWrite(this.deletes, this.inserts);
+    return this.data.batchWrite(this.trx, this.deletes, this.inserts);
   }
+
   rollback(): void {}
+
   has(id: string): Promise<boolean> {
-    return Promise.resolve(this.data.has(id));
+    return this.data.has(this.trx, id);
+  }
+
+  async search(
+    query: Query<any>,
+    options: SearchOptions<any> = {}
+  ): Promise<SearchResult<any, SearchOptions<any>>> {
+    return this.data.search(this.trx, query, options);
+  }
+
+  async aggregate(
+    query: Query<any>,
+    field: string,
+    options: AggregateOptions<any> = {}
+  ): Promise<AggregateResult<any, AggregateOptions<any>>> {
+    return this.data.aggregate(this.trx, query, field, options);
   }
 }
 
 export class IndexedDBIndexStorage implements IndexStorage {
   constructor(private readonly databaseName: string) {}
-  getIndex<S extends Schema>(name: string): Index<S> {
-    return new IndexedDBIndex(this.databaseName + ':' + name);
+  getIndex<S extends Schema>(name: string, s: S): Index<S> {
+    return new IndexedDBIndex(s, this.databaseName + ':' + name);
   }
 }

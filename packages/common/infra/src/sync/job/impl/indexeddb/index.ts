@@ -21,33 +21,14 @@ interface JobRecord {
 }
 
 export class IndexedDBJobQueue<J> implements JobQueue<J> {
-  database: IDBPDatabase<IndexDB> | null = null;
+  database: IDBPDatabase<IndexDB> = null as any;
   priorityMap = new Map<string, number>();
   broadcast = new BroadcastChannel('idb-job-queue:' + this.databaseName);
 
   constructor(private readonly databaseName: string = 'jobs') {}
 
-  async initialize(cleanup: boolean = false): Promise<void> {
-    if (this.database) {
-      return;
-    }
-    this.database = await openDB(this.databaseName, 1, {
-      upgrade(database) {
-        const jobs = database.createObjectStore('jobs', {
-          autoIncrement: true,
-        });
-        jobs.createIndex('batchKey', 'batchKey');
-      },
-    });
-
-    if (cleanup) {
-      const trx = this.database.transaction(['jobs'], 'readwrite');
-      await trx.objectStore('jobs').clear();
-    }
-  }
-
   async enqueue(jobs: JobParams[]): Promise<void> {
-    this.ensureInitialized(this.database);
+    await this.ensureInitialized();
     const trx = this.database.transaction(['jobs'], 'readwrite');
 
     for (const job of jobs) {
@@ -65,7 +46,7 @@ export class IndexedDBJobQueue<J> implements JobQueue<J> {
   }
 
   async accept(): Promise<Job[] | null> {
-    this.ensureInitialized(this.database);
+    await this.ensureInitialized();
     const jobs = [];
     const trx = this.database.transaction(['jobs'], 'readwrite');
 
@@ -171,7 +152,7 @@ export class IndexedDBJobQueue<J> implements JobQueue<J> {
   }
 
   async complete(jobs: Job[]): Promise<void> {
-    this.ensureInitialized(this.database);
+    await this.ensureInitialized();
     const trx = this.database.transaction(['jobs'], 'readwrite');
 
     for (const { id } of jobs) {
@@ -182,7 +163,7 @@ export class IndexedDBJobQueue<J> implements JobQueue<J> {
   }
 
   async return(jobs: Job[]): Promise<void> {
-    this.ensureInitialized(this.database);
+    await this.ensureInitialized();
     const trx = this.database.transaction(['jobs'], 'readwrite');
 
     for (const { id } of jobs) {
@@ -195,7 +176,7 @@ export class IndexedDBJobQueue<J> implements JobQueue<J> {
   }
 
   async clear(): Promise<void> {
-    this.ensureInitialized(this.database);
+    await this.ensureInitialized();
     const trx = this.database.transaction(['jobs'], 'readwrite');
     await trx.objectStore('jobs').clear();
   }
@@ -208,12 +189,24 @@ export class IndexedDBJobQueue<J> implements JobQueue<J> {
     this.priorityMap.delete(batchKey);
   }
 
-  private ensureInitialized(
-    data: IDBPDatabase<IndexDB> | null
-  ): asserts data is IDBPDatabase<IndexDB> {
-    if (!data) {
-      throw new Error('IndexedDBJobQueue not initialized');
+  private async ensureInitialized(): Promise<void> {
+    if (!this.database) {
+      await this.initialize();
     }
+  }
+
+  private async initialize(): Promise<void> {
+    if (this.database) {
+      return;
+    }
+    this.database = await openDB(this.databaseName, 1, {
+      upgrade(database) {
+        const jobs = database.createObjectStore('jobs', {
+          autoIncrement: true,
+        });
+        jobs.createIndex('batchKey', 'batchKey');
+      },
+    });
   }
 
   TIMEOUT = 1000 * 60 * 1 /* 1 minute */;

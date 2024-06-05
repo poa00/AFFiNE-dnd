@@ -6,16 +6,17 @@ import {
   type StoreNames,
 } from 'idb';
 
-import type {
-  AggregateOptions,
-  AggregateResult,
+import {
+  type AggregateOptions,
+  type AggregateResult,
   Document,
-  Query,
-  Schema,
-  SearchOptions,
-  SearchResult,
+  type Query,
+  type Schema,
+  type SearchOptions,
+  type SearchResult,
 } from '../../';
 import {
+  BooleanInvertedIndex,
   FullTextInvertedIndex,
   IntegerInvertedIndex,
   type InvertedIndex,
@@ -54,8 +55,21 @@ export interface IndexDB extends DBSchema {
   };
 }
 
+export type DataStructRWTransaction = IDBPTransaction<
+  IndexDB,
+  ArrayLike<StoreNames<IndexDB>>,
+  'readwrite'
+>;
+
+export type DataStructROTransaction = IDBPTransaction<
+  IndexDB,
+  ArrayLike<StoreNames<IndexDB>>,
+  'readonly' | 'readwrite'
+>;
+
 export class DataStruct {
-  database: IDBPDatabase<IndexDB> | null = null;
+  private initializePromise: Promise<void> | null = null;
+  database: IDBPDatabase<IndexDB> = null as any;
   invertedIndex = new Map<string, InvertedIndex>();
 
   constructor(
@@ -69,49 +83,15 @@ export class DataStruct {
         this.invertedIndex.set(key, new IntegerInvertedIndex(key));
       } else if (type === 'FullText') {
         this.invertedIndex.set(key, new FullTextInvertedIndex(key));
-      } else if (type === 'Date') {
-        this.invertedIndex.set(key, new IntegerInvertedIndex(key));
+      } else if (type === 'Boolean') {
+        this.invertedIndex.set(key, new BooleanInvertedIndex(key));
       } else {
         throw new Error(`Field type '${type}' not supported`);
       }
     }
   }
 
-  async initialize(cleanup: boolean) {
-    this.database = await openDB<IndexDB>(this.databaseName, 1, {
-      upgrade(database) {
-        database.createObjectStore('kvMetadata', {
-          keyPath: 'key',
-        });
-        const recordsStore = database.createObjectStore('records', {
-          autoIncrement: true,
-        });
-        recordsStore.createIndex('id', 'id', {
-          unique: true,
-        });
-        const invertedIndexStore = database.createObjectStore('invertedIndex', {
-          autoIncrement: true,
-        });
-        invertedIndexStore.createIndex('key', 'key', { unique: false });
-      },
-    });
-    if (cleanup) {
-      const trx = this.database.transaction(
-        ['records', 'invertedIndex', 'kvMetadata'],
-        'readwrite'
-      );
-      await trx.objectStore('records').clear();
-      await trx.objectStore('invertedIndex').clear();
-      await trx.objectStore('kvMetadata').clear();
-    }
-  }
-
-  async insert(
-    trx: IDBPTransaction<IndexDB, ArrayLike<StoreNames<IndexDB>>, 'readwrite'>,
-    document: Document
-  ) {
-    this.ensureInitialized(this.database);
-
+  async insert(trx: DataStructRWTransaction, document: Document) {
     const exists = await trx
       .objectStore('records')
       .index('id')
@@ -137,12 +117,7 @@ export class DataStruct {
     }
   }
 
-  async delete(
-    trx: IDBPTransaction<IndexDB, ArrayLike<StoreNames<IndexDB>>, 'readwrite'>,
-    id: string
-  ) {
-    this.ensureInitialized(this.database);
-
+  async delete(trx: DataStructRWTransaction, id: string) {
     const nid = await trx.objectStore('records').index('id').getKey(id);
 
     if (nid) {
@@ -150,13 +125,11 @@ export class DataStruct {
     }
   }
 
-  async batchWrite(deletes: string[], inserts: Document[]) {
-    this.ensureInitialized(this.database);
-    const trx = this.database.transaction(
-      ['records', 'invertedIndex', 'kvMetadata'],
-      'readwrite'
-    );
-
+  async batchWrite(
+    trx: DataStructRWTransaction,
+    deletes: string[],
+    inserts: Document[]
+  ) {
     for (const del of deletes) {
       await this.delete(trx, del);
     }
@@ -165,9 +138,7 @@ export class DataStruct {
     }
   }
 
-  async matchAll(trx: IDBPTransaction<IndexDB>): Promise<Match> {
-    this.ensureInitialized(this.database);
-
+  async matchAll(trx: DataStructROTransaction): Promise<Match> {
     const allNids = await trx.objectStore('records').getAllKeys();
     const match = new Match();
 
@@ -178,7 +149,7 @@ export class DataStruct {
   }
 
   private async queryRaw(
-    trx: IDBPTransaction<IndexDB>,
+    trx: DataStructROTransaction,
     query: Query<any>
   ): Promise<Match> {
     if (query.type === 'match') {
@@ -202,15 +173,16 @@ export class DataStruct {
       }
     } else if (query.type === 'all') {
       return await this.matchAll(trx);
+    } else if (query.type === 'boost') {
+      return (await this.queryRaw(trx, query.query)).boost(query.boost);
     }
     throw new Error(`Query type '${query.type}' not supported`);
   }
 
   private async query(
-    trx: IDBPTransaction<IndexDB>,
+    trx: DataStructROTransaction,
     query: Query<any>
   ): Promise<Match> {
-    this.ensureInitialized(this.database);
     const match = await this.queryRaw(trx, query);
     const filteredMatch = match.asyncFilter(async nid => {
       const record = await trx.objectStore('records').getKey(nid);
@@ -219,16 +191,17 @@ export class DataStruct {
     return filteredMatch;
   }
 
+  async clear(trx: DataStructRWTransaction) {
+    await trx.objectStore('records').clear();
+    await trx.objectStore('invertedIndex').clear();
+    await trx.objectStore('kvMetadata').clear();
+  }
+
   async search(
+    trx: DataStructROTransaction,
     query: Query<any>,
     options: SearchOptions<any>
   ): Promise<SearchResult<any, any>> {
-    this.ensureInitialized(this.database);
-    const trx = this.database.transaction(
-      ['records', 'invertedIndex', 'kvMetadata'],
-      'readonly'
-    );
-
     const pagination = {
       skip: options.pagination?.skip ?? 0,
       limit: options.pagination?.limit ?? 100,
@@ -257,12 +230,11 @@ export class DataStruct {
   }
 
   async aggregate(
+    trx: DataStructROTransaction,
     query: Query<any>,
     field: string,
     options: AggregateOptions<any>
   ): Promise<AggregateResult<any, any>> {
-    this.ensureInitialized(this.database);
-
     const pagination = {
       skip: options.pagination?.skip ?? 0,
       limit: options.pagination?.limit ?? 100,
@@ -277,11 +249,6 @@ export class DataStruct {
           skip: 0,
           limit: 0,
         };
-
-    const trx = this.database.transaction(
-      ['records', 'invertedIndex', 'kvMetadata'],
-      'readonly'
-    );
 
     const match = await this.query(trx, query);
 
@@ -359,23 +326,72 @@ export class DataStruct {
     };
   }
 
-  async has(id: string): Promise<boolean> {
-    this.ensureInitialized(this.database);
-    const trx = this.database.transaction(['records'], 'readonly');
-    const nid = trx.objectStore('records').index('id').getKey(id);
+  async getAll(
+    trx: DataStructROTransaction,
+    ids: string[]
+  ): Promise<Document[]> {
+    const docs = [];
+    for (const id of ids) {
+      const record = await trx.objectStore('records').index('id').get(id);
+      if (record) {
+        docs.push(Document.from(record.id, record.data));
+      }
+    }
+
+    return docs;
+  }
+
+  async has(trx: DataStructROTransaction, id: string): Promise<boolean> {
+    const nid = await trx.objectStore('records').index('id').getKey(id);
     return nid !== undefined;
   }
 
-  private ensureInitialized(
-    data: IDBPDatabase<IndexDB> | null
-  ): asserts data is IDBPDatabase<IndexDB> {
-    if (!data) {
-      throw new Error('DataStruct not initialized');
+  async readonly() {
+    await this.ensureInitialized();
+    return this.database.transaction(
+      ['records', 'invertedIndex', 'kvMetadata'],
+      'readonly'
+    );
+  }
+
+  async readwrite() {
+    await this.ensureInitialized();
+    return this.database.transaction(
+      ['records', 'invertedIndex', 'kvMetadata'],
+      'readwrite'
+    );
+  }
+
+  private async ensureInitialized() {
+    if (this.database) {
+      return;
     }
+    this.initializePromise ??= this.initialize();
+    await this.initializePromise;
+  }
+
+  private async initialize() {
+    this.database = await openDB<IndexDB>(this.databaseName, 1, {
+      upgrade(database) {
+        database.createObjectStore('kvMetadata', {
+          keyPath: 'key',
+        });
+        const recordsStore = database.createObjectStore('records', {
+          autoIncrement: true,
+        });
+        recordsStore.createIndex('id', 'id', {
+          unique: true,
+        });
+        const invertedIndexStore = database.createObjectStore('invertedIndex', {
+          autoIncrement: true,
+        });
+        invertedIndexStore.createIndex('key', 'key', { unique: false });
+      },
+    });
   }
 
   private async resultNode(
-    trx: IDBPTransaction<IndexDB>,
+    trx: DataStructROTransaction,
     match: Match,
     nid: number,
     options: SearchOptions<any>

@@ -6,6 +6,12 @@ export type MatchQuery<S extends Schema> = {
   match: string;
 };
 
+export type BoostQuery = {
+  type: 'boost';
+  query: Query<any>;
+  boost: number;
+};
+
 export type BooleanQuery<S extends Schema> = {
   type: 'boolean';
   occur: 'should' | 'must' | 'must_not';
@@ -19,4 +25,5 @@ export type AllQuery = {
 export type Query<S extends Schema> =
   | BooleanQuery<S>
   | MatchQuery<S>
-  | AllQuery;
+  | AllQuery
+  | BoostQuery;

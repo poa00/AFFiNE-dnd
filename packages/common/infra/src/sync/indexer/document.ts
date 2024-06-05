@@ -15,13 +15,31 @@ export class Document<S extends Schema = any> {
     this.fields.set(field, values);
   }
 
+  get<F extends keyof S>(field: F): string[] | string | undefined {
+    const values = this.fields.get(field);
+    if (values === undefined) {
+      return undefined;
+    } else if (values.length === 1) {
+      return values[0];
+    } else {
+      return values;
+    }
+  }
+
   static from<S extends Schema>(
     id: string,
-    map: Record<keyof S, string | string[]>
+    map: Record<keyof S, string | string[]> | Map<keyof S, string | string[]>
   ): Document<S> {
     const doc = new Document(id);
-    for (const key in map) {
-      doc.insert(key, map[key] as string | string[]);
+
+    if (map instanceof Map) {
+      for (const [key, value] of map) {
+        doc.insert(key, value);
+      }
+    } else {
+      for (const key in map) {
+        doc.insert(key, map[key] as string | string[]);
+      }
     }
     return doc;
   }

@@ -30,8 +30,8 @@ describe.each([
   { name: 'idb', backend: IndexedDBIndex },
 ])('movies tests($name)', ({ backend }) => {
   beforeEach(async () => {
-    index = new backend();
-    await index.initialize(schema, true);
+    index = new backend(schema);
+    index.clear();
 
     const writer = await index.write();
 

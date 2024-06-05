@@ -79,6 +79,15 @@ export class Match {
     return newWeight;
   }
 
+  boost(boost: number) {
+    const newWeight = new Match();
+    for (const [id, score] of this.scores) {
+      newWeight.addScore(id, score * boost);
+      newWeight.copyExtData(this, id);
+    }
+    return newWeight;
+  }
+
   toArray() {
     return Array.from(this.scores.entries())
       .sort((a, b) => b[1] - a[1])

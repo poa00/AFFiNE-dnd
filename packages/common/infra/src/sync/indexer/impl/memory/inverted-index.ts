@@ -8,6 +8,8 @@ export interface InvertedIndex {
   match(term: string): Match;
 
   insert(id: number, term: string): void;
+
+  clear(): void;
 }
 
 export class StringInvertedIndex implements InvertedIndex {
@@ -29,6 +31,10 @@ export class StringInvertedIndex implements InvertedIndex {
     const ids = this.index.get(term) ?? [];
     ids.push(id);
     this.index.set(term, ids);
+  }
+
+  clear(): void {
+    this.index.clear();
   }
 }
 
@@ -53,6 +59,38 @@ export class IntegerInvertedIndex implements InvertedIndex {
     const ids = this.index.get(term) ?? [];
     ids.push(id);
     this.index.set(term, ids);
+  }
+
+  clear(): void {
+    this.index.clear();
+  }
+}
+
+export class BooleanInvertedIndex implements InvertedIndex {
+  index: Map<boolean, number[]> = new Map();
+
+  constructor(readonly fieldKey: string) {}
+
+  // eslint-disable-next-line sonarjs/no-identical-functions
+  match(term: string): Match {
+    const match = new Match();
+
+    for (const id of this.index.get(term === 'true') ?? []) {
+      match.addScore(id, 1);
+    }
+
+    return match;
+  }
+
+  // eslint-disable-next-line sonarjs/no-identical-functions
+  insert(id: number, term: string): void {
+    const ids = this.index.get(term === 'true') ?? [];
+    ids.push(id);
+    this.index.set(term === 'true', ids);
+  }
+
+  clear(): void {
+    this.index.clear();
   }
 }
 
@@ -114,5 +152,10 @@ export class FullTextInvertedIndex implements InvertedIndex {
   insert(id: number, term: string): void {
     this.index.add({ id, v: term });
     this.records.push({ id, v: term });
+  }
+
+  clear(): void {
+    this.records = [];
+    this.index = Fuse.createIndex(['v'], [] as { id: number; v: string }[]);
   }
 }

@@ -17,7 +17,8 @@ describe.each([{ name: 'idb', backend: IndexedDBJobQueue }])(
   ({ backend }) => {
     beforeEach(async () => {
       queue = new backend();
-      await queue.initialize(true);
+
+      await queue.clear();
 
       vitest.useFakeTimers({
         toFake: ['Date'],

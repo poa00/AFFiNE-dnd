@@ -8,4 +8,5 @@ export const blockIndexSchema = {
   docId: 'String',
   blockId: 'String',
   content: 'FullText',
+  flavour: 'String',
 } satisfies Schema;

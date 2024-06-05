@@ -45,8 +45,8 @@ describe.each([
   }
 
   beforeEach(async () => {
-    index = new backend();
-    await index.initialize(schema, true);
+    index = new backend(schema);
+    await index.clear();
   });
 
   test('basic', async () => {

@@ -1,17 +1,18 @@
-import { type IDBPTransaction, type StoreNames } from 'idb';
-
 import { bm25 } from './bm25';
-import type { IndexDB } from './data-struct';
+import type {
+  DataStructROTransaction,
+  DataStructRWTransaction,
+} from './data-struct';
 import { Match } from './match';
 import { SimpleTokenizer, type Token } from './tokenizer';
 
 export interface InvertedIndex {
   fieldKey: string;
 
-  match(trx: IDBPTransaction<IndexDB>, term: string): Promise<Match>;
+  match(trx: DataStructROTransaction, term: string): Promise<Match>;
 
   insert(
-    trx: IDBPTransaction<IndexDB, ArrayLike<StoreNames<IndexDB>>, 'readwrite'>,
+    trx: DataStructRWTransaction,
     id: number,
     terms: string[]
   ): Promise<void>;
@@ -20,7 +21,7 @@ export interface InvertedIndex {
 export class StringInvertedIndex implements InvertedIndex {
   constructor(readonly fieldKey: string) {}
 
-  async match(trx: IDBPTransaction<IndexDB>, term: string): Promise<Match> {
+  async match(trx: DataStructROTransaction, term: string): Promise<Match> {
     const objs = await trx
       .objectStore('invertedIndex')
       .index('key')
@@ -32,11 +33,7 @@ export class StringInvertedIndex implements InvertedIndex {
     return match;
   }
 
-  async insert(
-    trx: IDBPTransaction<IndexDB, ArrayLike<StoreNames<IndexDB>>, 'readwrite'>,
-    id: number,
-    terms: string[]
-  ) {
+  async insert(trx: DataStructRWTransaction, id: number, terms: string[]) {
     for (const term of terms) {
       await trx.objectStore('invertedIndex').add({
         key: InvertedIndexKey.forString(this.fieldKey, term).buffer(),
@@ -49,7 +46,7 @@ export class StringInvertedIndex implements InvertedIndex {
 export class IntegerInvertedIndex implements InvertedIndex {
   constructor(readonly fieldKey: string) {}
 
-  async match(trx: IDBPTransaction<IndexDB>, term: string): Promise<Match> {
+  async match(trx: DataStructROTransaction, term: string): Promise<Match> {
     const objs = await trx
       .objectStore('invertedIndex')
       .index('key')
@@ -61,11 +58,7 @@ export class IntegerInvertedIndex implements InvertedIndex {
     return match;
   }
 
-  async insert(
-    trx: IDBPTransaction<IndexDB, ArrayLike<StoreNames<IndexDB>>, 'readwrite'>,
-    id: number,
-    terms: string[]
-  ) {
+  async insert(trx: DataStructRWTransaction, id: number, terms: string[]) {
     for (const term of terms) {
       await trx.objectStore('invertedIndex').add({
         key: InvertedIndexKey.forInt64(this.fieldKey, BigInt(term)).buffer(),
@@ -75,10 +68,40 @@ export class IntegerInvertedIndex implements InvertedIndex {
   }
 }
 
+export class BooleanInvertedIndex implements InvertedIndex {
+  constructor(readonly fieldKey: string) {}
+
+  async match(trx: DataStructROTransaction, term: string): Promise<Match> {
+    const objs = await trx
+      .objectStore('invertedIndex')
+      .index('key')
+      .getAll(
+        InvertedIndexKey.forBoolean(this.fieldKey, term === 'true').buffer()
+      );
+    const match = new Match();
+    for (const obj of objs) {
+      match.addScore(obj.nid, 1);
+    }
+    return match;
+  }
+
+  async insert(trx: DataStructRWTransaction, id: number, terms: string[]) {
+    for (const term of terms) {
+      await trx.objectStore('invertedIndex').add({
+        key: InvertedIndexKey.forBoolean(
+          this.fieldKey,
+          term === 'true'
+        ).buffer(),
+        nid: id,
+      });
+    }
+  }
+}
+
 export class FullTextInvertedIndex implements InvertedIndex {
   constructor(readonly fieldKey: string) {}
 
-  async match(trx: IDBPTransaction<IndexDB>, term: string): Promise<Match> {
+  async match(trx: DataStructROTransaction, term: string): Promise<Match> {
     const queryTokens = new SimpleTokenizer().tokenize(term);
 
     const matched = new Map<
@@ -162,11 +185,7 @@ export class FullTextInvertedIndex implements InvertedIndex {
     return match;
   }
 
-  async insert(
-    trx: IDBPTransaction<IndexDB, ArrayLike<StoreNames<IndexDB>>, 'readwrite'>,
-    id: number,
-    terms: string[]
-  ) {
+  async insert(trx: DataStructRWTransaction, id: number, terms: string[]) {
     for (let i = 0; i < terms.length; i++) {
       const tokenMap = new Map<string, Token[]>();
       const term = terms[i];
@@ -247,6 +266,12 @@ export class InvertedIndexKey {
       new TextEncoder().encode(field),
       new TextEncoder().encode(value)
     );
+  }
+
+  static forBoolean(field: string, value: boolean) {
+    const bytes = new Uint8Array(1);
+    bytes.set([value ? 1 : 0]);
+    return new InvertedIndexKey(new TextEncoder().encode(field), bytes);
   }
 
   static forInt64(field: string, value: bigint) {
