@@ -14,13 +14,7 @@ export interface JobQueue<Payload> {
 
   waitForAccept(signal: AbortSignal): Promise<Job<Payload>[]>;
 
-  return(jobs: Job<Payload>[]): Promise<void>;
-
-  complete(jobs: Job<Payload>[]): Promise<void>;
-
-  setPriority(batchKey: string, priority: number): void;
-
-  clearPriority(batchKey: string): void;
+  return(jobs: Job<Payload>[], retry?: boolean): Promise<void>;
 
   clear(): Promise<void>;
 }

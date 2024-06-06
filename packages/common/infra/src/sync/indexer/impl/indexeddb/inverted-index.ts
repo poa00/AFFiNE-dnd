@@ -3,6 +3,7 @@ import type {
   DataStructROTransaction,
   DataStructRWTransaction,
 } from './data-struct';
+import { highlighter } from './highlighter';
 import { Match } from './match';
 import { SimpleTokenizer, type Token } from './tokenizer';
 
@@ -161,25 +162,24 @@ export class FullTextInvertedIndex implements InvertedIndex {
       );
 
       match.addHighlighter(nid, this.fieldKey, (originTexts, before, after) => {
-        const highlighted = [];
+        const highlights = [];
         for (const [index, ranges] of positions) {
-          const merged = mergeRanges(ranges);
-
-          const originText = originTexts[index] ?? '';
-
-          let result = '';
-          let pointer = 0;
-          for (const [start, end] of merged) {
-            result += originText.substring(pointer, start);
-            result += `${before}${originText.substring(start, end)}${after}`;
-            pointer = end;
+          const highlighted = highlighter(
+            originTexts[index],
+            before,
+            after,
+            ranges,
+            {
+              maxPrefix: 20,
+              maxLength: 100,
+            }
+          );
+          if (highlighted) {
+            highlights.push(highlighted);
           }
-          result += originText.substring(pointer);
-
-          highlighted.push(result);
         }
 
-        return highlighted;
+        return highlights;
       });
     }
     return match;
@@ -299,25 +299,4 @@ export class InvertedIndexKey {
     const value = array.slice(fieldLength + 1);
     return new InvertedIndexKey(field, value);
   }
-}
-
-function mergeRanges(intervals: [number, number][]) {
-  if (intervals.length === 0) return [];
-
-  intervals.sort((a, b) => a[0] - b[0]);
-
-  const merged = [intervals[0]];
-
-  for (let i = 1; i < intervals.length; i++) {
-    const last = merged[merged.length - 1];
-    const current = intervals[i];
-
-    if (current[0] <= last[1]) {
-      last[1] = Math.max(last[1], current[1]);
-    } else {
-      merged.push(current);
-    }
-  }
-
-  return merged;
 }

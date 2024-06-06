@@ -51,7 +51,7 @@ export interface IndexDB extends DBSchema {
       };
       key: ArrayBuffer;
     };
-    indexes: { key: ArrayBuffer };
+    indexes: { key: ArrayBuffer; nid: number };
   };
 }
 
@@ -122,6 +122,14 @@ export class DataStruct {
 
     if (nid) {
       await trx.objectStore('records').delete(nid);
+    }
+
+    const indexIds = await trx
+      .objectStore('invertedIndex')
+      .index('nid')
+      .getAllKeys(nid);
+    for (const indexId of indexIds) {
+      await trx.objectStore('invertedIndex').delete(indexId);
     }
   }
 
@@ -386,6 +394,7 @@ export class DataStruct {
           autoIncrement: true,
         });
         invertedIndexStore.createIndex('key', 'key', { unique: false });
+        invertedIndexStore.createIndex('nid', 'nid', { unique: false });
       },
     });
   }

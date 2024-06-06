@@ -22,7 +22,6 @@ interface JobRecord {
 
 export class IndexedDBJobQueue<J> implements JobQueue<J> {
   database: IDBPDatabase<IndexDB> = null as any;
-  priorityMap = new Map<string, number>();
   broadcast = new BroadcastChannel('idb-job-queue:' + this.databaseName);
 
   constructor(private readonly databaseName: string = 'jobs') {}
@@ -50,49 +49,40 @@ export class IndexedDBJobQueue<J> implements JobQueue<J> {
     const jobs = [];
     const trx = this.database.transaction(['jobs'], 'readwrite');
 
-    for (const [batchKey, _] of Array.from(this.priorityMap.entries()).sort(
-      (a, b) => b[1] - a[1]
-    )) {
-      const jobIds = await trx
-        .objectStore('jobs')
-        .index('batchKey')
-        .getAllKeys(batchKey);
-
-      for (const id of jobIds) {
-        const job = await trx.objectStore('jobs').get(id);
-        if (job && this.isAcceptable(job)) {
-          jobs.push({ id, job });
-        }
-      }
-
-      if (jobs.length === 0) {
-        continue;
-      }
-
-      break;
-    }
-
     // if no priority jobs
 
     if (jobs.length === 0) {
       const batchKeys = trx.objectStore('jobs').index('batchKey').iterate();
 
-      let acceptedBatchKey: string | null = null;
+      let currentBatchKey: string = null as any;
+      let currentBatchJobs = [];
+      let skipCurrentBatch = false;
 
       for await (const item of batchKeys) {
-        if (
-          acceptedBatchKey !== null &&
-          item.value.batchKey !== acceptedBatchKey
-        ) {
-          break;
+        if (item.value.batchKey !== currentBatchKey) {
+          if (skipCurrentBatch === false && currentBatchJobs.length > 0) {
+            break;
+          }
+
+          currentBatchKey = item.value.batchKey;
+          currentBatchJobs = [];
+          skipCurrentBatch = false;
+        }
+        if (skipCurrentBatch) {
+          continue;
         }
         if (this.isAcceptable(item.value)) {
-          jobs.push({
+          currentBatchJobs.push({
             id: item.primaryKey,
             job: item.value,
           });
-          acceptedBatchKey = item.value.batchKey;
+        } else {
+          skipCurrentBatch = true;
         }
+      }
+
+      if (skipCurrentBatch === false && currentBatchJobs.length > 0) {
+        jobs.push(...currentBatchJobs);
       }
     }
 
@@ -162,15 +152,21 @@ export class IndexedDBJobQueue<J> implements JobQueue<J> {
     }
   }
 
-  async return(jobs: Job[]): Promise<void> {
+  async return(jobs: Job[], retry: boolean = false): Promise<void> {
     await this.ensureInitialized();
     const trx = this.database.transaction(['jobs'], 'readwrite');
 
     for (const { id } of jobs) {
-      const nid = typeof id === 'string' ? parseInt(id) : id;
-      const job = await trx.objectStore('jobs').get(nid);
-      if (job) {
-        await trx.objectStore('jobs').put({ ...job, startTime: null }, nid);
+      if (retry) {
+        const nid = typeof id === 'string' ? parseInt(id) : id;
+        const job = await trx.objectStore('jobs').get(nid);
+        if (job) {
+          await trx.objectStore('jobs').put({ ...job, startTime: null }, nid);
+        }
+      } else {
+        await trx
+          .objectStore('jobs')
+          .delete(typeof id === 'string' ? parseInt(id) : id);
       }
     }
   }
@@ -179,14 +175,6 @@ export class IndexedDBJobQueue<J> implements JobQueue<J> {
     await this.ensureInitialized();
     const trx = this.database.transaction(['jobs'], 'readwrite');
     await trx.objectStore('jobs').clear();
-  }
-
-  async setPriority(batchKey: string, priority: number): Promise<void> {
-    this.priorityMap.set(batchKey, priority);
-  }
-
-  async clearPriority(batchKey: string): Promise<void> {
-    this.priorityMap.delete(batchKey);
   }
 
   private async ensureInitialized(): Promise<void> {
@@ -209,7 +197,7 @@ export class IndexedDBJobQueue<J> implements JobQueue<J> {
     });
   }
 
-  TIMEOUT = 1000 * 60 * 1 /* 1 minute */;
+  TIMEOUT = 1000 * 30 /* 30 seconds */;
 
   private isTimeout(job: JobRecord) {
     return job.startTime !== null && job.startTime + this.TIMEOUT < Date.now();

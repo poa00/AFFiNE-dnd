@@ -39,11 +39,12 @@ export class JobRunner<J> {
       if (jobs !== null) {
         try {
           await this.worker(jobs, signal);
-          await this.queue.complete(jobs);
-        } catch (err) {
           await this.queue.return(jobs);
-          // TODO: error handling
-          throw err;
+        } catch (err) {
+          if (err === MANUALLY_STOP) {
+            await this.queue.return(jobs, true);
+          }
+          logger.error('Error processing jobs', err);
         }
       } else {
         await new Promise(resolve => setTimeout(resolve, 1000));

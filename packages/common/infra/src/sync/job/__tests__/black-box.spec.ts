@@ -43,26 +43,28 @@ describe.each([{ name: 'idb', backend: IndexedDBJobQueue }])(
       const job1 = await queue.accept();
       const job2 = await queue.accept();
 
-      expect([...job1!, ...job2!]).toEqual(
-        expect.arrayContaining([
+      expect([job1!, job2!]).toEqual([
+        [
           {
             id: expect.any(String),
             batchKey: '1',
             payload: { a: 'hello' },
           },
+        ],
+        [
           {
             id: expect.any(String),
             batchKey: '2',
             payload: { a: 'world' },
           },
-        ])
-      );
+        ],
+      ]);
 
       const job3 = await queue.accept();
       expect(job3).toBeNull();
 
-      await queue.complete(job1!);
-      await queue.complete(job2!);
+      await queue.return(job1!);
+      await queue.return(job2!);
     });
 
     test('batch', async () => {
@@ -92,48 +94,6 @@ describe.each([{ name: 'idb', backend: IndexedDBJobQueue }])(
           },
         ])
       );
-    });
-
-    test('priority', async () => {
-      await queue.enqueue([
-        {
-          batchKey: '1',
-          payload: { a: 'hello' },
-        },
-        {
-          batchKey: '2',
-          payload: { a: 'foo' },
-        },
-      ]);
-
-      queue.setPriority('2', 1);
-
-      const job1 = await queue.accept();
-
-      expect(job1).toEqual([
-        {
-          id: expect.any(String),
-          batchKey: '2',
-          payload: { a: 'foo' },
-        },
-      ]);
-
-      await queue.enqueue([
-        {
-          batchKey: '2',
-          payload: { a: 'bar' },
-        },
-      ]);
-
-      const job2 = await queue.accept();
-
-      expect(job2).toEqual([
-        {
-          id: expect.any(String),
-          batchKey: '2',
-          payload: { a: 'bar' },
-        },
-      ]);
     });
 
     test('timeout', async () => {
