@@ -1,47 +1,52 @@
 import { DebugLogger } from '@affine/debug';
+import type { Job, WorkspaceService } from '@toeverything/infra';
+import {
+  Document,
+  Entity,
+  IndexedDBIndexStorage,
+  IndexedDBJobQueue,
+  JobRunner,
+} from '@toeverything/infra';
 import { difference } from 'lodash-es';
 import type { Array as YArray, Map as YMap } from 'yjs';
 import { applyUpdate, Doc as YDoc } from 'yjs';
 
-import type { DocEngine } from '../doc';
-import { Document, type IndexStorage } from '../indexer';
-import type { Job, JobQueue } from '../job';
-import { JobRunner } from '../job';
-import { blockIndexSchema, docIndexSchema } from './schema';
+import { blockIndexSchema, docIndexSchema } from '../schema';
 
 const logger = new DebugLogger('crawler');
 
-interface CrawlerJobPayload {
+interface IndexerJobPayload {
   docId: string;
 }
 
-export class CrawlerEngine {
+export class DocIndexer extends Entity {
+  private readonly jobQueue = new IndexedDBJobQueue<IndexerJobPayload>(
+    'jq:' + this.workspaceService.workspace.id
+  );
+
   private readonly runner = new JobRunner(this.jobQueue, (jobs, signal) =>
     this.execJob(jobs, signal)
   );
 
-  private readonly docIndex = this.indexProvider.getIndex(
-    'doc',
-    docIndexSchema
+  private readonly indexStorage = new IndexedDBIndexStorage(
+    'idx:' + this.workspaceService.workspace.id
   );
 
-  private readonly blockIndex = this.indexProvider.getIndex(
-    'block',
-    blockIndexSchema
-  );
+  readonly docIndex = this.indexStorage.getIndex('doc', docIndexSchema);
 
-  constructor(
-    private readonly workspaceId: string,
-    private readonly jobQueue: JobQueue<CrawlerJobPayload>,
-    private readonly docEngine: DocEngine,
-    private readonly indexProvider: IndexStorage
-  ) {
-    this.setupListener();
+  readonly blockIndex = this.indexStorage.getIndex('block', blockIndexSchema);
+
+  private readonly workspaceEngine = this.workspaceService.workspace.engine;
+
+  private readonly workspaceId = this.workspaceService.workspace.id;
+
+  constructor(private readonly workspaceService: WorkspaceService) {
+    super();
   }
 
   setupListener() {
-    this.docEngine.storage.eventBus.on(event => {
-      if (event.clientId === this.docEngine.clientId) {
+    this.workspaceEngine.doc.storage.eventBus.on(event => {
+      if (event.clientId === this.workspaceEngine.doc.clientId) {
         const docId = event.docId;
 
         this.jobQueue
@@ -58,6 +63,30 @@ export class CrawlerEngine {
     });
   }
 
+  async execJob(jobs: Job<IndexerJobPayload>[], _signal: AbortSignal) {
+    if (jobs.length === 0) {
+      return;
+    }
+
+    // jobs should have the same docId, so we just pick the first one
+    const docId = jobs[0].payload.docId;
+
+    logger.debug('Start crawling job for docId:', docId);
+
+    if (docId) {
+      const buffer =
+        await this.workspaceEngine.doc.storage.loadDocFromLocal(docId);
+      if (!buffer) {
+        return;
+      }
+      if (docId === this.workspaceId) {
+        await this.crawlingRootDocData();
+      } else {
+        await this.crawlingDocData(docId);
+      }
+    }
+  }
+
   startCrawling() {
     this.runner.start();
     this.jobQueue
@@ -72,104 +101,11 @@ export class CrawlerEngine {
       });
   }
 
-  stopCrawling() {
-    this.runner.stop();
-  }
-
-  async execJob(jobs: Job<CrawlerJobPayload>[], _signal: AbortSignal) {
-    if (jobs.length === 0) {
-      return;
-    }
-
-    // jobs should have the same docId, so we just pick the first one
-    const docId = jobs[0].payload.docId;
-
-    logger.debug('Start crawling job for docId:', docId);
-
-    if (docId) {
-      const buffer = await this.docEngine.storage.loadDocFromLocal(docId);
-      if (!buffer) {
-        return;
-      }
-      if (docId === this.workspaceId) {
-        await this.crawlingRootDocData();
-      } else {
-        await this.crawlingDocData(docId);
-      }
-    }
-  }
-
-  async quickSearch(content: string) {
-    const result = await this.blockIndex.aggregate(
-      {
-        type: 'boolean',
-        occur: 'must',
-        queries: [
-          {
-            type: 'match',
-            field: 'content',
-            match: content,
-          },
-          {
-            type: 'boolean',
-            occur: 'should',
-            queries: [
-              {
-                type: 'all',
-              },
-              {
-                type: 'boost',
-                boost: 100,
-                query: {
-                  type: 'match',
-                  field: 'flavour',
-                  match: 'affine:page',
-                },
-              },
-            ],
-          },
-        ],
-      },
-      'docId',
-      {
-        pagination: {
-          limit: 10,
-          skip: 0,
-        },
-        hits: {
-          fields: ['blockId', 'flavour'],
-          highlights: [
-            {
-              field: 'content',
-              before: '<b>',
-              end: '</b>',
-            },
-          ],
-        },
-      }
-    );
-
-    const keys = result.buckets.map(bucket => bucket.key);
-
-    const docData = await this.docIndex.getAll([...keys]);
-
-    let str = '';
-
-    for (const bucket of result.buckets) {
-      const title = docData.find(doc => doc.id === bucket.key)?.get('title');
-      str += `《${title}》 (${bucket.count} matches) \n`;
-      for (const hit of bucket.hits?.nodes ?? []) {
-        str += ` - ${hit.highlights.content.join(' ')} (${hit.fields.flavour}) \n`;
-      }
-    }
-    console.log(str);
-  }
-
   async crawlingDocData(docId: string) {
-    const docBuffer = await this.docEngine.storage.loadDocFromLocal(docId);
-    const rootDocBuffer = await this.docEngine.storage.loadDocFromLocal(
-      this.workspaceId
-    );
+    const docBuffer =
+      await this.workspaceEngine.doc.storage.loadDocFromLocal(docId);
+    const rootDocBuffer =
+      await this.workspaceEngine.doc.storage.loadDocFromLocal(this.workspaceId);
     if (!docBuffer) {
       return;
     }
@@ -289,7 +225,7 @@ export class CrawlerEngine {
   }
 
   async crawlingRootDocData() {
-    const buffer = await this.docEngine.storage.loadDocFromLocal(
+    const buffer = await this.workspaceEngine.doc.storage.loadDocFromLocal(
       this.workspaceId
     );
     if (!buffer) {

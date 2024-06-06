@@ -1,4 +1,4 @@
-import type { Schema } from '../indexer';
+import type { Schema } from '@toeverything/infra';
 
 export const docIndexSchema = {
   title: 'FullText',

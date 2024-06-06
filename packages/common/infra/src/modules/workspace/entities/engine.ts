@@ -2,10 +2,8 @@ import type { Doc as YDoc } from 'yjs';
 
 import { Entity } from '../../../framework';
 import { AwarenessEngine, BlobEngine, DocEngine } from '../../../sync';
-import { CrawlerEngine } from '../../../sync/crawler';
-import { IndexedDBIndexStorage } from '../../../sync/indexer/impl/indexeddb';
-import { IndexedDBJobQueue } from '../../../sync/job/impl/indexeddb';
 import { throwIfAborted } from '../../../utils';
+import { WorkspaceEngineBeforeStart } from '../events';
 import type { WorkspaceEngineProvider } from '../providers/flavour';
 import type { WorkspaceService } from '../services/workspace';
 
@@ -26,13 +24,6 @@ export class WorkspaceEngine extends Entity<{
     this.props.engineProvider.getAwarenessConnections()
   );
 
-  crawler = new CrawlerEngine(
-    this.workspaceService.workspace.id,
-    new IndexedDBJobQueue('jq:' + this.workspaceService.workspace.id),
-    this.doc,
-    new IndexedDBIndexStorage('idx:' + this.workspaceService.workspace.id)
-  );
-
   constructor(private readonly workspaceService: WorkspaceService) {
     super();
   }
@@ -43,10 +34,10 @@ export class WorkspaceEngine extends Entity<{
   }
 
   start() {
+    this.eventBus.emit(WorkspaceEngineBeforeStart, this);
     this.doc.start();
     this.awareness.connect(this.workspaceService.workspace.awareness);
     this.blob.start();
-    this.crawler.startCrawling();
   }
 
   canGracefulStop() {
