@@ -239,7 +239,7 @@ test('should be able to chat with api', async t => {
   Sinon.restore();
 });
 
-test.only('should be able to chat with api by workflow', async t => {
+test('should be able to chat with api by workflow', async t => {
   const { app } = t.context;
 
   const { id } = await createWorkspace(app, token);
