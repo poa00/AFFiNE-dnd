@@ -1,7 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { PromptService } from '../prompt';
-import { CopilotProviderService } from '../providers';
 import { CopilotChatOptions } from '../types';
 import { WorkflowGraphs } from './graph';
 import { WorkflowNode } from './node';
@@ -11,10 +9,7 @@ import { CopilotWorkflow } from './workflow';
 @Injectable()
 export class CopilotWorkflowService {
   private readonly logger = new Logger(CopilotWorkflowService.name);
-  constructor(
-    private readonly prompt: PromptService,
-    private readonly provider: CopilotProviderService
-  ) {}
+  constructor() {}
 
   private initWorkflow({ name, graph }: WorkflowGraphList[number]) {
     const workflow = new Map();

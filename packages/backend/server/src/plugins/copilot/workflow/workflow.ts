@@ -62,7 +62,9 @@ export class CopilotWorkflow {
       }
 
       currentNode = nextNode;
-      if (result) lastParams.content = result;
+      if (result && lastParams.content !== result) {
+        lastParams.content = result;
+      }
     }
   }
 }

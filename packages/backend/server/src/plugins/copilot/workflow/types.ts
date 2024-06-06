@@ -4,6 +4,7 @@ import type { WorkflowNode } from './node';
 export enum WorkflowNodeType {
   Basic = 'basic',
   Decision = 'decision',
+  Nope = 'nope',
 }
 
 export type NodeData = { id: string; name: string } & (
@@ -15,6 +16,8 @@ export type NodeData = { id: string; name: string } & (
       paramKey?: string;
     }
   | { nodeType: WorkflowNodeType.Decision; condition: string }
+  // do nothing node
+  | { nodeType: WorkflowNodeType.Nope }
 );
 
 export type WorkflowNodeState = Record<string, string>;

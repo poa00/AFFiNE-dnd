@@ -550,7 +550,9 @@ test('should be able to register test provider', async t => {
 // this test used to preview the final result of the workflow
 // for the functional test of the API itself, refer to the follow tests
 test.skip('should be able to preview workflow', async t => {
-  const { prompt, workflow } = t.context;
+  const { prompt, workflow, workflowExecutor } = t.context;
+
+  workflowExecutor.register();
   registerCopilotProvider(OpenAIProvider);
 
   for (const p of prompts) {
@@ -566,9 +568,9 @@ test.skip('should be able to preview workflow', async t => {
     console.log('stream result:', ret);
   }
   console.log('final stream result:', result);
+  t.truthy(result, 'should return result');
 
   unregisterCopilotProvider(OpenAIProvider.type);
-  t.pass();
 });
 
 test('should be able to run workflow', async t => {

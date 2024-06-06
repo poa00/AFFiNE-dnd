@@ -743,6 +743,7 @@ __metadata:
     reflect-metadata: "npm:^0.2.2"
     rxjs: "npm:^7.8.1"
     semver: "npm:^7.6.0"
+    ses: "npm:^1.4.1"
     sinon: "npm:^18.0.0"
     socket.io: "npm:^4.7.5"
     stripe: "npm:^15.0.0"
