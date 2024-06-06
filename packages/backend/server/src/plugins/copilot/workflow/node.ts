@@ -35,6 +35,11 @@ export class WorkflowNode {
     return this.parents;
   }
 
+  // if is the end of the workflow, pass through the content to stream response
+  get hasEdges(): boolean {
+    return !!this.edges.length;
+  }
+
   private set parent(node: WorkflowNode) {
     if (!this.parents.includes(node)) {
       this.parents.push(node);
@@ -83,7 +88,7 @@ export class WorkflowNode {
         throw new Error(`Node ${this.name} not initialized`);
       }
 
-      yield* this.executor.next(params, options);
+      yield* this.executor.next(this.data, params, options);
     }
 
     yield { type: WorkflowResultType.EndRun, nextNode };

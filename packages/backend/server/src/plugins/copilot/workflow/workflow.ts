@@ -45,8 +45,8 @@ export class CopilotWorkflow {
             );
           }
         } else if (ret.type === WorkflowResultType.Content) {
-          if (ret.passthrough) {
-            // pass through content as a stream response
+          if (!currentNode.hasEdges) {
+            // pass through content as a stream response if node is end node
             yield ret.content;
           } else {
             result += ret.content;

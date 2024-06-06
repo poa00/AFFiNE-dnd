@@ -63,11 +63,7 @@ export class CopilotWorkflowService {
     options?: CopilotChatOptions
   ): AsyncIterable<string> {
     const workflowGraph = await this.getWorkflow(graphName);
-    const workflow = new CopilotWorkflow(
-      this.prompt,
-      this.provider,
-      workflowGraph
-    );
+    const workflow = new CopilotWorkflow(workflowGraph);
 
     for await (const result of workflow.runGraph(params, options)) {
       yield result;

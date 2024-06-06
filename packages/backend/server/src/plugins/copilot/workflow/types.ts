@@ -34,7 +34,7 @@ export enum WorkflowResultType {
 
 export type WorkflowResult =
   | { type: WorkflowResultType.StartRun; nodeId: string }
-  | { type: WorkflowResultType.EndRun; nextNode: WorkflowNode }
+  | { type: WorkflowResultType.EndRun; nextNode?: WorkflowNode }
   | {
       type: WorkflowResultType.Params;
       params: Record<string, string | string[]>;
@@ -43,8 +43,6 @@ export type WorkflowResult =
       type: WorkflowResultType.Content;
       nodeId: string;
       content: string;
-      // if is the end of the workflow, pass through the content to stream response
-      passthrough?: boolean;
     };
 
 export type WorkflowGraph = Map<string, WorkflowNode>;
