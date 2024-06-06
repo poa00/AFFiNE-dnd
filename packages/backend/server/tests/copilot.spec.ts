@@ -3,6 +3,7 @@
 import { TestingModule } from '@nestjs/testing';
 import type { TestFn } from 'ava';
 import ava from 'ava';
+import Sinon from 'sinon';
 
 import { AuthService } from '../src/core/auth';
 import { QuotaModule } from '../src/core/quota';
@@ -22,6 +23,8 @@ import {
   CopilotProviderType,
 } from '../src/plugins/copilot/types';
 import { CopilotWorkflowService } from '../src/plugins/copilot/workflow';
+import { CopilotChatTextExecutor } from '../src/plugins/copilot/workflow/executor/chat-text';
+import { WorkflowGraphs } from '../src/plugins/copilot/workflow/graph';
 import { createTestingModule } from './utils';
 import { MockCopilotTestProvider } from './utils/copilot';
 
@@ -32,6 +35,7 @@ const test = ava as TestFn<{
   provider: CopilotProviderService;
   session: ChatSessionService;
   workflow: CopilotWorkflowService;
+  workflowExecutor: CopilotChatTextExecutor;
 }>;
 
 test.beforeEach(async t => {
@@ -59,6 +63,7 @@ test.beforeEach(async t => {
   const provider = module.get(CopilotProviderService);
   const session = module.get(ChatSessionService);
   const workflow = module.get(CopilotWorkflowService);
+  const workflowExecutor = module.get(CopilotChatTextExecutor);
 
   t.context.module = module;
   t.context.auth = auth;
@@ -66,6 +71,7 @@ test.beforeEach(async t => {
   t.context.provider = provider;
   t.context.session = session;
   t.context.workflow = workflow;
+  t.context.workflowExecutor = workflowExecutor;
 });
 
 test.afterEach.always(async t => {
@@ -554,7 +560,7 @@ test.skip('should be able to preview workflow', async t => {
   let result = '';
   for await (const ret of workflow.runGraph(
     { content: 'apple company' },
-    'workflow:presentation'
+    'presentation'
   )) {
     result += ret;
     console.log('stream result:', ret);
@@ -563,4 +569,58 @@ test.skip('should be able to preview workflow', async t => {
 
   unregisterCopilotProvider(OpenAIProvider.type);
   t.pass();
+});
+
+test('should be able to run workflow', async t => {
+  const { prompt, workflow, workflowExecutor } = t.context;
+
+  workflowExecutor.register();
+  unregisterCopilotProvider(OpenAIProvider.type);
+  registerCopilotProvider(MockCopilotTestProvider);
+
+  const executor = Sinon.spy(workflowExecutor, 'next');
+
+  for (const p of prompts) {
+    await prompt.set(p.name, p.model, p.messages);
+  }
+
+  const graphName = 'presentation';
+  const graph = WorkflowGraphs.find(g => g.name === graphName);
+  t.truthy(graph, `graph ${graphName} not defined`);
+
+  // todo: use Array.fromAsync
+  let result = '';
+  for await (const ret of workflow.runGraph(
+    { content: 'apple company' },
+    graphName
+  )) {
+    result += ret;
+  }
+  t.assert(result, 'generate text to text stream');
+
+  const callCount = graph!.graph.length;
+  t.is(
+    executor.callCount,
+    graph!.graph.length,
+    `should call executor ${callCount} times`
+  );
+
+  for (const [idx, node] of graph!.graph.entries()) {
+    const params = executor.getCall(idx);
+    t.is(params.args[0].id, node.id, 'graph id should correct');
+
+    t.is(
+      params.args[1].content,
+      'apple company',
+      'graph params should correct'
+    );
+    t.is(
+      params.args[1].language,
+      'generate text to text',
+      'graph params should correct'
+    );
+  }
+
+  unregisterCopilotProvider(MockCopilotTestProvider.type);
+  registerCopilotProvider(OpenAIProvider);
 });

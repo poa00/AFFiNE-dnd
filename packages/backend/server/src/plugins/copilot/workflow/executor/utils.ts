@@ -5,7 +5,9 @@ import { WorkflowExecutor, type WorkflowExecutorType } from './types';
 const WORKFLOW_EXECUTOR: Map<string, WorkflowExecutor> = new Map();
 
 function registerWorkflowExecutor(e: WorkflowExecutor) {
+  if (WORKFLOW_EXECUTOR.has(e.type)) return false;
   WORKFLOW_EXECUTOR.set(e.type, e);
+  return true;
 }
 
 export function getWorkflowExecutor(
@@ -24,9 +26,14 @@ export abstract class AutoRegisteredWorkflowExecutor
   implements OnModuleInit
 {
   onModuleInit() {
-    registerWorkflowExecutor(this);
-    new Logger(`CopilotWorkflowExecutor:${this.type}`).log(
-      'Workflow executor registered.'
-    );
+    this.register();
+  }
+
+  register() {
+    if (registerWorkflowExecutor(this)) {
+      new Logger(`CopilotWorkflowExecutor:${this.type}`).log(
+        'Workflow executor registered.'
+      );
+    }
   }
 }
