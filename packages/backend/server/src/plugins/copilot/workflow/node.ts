@@ -1,6 +1,8 @@
-import 'ses';
+import path, { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { Logger } from '@nestjs/common';
+import Piscina from 'piscina';
 
 import { CopilotChatOptions } from '../types';
 import { getWorkflowExecutor, WorkflowExecutor } from './executor';
@@ -17,13 +19,23 @@ export class WorkflowNode {
   private readonly edges: WorkflowNode[] = [];
   private readonly parents: WorkflowNode[] = [];
   private readonly executor: WorkflowExecutor | null = null;
-  private readonly sandbox: Compartment;
+  private readonly worker: Piscina;
 
   constructor(private readonly data: NodeData) {
     if (data.nodeType === WorkflowNodeType.Basic) {
       this.executor = getWorkflowExecutor(data.type);
     }
-    this.sandbox = new Compartment({ console });
+    this.worker = new Piscina({
+      filename: path.resolve(
+        dirname(fileURLToPath(import.meta.url)),
+        'worker.mjs'
+      ),
+      minThreads: 2,
+      // empty envs from parent process
+      env: {},
+      argv: [],
+      execArgv: [],
+    });
   }
 
   get id(): string {
@@ -73,13 +85,12 @@ export class WorkflowNode {
     condition: string,
     params: WorkflowNodeState
   ): Promise<string | undefined> {
-    this.sandbox.globalThis.nodeIds = Object.freeze(
-      this.edges.map(node => node.id)
-    );
-    this.sandbox.globalThis.params = Object.freeze({ ...params });
-    const iife = `(${condition})(nodeIds, params)`;
     try {
-      const chooseNode = this.sandbox.evaluate(iife);
+      const chooseNode = this.worker.run({
+        iife: `(${condition})(nodeIds, params)`,
+        nodeIds: this.edges.map(node => node.id),
+        params,
+      });
       if (typeof chooseNode === 'string' && chooseNode) {
         return chooseNode;
       } else {

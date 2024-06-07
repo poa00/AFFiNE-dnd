@@ -66,4 +66,5 @@ export class CopilotWorkflowService {
   }
 }
 
-export { CopilotWorkflowExecutors } from './executor';
+export { CopilotChatTextExecutor, CopilotWorkflowExecutors } from './executor';
+export { WorkflowNodeType } from './types';

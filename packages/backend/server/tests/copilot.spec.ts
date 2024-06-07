@@ -22,8 +22,11 @@ import {
   CopilotCapability,
   CopilotProviderType,
 } from '../src/plugins/copilot/types';
-import { CopilotWorkflowService } from '../src/plugins/copilot/workflow';
-import { CopilotChatTextExecutor } from '../src/plugins/copilot/workflow/executor/chat-text';
+import {
+  CopilotChatTextExecutor,
+  CopilotWorkflowService,
+  WorkflowNodeType,
+} from '../src/plugins/copilot/workflow';
 import { WorkflowGraphs } from '../src/plugins/copilot/workflow/graph';
 import { createTestingModule } from './utils';
 import { MockCopilotTestProvider } from './utils/copilot';
@@ -603,17 +606,22 @@ test('should be able to run workflow', async t => {
   const callCount = graph!.graph.length;
   t.is(
     executor.callCount,
-    graph!.graph.length,
+    // presentation workflow has condition node, it will always false
+    // so the latest 2 nodes will not be executed
+    graph!.graph.length - 2,
     `should call executor ${callCount} times`
   );
 
-  for (const [idx, node] of graph!.graph.entries()) {
+  for (const [idx, node] of graph!.graph
+    .filter(g => g.nodeType === WorkflowNodeType.Basic)
+    .entries()) {
     const params = executor.getCall(idx);
+
     t.is(params.args[0].id, node.id, 'graph id should correct');
 
     t.is(
       params.args[1].content,
-      'apple company',
+      'generate text to text stream',
       'graph params should correct'
     );
     t.is(
