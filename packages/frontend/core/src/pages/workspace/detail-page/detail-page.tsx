@@ -216,6 +216,12 @@ const DetailPageImpl = memo(function DetailPageImpl() {
         })
       );
 
+      disposable.add(
+        pageService.slots.setEditorMode.on(({ id, mode }) => {
+          docRecordList.setDocMode(id, mode);
+        })
+      );
+
       setEditor(editor);
 
       return () => {
