@@ -1,13 +1,12 @@
 import { z } from 'zod';
 
-const _appConfigSchema = z.object({
+export const appConfigSchema = z.object({
   /** whether to show onboarding first */
   onBoarding: z.boolean().optional().default(true),
-  /** whether to show change workspace guide modal */
-  dismissWorkspaceGuideModal: z.boolean().optional().default(false),
 });
-export type AppConfigSchema = z.infer<typeof _appConfigSchema>;
-export const defaultAppConfig = _appConfigSchema.parse({});
+
+export type AppConfigSchema = z.infer<typeof appConfigSchema>;
+export const defaultAppConfig = appConfigSchema.parse({});
 
 const _storage: Record<number, any> = {};
 let _inMemoryId = 0;
@@ -50,7 +49,7 @@ class Storage<T extends object> {
   }
 
   get(): T;
-  get(key: keyof T): T[keyof T];
+  get<K extends keyof T>(key: K): T[K];
   /**
    * get config, if key is provided, return the value of the key
    * @param key
@@ -65,12 +64,12 @@ class Storage<T extends object> {
           return this._options.config;
         }
         return cfg;
-      } catch (err) {
+      } catch {
         return this._cfg;
       }
     } else {
       const fullConfig = this.get();
-      // TODO: handle key not found, set default value
+      // TODO(@catsjuice): handle key not found, set default value
       // if (!(key in fullConfig)) {}
       return fullConfig[key];
     }

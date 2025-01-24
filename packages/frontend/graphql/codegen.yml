@@ -5,9 +5,12 @@ config:
   strict: true
   maybeValue: T | null
   declarationKind: interface
-  avoidOptionals: true
+  avoidOptionals:
+    field: true
+    inputValue: false
+    object: false
+    defaultValue: false
   preResolveTypes: true
-  onlyOperationTypes: true
   namingConvention:
     enumValues: keep
   scalars:
@@ -16,7 +19,7 @@ config:
     Decimal: number
     UUID: string
     ID: string
-    JSON: string
+    JSON: Record<string, string>
     Upload: File
     SafeInt: number
 overwrite: true
@@ -27,7 +30,5 @@ generates:
     plugins:
       - typescript
       - typescript-operations
-      - add:
-          content: '/* eslint-disable */'
       - ./export-gql-plugin.cjs:
           output: ./src/graphql/index.ts

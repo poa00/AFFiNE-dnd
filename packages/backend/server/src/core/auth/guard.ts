@@ -1,157 +1,113 @@
-import type { CanActivate, ExecutionContext } from '@nestjs/common';
-import {
-  createParamDecorator,
-  Inject,
-  Injectable,
-  SetMetadata,
-  UnauthorizedException,
-  UseGuards,
+import type {
+  CanActivate,
+  ExecutionContext,
+  FactoryProvider,
+  OnModuleInit,
 } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import type { NextAuthOptions } from 'next-auth';
-import { AuthHandler } from 'next-auth/core';
+import { Injectable, SetMetadata } from '@nestjs/common';
+import { ModuleRef, Reflector } from '@nestjs/core';
+import type { Request, Response } from 'express';
+import { Socket } from 'socket.io';
 
 import {
+  AuthenticationRequired,
+  Config,
   getRequestResponseFromContext,
-  PrismaService,
-} from '../../fundamentals';
-import { NextAuthOptionsProvide } from './next-auth-options';
+  parseCookies,
+} from '../../base';
+import { WEBSOCKET_OPTIONS } from '../../base/websocket';
 import { AuthService } from './service';
+import { Session } from './session';
 
-export function getUserFromContext(context: ExecutionContext) {
-  return getRequestResponseFromContext(context).req.user;
-}
-
-/**
- * Used to fetch current user from the request context.
- *
- * > The user may be undefined if authorization token is not provided.
- *
- * @example
- *
- * ```typescript
- * // Graphql Query
- * \@Query(() => UserType)
- * user(@CurrentUser() user?: User) {
- *  return user;
- * }
- * ```
- *
- * ```typescript
- * // HTTP Controller
- * \@Get('/user)
- * user(@CurrentUser() user?: User) {
- *   return user;
- * }
- * ```
- */
-export const CurrentUser = createParamDecorator(
-  (_: unknown, context: ExecutionContext) => {
-    return getUserFromContext(context);
-  }
-);
+const PUBLIC_ENTRYPOINT_SYMBOL = Symbol('public');
 
 @Injectable()
-class AuthGuard implements CanActivate {
+export class AuthGuard implements CanActivate, OnModuleInit {
+  private auth!: AuthService;
+
   constructor(
-    @Inject(NextAuthOptionsProvide)
-    private readonly nextAuthOptions: NextAuthOptions,
-    private readonly auth: AuthService,
-    private readonly prisma: PrismaService,
+    private readonly ref: ModuleRef,
     private readonly reflector: Reflector
   ) {}
 
+  onModuleInit() {
+    this.auth = this.ref.get(AuthService, { strict: false });
+  }
+
   async canActivate(context: ExecutionContext) {
     const { req, res } = getRequestResponseFromContext(context);
-    const token = req.headers.authorization;
+
+    const userSession = await this.signIn(req, res);
+    if (res && userSession && userSession.expiresAt) {
+      await this.auth.refreshUserSessionIfNeeded(res, userSession);
+    }
 
     // api is public
-    const isPublic = this.reflector.get<boolean>(
-      'isPublic',
-      context.getHandler()
-    );
-
-    // FIXME(@forehalo): @Publicable() is duplicated with @CurrentUser() user?: User
-    //                                                                       ^ optional
-    //   we can prefetch user session in each request even before this `Guard`
-    // api can be public, but if user is logged in, we can get user info
-    const isPublicable = this.reflector.get<boolean>(
-      'isPublicable',
-      context.getHandler()
+    const isPublic = this.reflector.getAllAndOverride<boolean>(
+      PUBLIC_ENTRYPOINT_SYMBOL,
+      [context.getClass(), context.getHandler()]
     );
 
     if (isPublic) {
       return true;
-    } else if (!token) {
-      if (!req.cookies) {
-        return isPublicable;
-      }
-
-      const session = await AuthHandler({
-        req: {
-          cookies: req.cookies,
-          action: 'session',
-          method: 'GET',
-          headers: req.headers,
-        },
-        options: this.nextAuthOptions,
-      });
-
-      const { body = {}, cookies, status = 200 } = session;
-      if (!body && !isPublicable) {
-        throw new UnauthorizedException('You are not signed in.');
-      }
-
-      // @ts-expect-error body is user here
-      req.user = body.user;
-      if (cookies && res) {
-        for (const cookie of cookies) {
-          res.cookie(cookie.name, cookie.value, cookie.options);
-        }
-      }
-
-      return Boolean(
-        status === 200 &&
-          typeof body !== 'string' &&
-          // ignore body if api is publicable
-          (Object.keys(body).length || isPublicable)
-      );
-    } else {
-      const [type, jwt] = token.split(' ') ?? [];
-
-      if (type === 'Bearer') {
-        const claims = await this.auth.verify(jwt);
-        req.user = await this.prisma.user.findUnique({
-          where: { id: claims.id },
-        });
-        return !!req.user;
-      }
     }
-    return false;
+
+    if (!userSession) {
+      throw new AuthenticationRequired();
+    }
+
+    return true;
+  }
+
+  async signIn(req: Request, res?: Response): Promise<Session | null> {
+    if (req.session) {
+      return req.session;
+    }
+
+    // TODO(@forehalo): a cache for user session
+    const userSession = await this.auth.getUserSessionFromRequest(req, res);
+
+    if (userSession) {
+      req.session = {
+        ...userSession.session,
+        user: userSession.user,
+      };
+
+      return req.session;
+    }
+
+    return null;
   }
 }
 
 /**
- * This guard is used to protect routes/queries/mutations that require a user to be logged in.
- *
- * The `@CurrentUser()` parameter decorator used in a `Auth` guarded queries would always give us the user because the `Auth` guard will
- * fast throw if user is not logged in.
- *
- * @example
- *
- * ```typescript
- * \@Auth()
- * \@Query(() => UserType)
- * user(@CurrentUser() user: User) {
- *   return user;
- * }
- * ```
+ * Mark api to be public accessible
  */
-export const Auth = () => {
-  return UseGuards(AuthGuard);
-};
+export const Public = () => SetMetadata(PUBLIC_ENTRYPOINT_SYMBOL, true);
 
-// api is public accessible
-export const Public = () => SetMetadata('isPublic', true);
-// api is public accessible, but if user is logged in, we can get user info
-export const Publicable = () => SetMetadata('isPublicable', true);
+export const AuthWebsocketOptionsProvider: FactoryProvider = {
+  provide: WEBSOCKET_OPTIONS,
+  useFactory: (config: Config, guard: AuthGuard) => {
+    return {
+      ...config.websocket,
+      canActivate: async (socket: Socket) => {
+        const upgradeReq = socket.client.request as Request;
+        const handshake = socket.handshake;
+
+        // compatibility with websocket request
+        parseCookies(upgradeReq);
+
+        upgradeReq.cookies = {
+          [AuthService.sessionCookieName]: handshake.auth.token,
+          [AuthService.userCookieName]: handshake.auth.userId,
+          ...upgradeReq.cookies,
+        };
+
+        const session = await guard.signIn(upgradeReq);
+
+        return !!session;
+      },
+    };
+  },
+  inject: [Config, AuthGuard],
+};

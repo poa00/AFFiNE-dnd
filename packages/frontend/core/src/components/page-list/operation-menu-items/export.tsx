@@ -1,13 +1,16 @@
-import { MenuIcon, MenuItem, MenuSub } from '@affine/component';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
+import { MenuItem, MenuSeparator, MenuSub } from '@affine/component';
+import { useI18n } from '@affine/i18n';
+import { track } from '@affine/track';
 import {
   ExportIcon,
   ExportToHtmlIcon,
   ExportToMarkdownIcon,
-  ExportToPdfIcon,
   ExportToPngIcon,
-} from '@blocksuite/icons';
-import { type ReactNode, useMemo } from 'react';
+  PageIcon,
+  PrinterIcon,
+} from '@blocksuite/icons/rc';
+import type { ReactNode } from 'react';
+import { useCallback } from 'react';
 
 import { transitionStyle } from './index.css';
 
@@ -20,7 +23,9 @@ interface ExportMenuItemProps<T> {
 }
 
 interface ExportProps {
-  exportHandler: (type: 'pdf' | 'html' | 'png' | 'markdown') => Promise<void>;
+  exportHandler: (
+    type: 'pdf' | 'html' | 'png' | 'markdown' | 'snapshot'
+  ) => void;
   pageMode?: 'page' | 'edgeless';
   className?: string;
 }
@@ -38,93 +43,104 @@ export function ExportMenuItem<T>({
       data-testid={`export-to-${type}`}
       onSelect={onSelect}
       block
-      preFix={<MenuIcon>{icon}</MenuIcon>}
+      prefixIcon={icon}
     >
       {label}
     </MenuItem>
   );
 }
 
+export const PrintMenuItems = ({
+  exportHandler,
+  className = transitionStyle,
+}: ExportProps) => {
+  const t = useI18n();
+  return (
+    <ExportMenuItem
+      onSelect={() => exportHandler('pdf')}
+      className={className}
+      type="pdf"
+      icon={<PrinterIcon />}
+      label={t['com.affine.export.print']()}
+    />
+  );
+};
+
 export const ExportMenuItems = ({
   exportHandler,
   className = transitionStyle,
   pageMode = 'page',
 }: ExportProps) => {
-  const t = useAFFiNEI18N();
-  const itemMap = useMemo(
-    () => [
-      {
-        component: ExportMenuItem,
-        props: {
-          onSelect: () => exportHandler('pdf'),
-          className: className,
-          type: 'pdf',
-          icon: <ExportToPdfIcon />,
-          label: t['Export to PDF'](),
-        },
-      },
-      {
-        component: ExportMenuItem,
-        props: {
-          onSelect: () => exportHandler('html'),
-          className: className,
-          type: 'html',
-          icon: <ExportToHtmlIcon />,
-          label: t['Export to HTML'](),
-        },
-      },
-      {
-        component: ExportMenuItem,
-        props: {
-          onSelect: () => exportHandler('png'),
-          className: className,
-          type: 'png',
-          icon: <ExportToPngIcon />,
-          label: t['Export to PNG'](),
-        },
-      },
-      {
-        component: ExportMenuItem,
-        props: {
-          onSelect: () => exportHandler('markdown'),
-          className: className,
-          type: 'markdown',
-          icon: <ExportToMarkdownIcon />,
-          label: t['Export to Markdown'](),
-        },
-      },
-    ],
-    [className, exportHandler, t]
+  const t = useI18n();
+  return (
+    <>
+      <ExportMenuItem
+        onSelect={() => exportHandler('html')}
+        className={className}
+        type="html"
+        icon={<ExportToHtmlIcon />}
+        label={t['Export to HTML']()}
+      />
+      {pageMode !== 'edgeless' && (
+        <ExportMenuItem
+          onSelect={() => exportHandler('png')}
+          className={className}
+          type="png"
+          icon={<ExportToPngIcon />}
+          label={t['Export to PNG']()}
+        />
+      )}
+      <ExportMenuItem
+        onSelect={() => exportHandler('markdown')}
+        className={className}
+        type="markdown"
+        icon={<ExportToMarkdownIcon />}
+        label={t['Export to Markdown']()}
+      />
+      <ExportMenuItem
+        onSelect={() => exportHandler('snapshot')}
+        className={className}
+        type="snapshot"
+        icon={<PageIcon />}
+        label={t['Export to Snapshot']()}
+      />
+    </>
   );
-  const items = itemMap.map(({ component: Component, props }) =>
-    pageMode === 'edgeless' &&
-    (props.type === 'pdf' || props.type === 'png') ? null : (
-      <Component key={props.label} {...props} />
-    )
-  );
-  return items;
 };
 
 export const Export = ({ exportHandler, className, pageMode }: ExportProps) => {
-  const t = useAFFiNEI18N();
+  const t = useI18n();
   const items = (
-    <ExportMenuItems
-      exportHandler={exportHandler}
-      className={className}
-      pageMode={pageMode}
-    />
+    <>
+      <ExportMenuItems
+        exportHandler={exportHandler}
+        className={className}
+        pageMode={pageMode}
+      />
+      {pageMode !== 'edgeless' && (
+        <>
+          <MenuSeparator />
+          <PrintMenuItems exportHandler={exportHandler} className={className} />
+        </>
+      )}
+    </>
   );
+  const handleExportMenuOpenChange = useCallback((open: boolean) => {
+    if (open) {
+      track.$.header.docOptions.export();
+    }
+  }, []);
+
   return (
     <MenuSub
       items={items}
       triggerOptions={{
         className: transitionStyle,
-        preFix: (
-          <MenuIcon>
-            <ExportIcon />
-          </MenuIcon>
-        ),
-        ['data-testid' as string]: 'export-menu',
+        prefixIcon: <ExportIcon />,
+        'data-testid': 'export-menu',
+      }}
+      subOptions={{
+        onOpenChange: handleExportMenuOpenChange,
       }}
     >
       {t.Export()}

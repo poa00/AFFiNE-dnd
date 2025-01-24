@@ -1,4 +1,3 @@
-import { ForbiddenException, UseGuards } from '@nestjs/common';
 import {
   Args,
   Int,
@@ -9,15 +8,13 @@ import {
   Resolver,
 } from '@nestjs/graphql';
 
-import { CloudThrottlerGuard, Throttle } from '../../fundamentals';
-import { Auth, CurrentUser } from '../auth';
+import { ActionForbidden } from '../../base';
+import { CurrentUser } from '../auth';
+import { Admin } from '../common';
 import { FeatureManagementService, FeatureType } from '../features';
-import { UserType } from '../users';
-import { PermissionService } from './permission';
+import { PermissionService } from '../permission';
 import { WorkspaceType } from './types';
 
-@UseGuards(CloudThrottlerGuard)
-@Auth()
 @Resolver(() => WorkspaceType)
 export class WorkspaceManagementResolver {
   constructor(
@@ -25,77 +22,47 @@ export class WorkspaceManagementResolver {
     private readonly permission: PermissionService
   ) {}
 
-  @Throttle({
-    default: {
-      limit: 10,
-      ttl: 60,
-    },
-  })
+  @Admin()
   @Mutation(() => Int)
   async addWorkspaceFeature(
-    @CurrentUser() currentUser: UserType,
     @Args('workspaceId') workspaceId: string,
     @Args('feature', { type: () => FeatureType }) feature: FeatureType
   ): Promise<number> {
-    if (!this.feature.isStaff(currentUser.email)) {
-      throw new ForbiddenException('You are not allowed to do this');
-    }
-
     return this.feature.addWorkspaceFeatures(workspaceId, feature);
   }
 
-  @Throttle({
-    default: {
-      limit: 10,
-      ttl: 60,
-    },
-  })
+  @Admin()
   @Mutation(() => Int)
   async removeWorkspaceFeature(
-    @CurrentUser() currentUser: UserType,
     @Args('workspaceId') workspaceId: string,
     @Args('feature', { type: () => FeatureType }) feature: FeatureType
   ): Promise<boolean> {
-    if (!this.feature.isStaff(currentUser.email)) {
-      throw new ForbiddenException('You are not allowed to do this');
-    }
-
     return this.feature.removeWorkspaceFeature(workspaceId, feature);
   }
 
-  @Throttle({
-    default: {
-      limit: 10,
-      ttl: 60,
-    },
-  })
+  @Admin()
   @Query(() => [WorkspaceType])
   async listWorkspaceFeatures(
-    @CurrentUser() user: UserType,
     @Args('feature', { type: () => FeatureType }) feature: FeatureType
   ): Promise<WorkspaceType[]> {
-    if (!this.feature.isStaff(user.email)) {
-      throw new ForbiddenException('You are not allowed to do this');
-    }
-
     return this.feature.listFeatureWorkspaces(feature);
   }
 
   @Mutation(() => Boolean)
   async setWorkspaceExperimentalFeature(
-    @CurrentUser() user: UserType,
+    @CurrentUser() user: CurrentUser,
     @Args('workspaceId') workspaceId: string,
     @Args('feature', { type: () => FeatureType }) feature: FeatureType,
     @Args('enable') enable: boolean
   ): Promise<boolean> {
     if (!(await this.feature.canEarlyAccess(user.email))) {
-      throw new ForbiddenException('You are not allowed to do this');
+      throw new ActionForbidden();
     }
 
     const owner = await this.permission.getWorkspaceOwner(workspaceId);
     const availableFeatures = await this.availableFeatures(user);
-    if (owner.user.id !== user.id || !availableFeatures.includes(feature)) {
-      throw new ForbiddenException('You are not allowed to do this');
+    if (owner.id !== user.id || !availableFeatures.includes(feature)) {
+      throw new ActionForbidden();
     }
 
     if (enable) {
@@ -103,7 +70,6 @@ export class WorkspaceManagementResolver {
         .addWorkspaceFeatures(
           workspaceId,
           feature,
-          undefined,
           'add by experimental feature api'
         )
         .then(id => id > 0);
@@ -117,14 +83,9 @@ export class WorkspaceManagementResolver {
     complexity: 2,
   })
   async availableFeatures(
-    @CurrentUser() user: UserType
+    @CurrentUser() user: CurrentUser
   ): Promise<FeatureType[]> {
-    const isEarlyAccessUser = await this.feature.isEarlyAccessUser(user.email);
-    if (isEarlyAccessUser) {
-      return [FeatureType.Copilot];
-    } else {
-      return [];
-    }
+    return await this.feature.getActivatedUserFeatures(user.id);
   }
 
   @ResolveField(() => [FeatureType], {

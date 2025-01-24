@@ -6,6 +6,7 @@ export const scrollableContainerRoot = style({
     '--scrollbar-width': '8px',
   },
   height: '100%',
+  overflowY: 'hidden',
 });
 export const scrollTopBorder = style({
   position: 'absolute',
@@ -26,7 +27,7 @@ export const scrollableViewport = style({
   height: '100%',
   width: '100%',
 });
-globalStyle(`${scrollableViewport} > div`, {
+globalStyle(`${scrollableViewport} >:first-child`, {
   display: 'contents !important',
 });
 export const scrollableContainer = style({
@@ -52,6 +53,11 @@ export const scrollbar = style({
     },
   },
 });
+
+export const mobileScrollbar = style({
+  display: 'none',
+});
+
 export const TableScrollbar = style({
   marginTop: '60px',
   height: 'calc(100% - 120px)',

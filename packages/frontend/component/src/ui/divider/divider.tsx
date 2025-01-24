@@ -25,15 +25,13 @@ export const Divider = forwardRef<HTMLDivElement, DividerProps>(
   ) => {
     return (
       <div
+        data-divider
         ref={ref}
         className={clsx(
           styles.divider,
           {
             [styles.verticalDivider]: orientation === 'vertical',
-            [styles.thinner]:
-              size === 'thinner' && orientation === 'horizontal',
-            [styles.verticalThinner]:
-              size === 'thinner' && orientation === 'vertical',
+            [styles.thinner]: size === 'thinner',
           },
           className
         )}

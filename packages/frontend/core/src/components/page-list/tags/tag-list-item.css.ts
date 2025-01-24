@@ -7,6 +7,7 @@ export const root = style({
   // 42 + 12
   flexShrink: 0,
   width: '100%',
+  contain: 'strict',
   alignItems: 'stretch',
   transition: 'background-color 0.2s, opacity 0.2s',
   ':hover': {
@@ -21,22 +22,8 @@ export const root = style({
     },
   },
 });
-export const dragOverlay = style({
-  display: 'flex',
-  alignItems: 'center',
-  zIndex: 1001,
-  cursor: 'grabbing',
-  maxWidth: '360px',
-  transition: 'transform 0.2s',
-  willChange: 'transform',
-  selectors: {
-    '&[data-over=true]': {
-      transform: 'scale(0.8)',
-    },
-  },
-});
 export const dragPageItemOverlay = style({
-  height: '54px',
+  height: '45px',
   borderRadius: '10px',
   display: 'flex',
   alignItems: 'center',
@@ -79,7 +66,6 @@ globalStyle(`[data-draggable=true][data-dragging=true] ${dndCell}:before`, {
   opacity: 1,
 });
 
-// todo: remove global style
 globalStyle(`${root} > :first-child`, {
   paddingLeft: '16px',
 });
@@ -87,7 +73,7 @@ globalStyle(`${root} > :last-child`, {
   paddingRight: '8px',
 });
 export const titleIconsWrapper = style({
-  padding: '0 5px',
+  padding: '5px',
   display: 'flex',
   alignItems: 'center',
   gap: '10px',
@@ -105,6 +91,7 @@ export const titleCell = style({
   maxWidth: 'calc(100% - 64px)',
   flex: 1,
   whiteSpace: 'nowrap',
+  userSelect: 'none',
 });
 export const titleCellMain = style({
   overflow: 'hidden',
@@ -112,17 +99,17 @@ export const titleCellMain = style({
   fontWeight: 600,
   whiteSpace: 'nowrap',
   textOverflow: 'ellipsis',
-  alignSelf: 'stretch',
+  alignSelf: 'center',
   paddingRight: '4px',
 });
 export const titleCellPreview = style({
   overflow: 'hidden',
   color: cssVar('textSecondaryColor'),
   fontSize: cssVar('fontBase'),
-  flex: 1,
+  flexShrink: 0,
   whiteSpace: 'nowrap',
   textOverflow: 'ellipsis',
-  alignSelf: 'stretch',
+  alignSelf: 'center',
 });
 export const iconCell = style({
   display: 'flex',
@@ -161,6 +148,13 @@ export const operationsCell = style({
   justifyContent: 'flex-end',
   columnGap: '6px',
   flexShrink: 0,
+});
+export const tagIndicatorWrapper = style({
+  width: '24px',
+  height: '24px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
 });
 export const tagIndicator = style({
   width: '8px',

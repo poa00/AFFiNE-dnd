@@ -1,24 +1,39 @@
+import { assignInlineVars } from '@vanilla-extract/dynamic';
 import type { CSSProperties, ReactNode } from 'react';
 
 import { EmptySvg } from './empty-svg';
-import { StyledEmptyContainer } from './style';
+import * as styles from './index.css';
+
+type ContainerStyleProps = {
+  width?: string;
+  height?: string;
+  fontSize?: string;
+};
 export type EmptyContentProps = {
-  containerStyle?: CSSProperties;
+  containerStyle?: ContainerStyleProps;
   title?: ReactNode;
   description?: ReactNode;
   descriptionStyle?: CSSProperties;
 };
 
+/**
+ * @deprecated use different empty components for different use cases, like `EmptyDocs` for documentation empty state
+ */
 export const Empty = ({
   containerStyle,
   title,
   description,
   descriptionStyle,
 }: EmptyContentProps) => {
+  const cssVar = assignInlineVars({
+    [styles.svgWidth]: containerStyle?.width,
+    [styles.svgHeight]: containerStyle?.height,
+    [styles.svgFontSize]: containerStyle?.fontSize,
+  });
   return (
-    <StyledEmptyContainer style={containerStyle}>
+    <div className={styles.emptyContainer}>
       <div style={{ color: 'var(--affine-black)' }}>
-        <EmptySvg />
+        <EmptySvg className={styles.emptySvg} style={cssVar} />
       </div>
       {title && (
         <p
@@ -36,7 +51,7 @@ export const Empty = ({
           {description}
         </p>
       )}
-    </StyledEmptyContainer>
+    </div>
   );
 };
 

@@ -1,31 +1,23 @@
-import {
-  type FC,
-  type PropsWithChildren,
-  type ReactNode,
-  useEffect,
-  useState,
-} from 'react';
+import type { FC, PropsWithChildren, ReactNode } from 'react';
 
-import { Empty } from '../../ui/empty';
+import { ThemedImg } from '../../ui/themed-img';
 import { AffineOtherPageLayout } from '../affine-other-page-layout';
-import { authPageContainer } from './share.css';
+import illustrationDark from '../affine-other-page-layout/assets/other-page.dark.png';
+import illustrationLight from '../affine-other-page-layout/assets/other-page.light.png';
+import {
+  authPageContainer,
+  hideInSmallScreen,
+  illustration,
+} from './share.css';
 
 export const AuthPageContainer: FC<
-  PropsWithChildren<{ title?: ReactNode; subtitle?: ReactNode }>
+  PropsWithChildren<{
+    title?: ReactNode;
+    subtitle?: ReactNode;
+  }>
 > = ({ children, title, subtitle }) => {
-  const [isSmallScreen, setIsSmallScreen] = useState(false);
-
-  useEffect(() => {
-    const checkScreenSize = () => {
-      setIsSmallScreen(window.innerWidth <= 1024);
-    };
-    checkScreenSize();
-    window.addEventListener('resize', checkScreenSize);
-    return () => window.removeEventListener('resize', checkScreenSize);
-  }, []);
-
   return (
-    <AffineOtherPageLayout isSmallScreen={isSmallScreen}>
+    <AffineOtherPageLayout>
       <div className={authPageContainer}>
         <div className="wrapper">
           <div className="content">
@@ -33,7 +25,14 @@ export const AuthPageContainer: FC<
             <p className="subtitle">{subtitle}</p>
             {children}
           </div>
-          {isSmallScreen ? null : <Empty />}
+          <div className={hideInSmallScreen}>
+            <ThemedImg
+              draggable={false}
+              className={illustration}
+              lightSrc={illustrationLight}
+              darkSrc={illustrationDark}
+            />
+          </div>
         </div>
       </div>
     </AffineOtherPageLayout>

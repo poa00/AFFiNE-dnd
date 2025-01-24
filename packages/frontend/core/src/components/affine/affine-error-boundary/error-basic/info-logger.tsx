@@ -1,34 +1,26 @@
-import { WorkspaceListService } from '@toeverything/infra';
-import { useService } from '@toeverything/infra/di';
-import { useLiveData } from '@toeverything/infra/livedata';
-import { useAtomValue } from 'jotai/react';
+import { GlobalContextService } from '@affine/core/modules/global-context';
+import { useLiveData, useServices } from '@toeverything/infra';
 import { useEffect } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
-
-import { currentPageIdAtom } from '../../../../atoms/mode';
-import { CurrentWorkspaceService } from '../../../../modules/workspace/current-workspace';
 
 export interface DumpInfoProps {
   error: any;
 }
 
 export const DumpInfo = (_props: DumpInfoProps) => {
+  const { globalContextService } = useServices({ GlobalContextService });
   const location = useLocation();
-  const workspaceList = useService(WorkspaceListService);
-  const currentWorkspace = useLiveData(
-    useService(CurrentWorkspaceService).currentWorkspace
+  const currentWorkspaceId = useLiveData(
+    globalContextService.globalContext.workspaceId.$
   );
-  const currentPageId = useAtomValue(currentPageIdAtom);
   const path = location.pathname;
   const query = useParams();
   useEffect(() => {
     console.info('DumpInfo', {
       path,
       query,
-      currentWorkspaceId: currentWorkspace?.id,
-      currentPageId,
-      workspaceList,
+      currentWorkspaceId: currentWorkspaceId,
     });
-  }, [path, query, currentWorkspace, currentPageId, workspaceList]);
+  }, [path, query, currentWorkspaceId]);
   return null;
 };

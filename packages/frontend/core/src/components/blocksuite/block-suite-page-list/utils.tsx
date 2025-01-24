@@ -1,107 +1,136 @@
 import { toast } from '@affine/component';
-import { useAsyncCallback } from '@affine/core/hooks/affine-async-hooks';
-import { usePageMetaHelper } from '@affine/core/hooks/use-block-suite-page-meta';
-import { useBlockSuiteWorkspaceHelper } from '@affine/core/hooks/use-block-suite-workspace-helper';
-import { WorkspaceSubPath } from '@affine/core/shared';
-import { initEmptyPage } from '@toeverything/infra/blocksuite';
-import { useAtomValue, useSetAtom } from 'jotai';
+import type { DocProps } from '@affine/core/blocksuite/initialization';
+import { AppSidebarService } from '@affine/core/modules/app-sidebar';
+import { DocsService } from '@affine/core/modules/doc';
+import { EditorSettingService } from '@affine/core/modules/editor-setting';
+import { WorkbenchService } from '@affine/core/modules/workbench';
+import { type DocMode } from '@blocksuite/affine/blocks';
+import type { Workspace } from '@blocksuite/affine/store';
+import { useServices } from '@toeverything/infra';
 import { useCallback, useMemo } from 'react';
 
-import { pageSettingsAtom, setPageModeAtom } from '../../../atoms';
-import { useNavigateHelper } from '../../../hooks/use-navigate-helper';
-import type { BlockSuiteWorkspace } from '../../../shared';
-
-export const usePageHelper = (blockSuiteWorkspace: BlockSuiteWorkspace) => {
-  const { openPage, jumpToSubPath } = useNavigateHelper();
-  const { createPage } = useBlockSuiteWorkspaceHelper(blockSuiteWorkspace);
-  const pageSettings = useAtomValue(pageSettingsAtom);
-  const { setPageMeta } = usePageMetaHelper(blockSuiteWorkspace);
-
-  const isPreferredEdgeless = useCallback(
-    (pageId: string) => pageSettings[pageId]?.mode === 'edgeless',
-    [pageSettings]
-  );
-
-  const setPageMode = useSetAtom(setPageModeAtom);
+export const usePageHelper = (docCollection: Workspace) => {
+  const {
+    docsService,
+    workbenchService,
+    editorSettingService,
+    appSidebarService,
+  } = useServices({
+    DocsService,
+    WorkbenchService,
+    EditorSettingService,
+    AppSidebarService,
+  });
+  const workbench = workbenchService.workbench;
+  const docRecordList = docsService.list;
+  const appSidebar = appSidebarService.sidebar;
 
   const createPageAndOpen = useCallback(
-    (mode?: 'page' | 'edgeless') => {
-      const page = createPage();
-      initEmptyPage(page).catch(error => {
-        toast(`Failed to initialize Page: ${error.message}`);
-      });
-      setPageMode(page.id, mode || 'page');
-      openPage(blockSuiteWorkspace.id, page.id);
+    (
+      mode?: DocMode,
+      options: {
+        at?: 'new-tab' | 'tail' | 'active';
+        show?: boolean;
+      } = {
+        at: 'active',
+        show: true,
+      }
+    ) => {
+      appSidebar.setHovering(false);
+      const docProps: DocProps = {
+        note: editorSettingService.editorSetting.get('affine:note'),
+      };
+      const page = docsService.createDoc({ docProps });
+
+      if (mode) {
+        docRecordList.doc$(page.id).value?.setPrimaryMode(mode);
+      }
+
+      if (options.show !== false) {
+        workbench.openDoc(page.id, {
+          at: options.at,
+          show: options.show,
+        });
+      }
       return page;
     },
-    [blockSuiteWorkspace.id, createPage, openPage, setPageMode]
+    [
+      appSidebar,
+      docRecordList,
+      docsService,
+      editorSettingService.editorSetting,
+      workbench,
+    ]
   );
 
-  const createEdgelessAndOpen = useCallback(() => {
-    return createPageAndOpen('edgeless');
-  }, [createPageAndOpen]);
-
-  const importFileAndOpen = useAsyncCallback(async () => {
-    const { showImportModal } = await import('@blocksuite/blocks');
-    const onSuccess = (pageIds: string[], isWorkspaceFile: boolean) => {
-      toast(
-        `Successfully imported ${pageIds.length} Page${
-          pageIds.length > 1 ? 's' : ''
-        }.`
-      );
-      if (isWorkspaceFile) {
-        jumpToSubPath(blockSuiteWorkspace.id, WorkspaceSubPath.ALL);
-        return;
+  const createEdgelessAndOpen = useCallback(
+    (
+      options: {
+        at?: 'new-tab' | 'tail' | 'active';
+        show?: boolean;
+      } = {
+        at: 'active',
+        show: true,
       }
-
-      if (pageIds.length === 0) {
-        return;
-      }
-      const pageId = pageIds[0];
-      openPage(blockSuiteWorkspace.id, pageId);
-    };
-    showImportModal({ workspace: blockSuiteWorkspace, onSuccess });
-  }, [blockSuiteWorkspace, openPage, jumpToSubPath]);
-
-  const createLinkedPageAndOpen = useAsyncCallback(
-    async (pageId: string) => {
-      const page = createPageAndOpen();
-      await page.load();
-      const parentPage = blockSuiteWorkspace.getPage(pageId);
-      if (parentPage) {
-        await parentPage.load();
-        const text = parentPage.Text.fromDelta([
-          {
-            insert: ' ',
-            attributes: {
-              reference: {
-                type: 'LinkedPage',
-                pageId: page.id,
-              },
-            },
-          },
-        ]);
-        const [frame] = parentPage.getBlockByFlavour('affine:note');
-        frame && parentPage.addBlock('affine:paragraph', { text }, frame.id);
-        setPageMeta(page.id, {});
-      }
+    ) => {
+      return createPageAndOpen('edgeless', options);
     },
-    [blockSuiteWorkspace, createPageAndOpen, setPageMeta]
+    [createPageAndOpen]
+  );
+
+  const importFileAndOpen = useMemo(
+    () => async () => {
+      const { showImportModal } = await import('@blocksuite/affine/blocks');
+      const { promise, resolve, reject } =
+        Promise.withResolvers<
+          Parameters<
+            NonNullable<Parameters<typeof showImportModal>[0]['onSuccess']>
+          >[1]
+        >();
+      const onSuccess = (
+        pageIds: string[],
+        options: { isWorkspaceFile: boolean; importedCount: number }
+      ) => {
+        resolve(options);
+        toast(
+          `Successfully imported ${options.importedCount} Page${
+            options.importedCount > 1 ? 's' : ''
+          }.`
+        );
+        if (options.isWorkspaceFile) {
+          workbench.openAll();
+          return;
+        }
+
+        if (pageIds.length === 0) {
+          return;
+        }
+        const pageId = pageIds[0];
+        workbench.openDoc(pageId);
+      };
+      showImportModal({
+        collection: docCollection,
+        onSuccess,
+        onFail: message => {
+          reject(new Error(message));
+        },
+      });
+      return await promise;
+    },
+    [docCollection, workbench]
   );
 
   return useMemo(() => {
     return {
-      createPage: createPageAndOpen,
+      createPage: (
+        mode?: DocMode,
+        options?: {
+          at?: 'new-tab' | 'tail' | 'active';
+          show?: boolean;
+        }
+      ) => createPageAndOpen(mode, options),
       createEdgeless: createEdgelessAndOpen,
       importFile: importFileAndOpen,
-      isPreferredEdgeless: isPreferredEdgeless,
-      createLinkedPage: createLinkedPageAndOpen,
     };
-  }, [
-    createEdgelessAndOpen,
-    createLinkedPageAndOpen,
-    createPageAndOpen,
-    importFileAndOpen,
-    isPreferredEdgeless,
-  ]);
+  }, [createEdgelessAndOpen, createPageAndOpen, importFileAndOpen]);
 };

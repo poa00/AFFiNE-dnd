@@ -1,106 +1,76 @@
 This document explains how to start server (@affine/server) locally with Docker
 
-## Run postgresql in docker
+> **Warning**:
+>
+> This document is not guaranteed to be up-to-date.
+> If you find any outdated information, please feel free to open an issue or submit a PR.
 
-```
-docker pull postgres
-docker run --rm --name affine-postgres -e POSTGRES_PASSWORD=affine -p 5432:5432 -v ~/Documents/postgres:/var/lib/postgresql/data postgres
-```
+## Run required dev services in docker compose
 
-### Optionally, use a dedicated volume
+Running yarn's server package (@affine/server) requires some dev services to be running, i.e.:
 
-```
-docker volume create affine-postgres
-docker run --rm --name affine-postgres -e POSTGRES_PASSWORD=affine -p 5432:5432 -v affine-postgres:/var/lib/postgresql/data postgres
-```
+- postgres
+- redis
+- mailhog
 
-### mailhog (for local testing)
+You can run these services in docker compose by running the following command:
 
-```
-docker run --rm --name mailhog -p 1025:1025 -p 8025:8025 mailhog/mailhog
-```
+```sh
+cp ./.docker/dev/compose.yml.example ./.docker/dev/compose.yml
+cp ./.docker/dev/.env.example ./.docker/dev/.env
 
-## prepare db
-
-```
-docker ps
-docker exec -it CONTAINER_ID psql -U postgres ## change container_id
-```
-
-### in the terminal, following the example to user & table
-
-```
-psql (15.3 (Debian 15.3-1.pgdg120+1))
-Type "help" for help.
-
-postgres=# CREATE USER affine WITH PASSWORD 'affine';
-CREATE ROLE
-postgres=# ALTER USER affine WITH SUPERUSER;
-ALTER ROLE
-postgres=# CREATE DATABASE affine;
-CREATE DATABASE
-postgres=# \du
-                                   List of roles
- Role name |                         Attributes                         | Member of
------------+------------------------------------------------------------+-----------
- affine    | Superuser                                                  | {}
- postgres  | Superuser, Create role, Create DB, Replication, Bypass RLS | {}
-```
-
-### Set the following config to `packages/backend/server/.env`
-
-```
-DATABASE_URL="postgresql://affine:affine@localhost:5432/affine"
-NEXTAUTH_URL="http://localhost:8080/"
-```
-
-You may need additional env for auth login. You may want to put your own one if you are not part of the AFFiNE team
-
-For email login & password, please refer to https://nodemailer.com/usage/using-gmail/
-
-```
-OAUTH_EMAIL_SENDER=
-OAUTH_EMAIL_LOGIN=
-OAUTH_EMAIL_PASSWORD=
-OAUTH_GOOGLE_ENABLED="true"
-OAUTH_GOOGLE_CLIENT_ID=
-OAUTH_GOOGLE_CLIENT_SECRET=
-```
-
-## Prepare prisma
-
-```
-yarn workspace @affine/server prisma db push
-```
-
-Note, you may need to do it again if db schema changed.
-
-### Enable prisma studio
-
-```
-yarn workspace @affine/server prisma studio
+docker compose -f ./.docker/dev/compose.yml up
 ```
 
 ## Build native packages (you need to setup rust toolchain first)
 
-```
+Server also requires native packages to be built, you can build them by running the following command:
+
+```sh
 # build native
-yarn workspace @affine/storage build
-yarn workspace @affine/native build
+yarn affine @affine/server-native build
 ```
 
-## start server
+## Prepare dev environment
 
-```
-yarn workspace @affine/server dev
+```sh
+# uncomment all env variables here
+cp packages/backend/server/.env.example packages/backend/server/.env
+yarn affine server prisma db push
+yarn affine server data-migration run
 ```
 
-## start core (web)
+## Start server
 
+```sh
+# at project root
+yarn affine server dev
 ```
+
+when server started, it will created a default user for testing:
+
+- email: dev@affine.pro
+- name: Dev User
+- password: dev
+
+## Start frontend
+
+```sh
+# at project root
 yarn dev
 ```
+
+You can login with the user (dev@affine.pro / dev) above to test the server.
 
 ## Done
 
 Now you should be able to start developing affine with server enabled.
+
+## Bonus
+
+### Enable prisma studio (Database GUI)
+
+```sh
+# available at http://localhost:5555
+yarn affine server prisma studio
+```

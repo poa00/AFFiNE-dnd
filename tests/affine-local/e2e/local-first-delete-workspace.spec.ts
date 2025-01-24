@@ -1,8 +1,10 @@
 import { test } from '@affine-test/kit/playwright';
 import { openHomePage } from '@affine-test/kit/utils/load-page';
 import { waitForEditorLoad } from '@affine-test/kit/utils/page-logic';
-import { openWorkspaceSettingPanel } from '@affine-test/kit/utils/setting';
-import { openSettingModal } from '@affine-test/kit/utils/setting';
+import {
+  openSettingModal,
+  openWorkspaceSettingPanel,
+} from '@affine-test/kit/utils/setting';
 import { clickSideBarCurrentWorkspaceBanner } from '@affine-test/kit/utils/sidebar';
 import { expect } from '@playwright/test';
 
@@ -11,19 +13,24 @@ test('Create new workspace, then delete it', async ({ page, workspace }) => {
   await waitForEditorLoad(page);
   await clickSideBarCurrentWorkspaceBanner(page);
   await page.getByTestId('new-workspace').click();
+  await page.waitForTimeout(1000);
   await page
     .getByTestId('create-workspace-input')
     .pressSequentially('Test Workspace', { delay: 50 });
-  await page.getByTestId('create-workspace-create-button').click();
+  const createButton = page.getByTestId('create-workspace-create-button');
+  await createButton.click();
+  await createButton.waitFor({ state: 'hidden' });
 
-  await page.waitForTimeout(1000);
   await page.waitForSelector('[data-testid="workspace-name"]');
   expect(await page.getByTestId('workspace-name').textContent()).toBe(
     'Test Workspace'
   );
   await openSettingModal(page);
-  await openWorkspaceSettingPanel(page, 'Test Workspace');
+  await openWorkspaceSettingPanel(page);
   await page.getByTestId('delete-workspace-button').click();
+  await expect(
+    page.locator('.affine-notification-center').first()
+  ).not.toBeVisible();
   const workspaceNameDom = page.getByTestId('workspace-name');
   const currentWorkspaceName = (await workspaceNameDom.evaluate(
     node => node.textContent
@@ -33,7 +40,8 @@ test('Create new workspace, then delete it', async ({ page, workspace }) => {
     .getByTestId('delete-workspace-input')
     .pressSequentially(currentWorkspaceName);
   const promise = page
-    .getByTestId('affine-notification')
+    .locator('.affine-notification-center')
+    .first()
     .waitFor({ state: 'attached' });
   await page.getByTestId('delete-workspace-confirm-button').click();
   await promise;
@@ -56,7 +64,7 @@ test('Delete last workspace', async ({ page }) => {
     node => node.textContent
   );
   await openSettingModal(page);
-  await openWorkspaceSettingPanel(page, currentWorkspaceName as string);
+  await openWorkspaceSettingPanel(page);
   await page.getByTestId('delete-workspace-button').click();
   await page
     .getByTestId('delete-workspace-input')
@@ -71,7 +79,5 @@ test('Delete last workspace', async ({ page }) => {
   await page.getByTestId('create-workspace-create-button').click();
   await page.waitForTimeout(1000);
   await page.waitForSelector('[data-testid="workspace-name"]');
-  expect(await page.getByTestId('workspace-name').textContent()).toBe(
-    'Test Workspace'
-  );
+  await expect(page.getByTestId('workspace-name')).toHaveText('Test Workspace');
 });

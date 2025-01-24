@@ -8,36 +8,23 @@ export const root = style({
   flexShrink: 0,
   width: '100%',
   alignItems: 'stretch',
+  contain: 'strict',
   transition: 'background-color 0.2s, opacity 0.2s',
   ':hover': {
     backgroundColor: cssVar('hoverColor'),
   },
   overflow: 'hidden',
   cursor: 'default',
-  willChange: 'opacity',
   selectors: {
     '&[data-clickable=true]': {
       cursor: 'pointer',
     },
   },
 });
-export const dragOverlay = style({
-  display: 'flex',
-  alignItems: 'center',
-  zIndex: 1001,
-  cursor: 'grabbing',
-  maxWidth: '360px',
-  transition: 'transform 0.2s',
-  willChange: 'transform',
-  selectors: {
-    '&[data-over=true]': {
-      transform: 'scale(0.8)',
-    },
-  },
-});
+
 export const dragPageItemOverlay = style({
-  height: '54px',
-  borderRadius: '10px',
+  height: '45px',
+  borderRadius: '8px',
   display: 'flex',
   alignItems: 'center',
   background: cssVar('hoverColorFilled'),
@@ -64,7 +51,6 @@ globalStyle(`[data-draggable=true] ${dndCell}:before`, {
   backgroundColor: cssVar('placeholderColor'),
   borderRadius: '2px',
   opacity: 0,
-  willChange: 'height, opacity',
 });
 globalStyle(`[data-draggable=true] ${dndCell}:hover:before`, {
   height: 12,
@@ -79,7 +65,6 @@ globalStyle(`[data-draggable=true][data-dragging=true] ${dndCell}:before`, {
   opacity: 1,
 });
 
-// todo: remove global style
 globalStyle(`${root} > :first-child`, {
   paddingLeft: '16px',
 });
@@ -87,9 +72,9 @@ globalStyle(`${root} > :last-child`, {
   paddingRight: '8px',
 });
 export const titleIconsWrapper = style({
-  padding: '0 5px',
   display: 'flex',
   alignItems: 'center',
+  justifyContent: 'center',
   gap: '10px',
 });
 export const selectionCell = style({
@@ -106,6 +91,7 @@ export const titleCell = style({
   maxWidth: 'calc(100% - 64px)',
   flex: 1,
   whiteSpace: 'nowrap',
+  userSelect: 'none',
 });
 export const titleCellMain = style({
   overflow: 'hidden',
@@ -145,10 +131,11 @@ export const dateCell = style({
   display: 'flex',
   alignItems: 'center',
   fontSize: cssVar('fontXs'),
-  color: cssVar('textSecondaryColor'),
+  color: cssVar('textPrimaryColor'),
   flexShrink: 0,
   flexWrap: 'nowrap',
   padding: '0 8px',
+  userSelect: 'none',
 });
 export const actionsCellWrapper = style({
   display: 'flex',

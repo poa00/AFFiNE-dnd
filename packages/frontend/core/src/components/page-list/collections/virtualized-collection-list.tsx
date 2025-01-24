@@ -1,15 +1,9 @@
-import { useDeleteCollectionInfo } from '@affine/core/hooks/affine/use-delete-collection-info';
+import { useDeleteCollectionInfo } from '@affine/core/components/hooks/affine/use-delete-collection-info';
+import { WorkspaceService } from '@affine/core/modules/workspace';
 import type { Collection, DeleteCollectionInfo } from '@affine/env/filter';
 import { Trans } from '@affine/i18n';
 import { useService } from '@toeverything/infra';
-import { Workspace } from '@toeverything/infra';
-import {
-  type ReactElement,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { CollectionService } from '../../../modules/collection';
 import { ListFloatingToolbar } from '../components/list-floating-toolbar';
@@ -18,49 +12,40 @@ import { CollectionOperationCell } from '../operation-cell';
 import { CollectionListItemRenderer } from '../page-group';
 import { ListTableHeader } from '../page-header';
 import type { CollectionMeta, ItemListHandle, ListItem } from '../types';
-import { useCollectionManager } from '../use-collection-manager';
-import type { AllPageListConfig } from '../view';
 import { VirtualizedList } from '../virtualized-list';
 import { CollectionListHeader } from './collection-list-header';
 
 const useCollectionOperationsRenderer = ({
   info,
-  setting,
-  config,
+  service,
 }: {
   info: DeleteCollectionInfo;
-  config: AllPageListConfig;
-  setting: ReturnType<typeof useCollectionManager>;
+  service: CollectionService;
 }) => {
-  const pageOperationsRenderer = useCallback(
+  const collectionOperationsRenderer = useCallback(
     (collection: Collection) => {
       return (
         <CollectionOperationCell
           info={info}
           collection={collection}
-          setting={setting}
-          config={config}
+          service={service}
         />
       );
     },
-    [config, info, setting]
+    [info, service]
   );
 
-  return pageOperationsRenderer;
+  return collectionOperationsRenderer;
 };
 
 export const VirtualizedCollectionList = ({
   collections,
   collectionMetas,
   setHideHeaderCreateNewCollection,
-  node,
   handleCreateCollection,
-  config,
 }: {
   collections: Collection[];
   collectionMetas: CollectionMeta[];
-  config: AllPageListConfig;
-  node: ReactElement | null;
   handleCreateCollection: () => void;
   setHideHeaderCreateNewCollection: (hide: boolean) => void;
 }) => {
@@ -69,19 +54,18 @@ export const VirtualizedCollectionList = ({
   const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>(
     []
   );
-  const setting = useCollectionManager(useService(CollectionService));
-  const currentWorkspace = useService(Workspace);
+  const collectionService = useService(CollectionService);
+  const currentWorkspace = useService(WorkspaceService).workspace;
   const info = useDeleteCollectionInfo();
 
   const collectionOperations = useCollectionOperationsRenderer({
     info,
-    setting,
-    config,
+    service: collectionService,
   });
 
   const filteredSelectedCollectionIds = useMemo(() => {
-    const ids = collections.map(collection => collection.id);
-    return selectedCollectionIds.filter(id => ids.includes(id));
+    const ids = new Set(collections.map(collection => collection.id));
+    return selectedCollectionIds.filter(id => ids.has(id));
   }, [collections, selectedCollectionIds]);
 
   const hideFloatingToolbar = useCallback(() => {
@@ -105,33 +89,34 @@ export const VirtualizedCollectionList = ({
   }, []);
 
   const handleDelete = useCallback(() => {
-    return setting.deleteCollection(info, ...selectedCollectionIds);
-  }, [setting, info, selectedCollectionIds]);
+    if (selectedCollectionIds.length === 0) {
+      return;
+    }
+    collectionService.deleteCollection(info, ...selectedCollectionIds);
+    hideFloatingToolbar();
+  }, [collectionService, hideFloatingToolbar, info, selectedCollectionIds]);
 
   return (
     <>
       <VirtualizedList
         ref={listRef}
         selectable="toggle"
-        draggable={false}
-        groupBy={false}
+        draggable
         atTopThreshold={80}
         atTopStateChange={setHideHeaderCreateNewCollection}
         onSelectionActiveChange={setShowFloatingToolbar}
-        heading={
-          <CollectionListHeader node={node} onCreate={handleCreateCollection} />
-        }
+        heading={<CollectionListHeader onCreate={handleCreateCollection} />}
         selectedIds={filteredSelectedCollectionIds}
         onSelectedIdsChange={setSelectedCollectionIds}
         items={collectionMetas}
         itemRenderer={collectionItemRenderer}
         rowAsLink
-        blockSuiteWorkspace={currentWorkspace.blockSuiteWorkspace}
+        docCollection={currentWorkspace.docCollection}
         operationsRenderer={collectionOperationRenderer}
         headerRenderer={collectionHeaderRenderer}
       />
       <ListFloatingToolbar
-        open={showFloatingToolbar && selectedCollectionIds.length > 0}
+        open={showFloatingToolbar}
         content={
           <Trans
             i18nKey="com.affine.collection.toolbar.selected"

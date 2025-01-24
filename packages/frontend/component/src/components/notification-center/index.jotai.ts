@@ -1,6 +1,10 @@
 import { atom } from 'jotai';
 import { nanoid } from 'nanoid';
+import type { JSX, ReactNode } from 'react';
 
+/**
+ * @deprecated use `import type { Notification } from '@affine/component'` instead
+ */
 export type Notification = {
   key?: string;
   title: string;
@@ -9,7 +13,7 @@ export type Notification = {
   theme?: 'light' | 'dark' | 'default';
   timeout?: number;
   progressingBar?: boolean;
-  multimedia?: React.ReactNode | JSX.Element;
+  multimedia?: ReactNode | JSX.Element;
   // actions
   action?: () => Promise<void>;
   actionLabel?: string;
@@ -19,6 +23,9 @@ const notificationsBaseAtom = atom<Notification[]>([]);
 
 const expandNotificationCenterBaseAtom = atom(false);
 const cleanupQueueAtom = atom<(() => unknown)[]>([]);
+/**
+ * @deprecated use `import { notify } from '@affine/component'` instead
+ */
 export const expandNotificationCenterAtom = atom<boolean, [boolean], void>(
   get => get(expandNotificationCenterBaseAtom),
   (get, set, value) => {
@@ -29,17 +36,24 @@ export const expandNotificationCenterAtom = atom<boolean, [boolean], void>(
     set(expandNotificationCenterBaseAtom, value);
   }
 );
-
+/**
+ * @deprecated use `import { notify } from '@affine/component'` instead
+ */
 export const notificationsAtom = atom<Notification[]>(get =>
   get(notificationsBaseAtom)
 );
-
+/**
+ * @deprecated use `import { notify } from '@affine/component'` instead
+ */
 export const removeNotificationAtom = atom(null, (_, set, key: string) => {
   set(notificationsBaseAtom, notifications =>
     notifications.filter(notification => notification.key !== key)
   );
 });
 
+/**
+ * @deprecated use `import { notify } from '@affine/component'` instead
+ */
 export const pushNotificationAtom = atom<null, [Notification], void>(
   null,
   (_, set, newNotification) => {

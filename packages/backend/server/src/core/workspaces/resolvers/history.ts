@@ -1,4 +1,3 @@
-import { UseGuards } from '@nestjs/common';
 import {
   Args,
   Field,
@@ -12,13 +11,12 @@ import {
 } from '@nestjs/graphql';
 import type { SnapshotHistory } from '@prisma/client';
 
-import { CloudThrottlerGuard } from '../../../fundamentals';
-import { Auth, CurrentUser } from '../../auth';
-import { DocHistoryManager } from '../../doc';
-import { UserType } from '../../users';
+import { CurrentUser } from '../../auth';
+import { PgWorkspaceDocStorageAdapter } from '../../doc';
+import { Permission, PermissionService } from '../../permission';
 import { DocID } from '../../utils/doc';
-import { PermissionService } from '../permission';
-import { Permission, WorkspaceType } from '../types';
+import { WorkspaceType } from '../types';
+import { EditorType } from './workspace';
 
 @ObjectType()
 class DocHistoryType implements Partial<SnapshotHistory> {
@@ -30,13 +28,15 @@ class DocHistoryType implements Partial<SnapshotHistory> {
 
   @Field(() => GraphQLISODateTime)
   timestamp!: Date;
+
+  @Field(() => EditorType, { nullable: true })
+  editor!: EditorType | null;
 }
 
-@UseGuards(CloudThrottlerGuard)
 @Resolver(() => WorkspaceType)
 export class DocHistoryResolver {
   constructor(
-    private readonly historyManager: DocHistoryManager,
+    private readonly workspace: PgWorkspaceDocStorageAdapter,
     private readonly permission: PermissionService
   ) {}
 
@@ -51,36 +51,30 @@ export class DocHistoryResolver {
   ): Promise<DocHistoryType[]> {
     const docId = new DocID(guid, workspace.id);
 
-    if (docId.isWorkspace) {
-      throw new Error('Invalid guid for listing doc histories.');
-    }
+    const histories = await this.workspace.listDocHistories(
+      workspace.id,
+      docId.guid,
+      { before: timestamp.getTime(), limit: take }
+    );
 
-    return this.historyManager
-      .list(workspace.id, docId.guid, timestamp, take)
-      .then(rows =>
-        rows.map(({ timestamp }) => {
-          return {
-            workspaceId: workspace.id,
-            id: docId.guid,
-            timestamp,
-          };
-        })
-      );
+    return histories.map(history => {
+      return {
+        workspaceId: workspace.id,
+        id: docId.guid,
+        timestamp: new Date(history.timestamp),
+        editor: history.editor,
+      };
+    });
   }
 
-  @Auth()
   @Mutation(() => Date)
   async recoverDoc(
-    @CurrentUser() user: UserType,
+    @CurrentUser() user: CurrentUser,
     @Args('workspaceId') workspaceId: string,
     @Args('guid') guid: string,
     @Args({ name: 'timestamp', type: () => GraphQLISODateTime }) timestamp: Date
   ): Promise<Date> {
     const docId = new DocID(guid, workspaceId);
-
-    if (docId.isWorkspace) {
-      throw new Error('Invalid guid for recovering doc from history.');
-    }
 
     await this.permission.checkPagePermission(
       docId.workspace,
@@ -89,6 +83,13 @@ export class DocHistoryResolver {
       Permission.Write
     );
 
-    return this.historyManager.recover(docId.workspace, docId.guid, timestamp);
+    await this.workspace.rollbackDoc(
+      docId.workspace,
+      docId.guid,
+      timestamp.getTime(),
+      user.id
+    );
+
+    return timestamp;
   }
 }

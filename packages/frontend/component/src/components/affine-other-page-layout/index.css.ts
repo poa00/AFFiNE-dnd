@@ -1,13 +1,14 @@
 import { cssVar } from '@toeverything/theme';
 import { style } from '@vanilla-extract/css';
 export const root = style({
-  height: '100vh',
-  width: '100vw',
+  height: '100%',
+  width: '100%',
   display: 'flex',
   flexDirection: 'column',
   fontSize: cssVar('fontBase'),
   position: 'relative',
-  background: cssVar('backgroundPrimaryColor'),
+  backgroundColor: cssVar('backgroundPrimaryColor'),
+  backgroundSize: 'cover',
 });
 export const affineLogo = style({
   color: 'inherit',
@@ -17,18 +18,30 @@ export const topNav = style({
   left: 0,
   right: 0,
   display: 'flex',
+  position: 'fixed',
   alignItems: 'center',
   justifyContent: 'space-between',
   padding: '16px 120px',
-  selectors: {
-    '&.mobile': {
+  '@media': {
+    'screen and (max-width: 1024px)': {
       padding: '16px 20px',
     },
   },
 });
+export const draggableHeader = style({
+  height: '52px',
+  width: '100%',
+  position: 'fixed',
+  ['WebkitAppRegion' as string]: 'drag',
+});
 export const topNavLinks = style({
   display: 'flex',
   columnGap: 4,
+  '@media': {
+    'screen and (max-width: 1024px)': {
+      display: 'none',
+    },
+  },
 });
 export const topNavLink = style({
   color: cssVar('textPrimaryColor'),
@@ -43,6 +56,21 @@ export const iconButton = style({
   selectors: {
     '&.plain': {
       color: cssVar('textPrimaryColor'),
+    },
+  },
+});
+export const hideInWideScreen = style({
+  '@media': {
+    'screen and (min-width: 1024px)': {
+      display: 'none',
+      position: 'absolute',
+    },
+  },
+});
+export const hideInSmallScreen = style({
+  '@media': {
+    'screen and (max-width: 1024px)': {
+      display: 'none',
     },
   },
 });

@@ -1,72 +1,102 @@
+import type { MenuItemProps } from '@affine/component';
+import { Menu, MenuItem, usePromptModal } from '@affine/component';
+import { useDeleteCollectionInfo } from '@affine/core/components/hooks/affine/use-delete-collection-info';
+import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
+import { CompatibleFavoriteItemsAdapter } from '@affine/core/modules/favorite';
+import { WorkbenchService } from '@affine/core/modules/workbench';
+import type { Collection } from '@affine/env/filter';
+import { useI18n } from '@affine/i18n';
 import {
-  Menu,
-  MenuIcon,
-  MenuItem,
-  type MenuItemProps,
-} from '@affine/component';
-import type { Collection, DeleteCollectionInfo } from '@affine/env/filter';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { DeleteIcon, EditIcon, FilterIcon } from '@blocksuite/icons';
-import {
-  type PropsWithChildren,
-  type ReactElement,
-  useCallback,
-  useMemo,
-} from 'react';
+  DeleteIcon,
+  EditIcon,
+  FilterIcon,
+  OpenInNewIcon,
+  PlusIcon,
+  SplitViewIcon,
+} from '@blocksuite/icons/rc';
+import { useLiveData, useService, useServices } from '@toeverything/infra';
+import type { PropsWithChildren, ReactElement } from 'react';
+import { useCallback, useMemo } from 'react';
 
-import type { useCollectionManager } from '../use-collection-manager';
+import { CollectionService } from '../../../modules/collection';
+import { IsFavoriteIcon } from '../../pure/icons';
 import * as styles from './collection-operations.css';
-import type { AllPageListConfig } from './index';
-import {
-  useEditCollection,
-  useEditCollectionName,
-} from './use-edit-collection';
 
 export const CollectionOperations = ({
   collection,
-  config,
-  setting,
-  info,
   openRenameModal,
+  onAddDocToCollection,
   children,
 }: PropsWithChildren<{
-  info: DeleteCollectionInfo;
   collection: Collection;
-  config: AllPageListConfig;
-  setting: ReturnType<typeof useCollectionManager>;
   openRenameModal?: () => void;
+  onAddDocToCollection?: () => void;
 }>) => {
-  const { open: openEditCollectionModal, node: editModal } =
-    useEditCollection(config);
-  const t = useAFFiNEI18N();
-  const { open: openEditCollectionNameModal, node: editNameModal } =
-    useEditCollectionName({
-      title: t['com.affine.editCollection.renameCollection'](),
-    });
+  const {
+    collectionService: service,
+    workbenchService,
+    workspaceDialogService,
+  } = useServices({
+    CollectionService,
+    WorkbenchService,
+    WorkspaceDialogService,
+  });
+  const deleteInfo = useDeleteCollectionInfo();
+  const workbench = workbenchService.workbench;
+  const t = useI18n();
+  const { openPromptModal } = usePromptModal();
 
   const showEditName = useCallback(() => {
     // use openRenameModal if it is in the sidebar collection list
     if (openRenameModal) {
       return openRenameModal();
     }
-    openEditCollectionNameModal(collection.name)
-      .then(name => {
-        return setting.updateCollection({ ...collection, name });
-      })
-      .catch(err => {
-        console.error(err);
-      });
-  }, [openRenameModal, openEditCollectionNameModal, collection, setting]);
+    openPromptModal({
+      title: t['com.affine.editCollection.renameCollection'](),
+      label: t['com.affine.editCollectionName.name'](),
+      inputOptions: {
+        placeholder: t['com.affine.editCollectionName.name.placeholder'](),
+      },
+      confirmText: t['com.affine.editCollection.save'](),
+      cancelText: t['com.affine.editCollection.button.cancel'](),
+      confirmButtonOptions: {
+        variant: 'primary',
+      },
+      onConfirm(name) {
+        service.updateCollection(collection.id, () => ({
+          ...collection,
+          name,
+        }));
+      },
+    });
+  }, [openRenameModal, openPromptModal, t, service, collection]);
 
   const showEdit = useCallback(() => {
-    openEditCollectionModal(collection)
-      .then(collection => {
-        return setting.updateCollection(collection);
-      })
-      .catch(err => {
-        console.error(err);
-      });
-  }, [setting, collection, openEditCollectionModal]);
+    workspaceDialogService.open('collection-editor', {
+      collectionId: collection.id,
+    });
+  }, [workspaceDialogService, collection.id]);
+
+  const openCollectionSplitView = useCallback(() => {
+    workbench.openCollection(collection.id, { at: 'tail' });
+  }, [collection.id, workbench]);
+
+  const openCollectionNewTab = useCallback(() => {
+    workbench.openCollection(collection.id, { at: 'new-tab' });
+  }, [collection.id, workbench]);
+
+  const favAdapter = useService(CompatibleFavoriteItemsAdapter);
+
+  const onToggleFavoritePage = useCallback(() => {
+    favAdapter.toggle(collection.id, 'collection');
+  }, [favAdapter, collection.id]);
+
+  const favorite = useLiveData(
+    useMemo(
+      () => favAdapter.isFavorite$(collection.id, 'collection'),
+      [collection.id, favAdapter]
+    )
+  );
 
   const actions = useMemo<
     Array<
@@ -84,69 +114,95 @@ export const CollectionOperations = ({
   >(
     () => [
       {
-        icon: (
-          <MenuIcon>
-            <EditIcon />
-          </MenuIcon>
-        ),
+        icon: <EditIcon />,
         name: t['com.affine.collection.menu.rename'](),
         click: showEditName,
       },
       {
-        icon: (
-          <MenuIcon>
-            <FilterIcon />
-          </MenuIcon>
-        ),
+        icon: <FilterIcon />,
         name: t['com.affine.collection.menu.edit'](),
         click: showEdit,
       },
+      ...(onAddDocToCollection
+        ? [
+            {
+              icon: <PlusIcon />,
+              name: t['New Page'](),
+              click: onAddDocToCollection,
+            },
+          ]
+        : []),
+      {
+        icon: <IsFavoriteIcon favorite={favorite} />,
+        name: favorite
+          ? t['com.affine.favoritePageOperation.remove']()
+          : t['com.affine.favoritePageOperation.add'](),
+        click: onToggleFavoritePage,
+      },
+      {
+        icon: <OpenInNewIcon />,
+        name: t['com.affine.workbench.tab.page-menu-open'](),
+        click: openCollectionNewTab,
+      },
+      ...(BUILD_CONFIG.isElectron
+        ? [
+            {
+              icon: <SplitViewIcon />,
+              name: t['com.affine.workbench.split-view.page-menu-open'](),
+              click: openCollectionSplitView,
+            },
+          ]
+        : []),
       {
         element: <div key="divider" className={styles.divider}></div>,
       },
       {
-        icon: (
-          <MenuIcon>
-            <DeleteIcon />
-          </MenuIcon>
-        ),
+        icon: <DeleteIcon />,
         name: t['Delete'](),
         click: () => {
-          setting.deleteCollection(info, collection.id);
+          service.deleteCollection(deleteInfo, collection.id);
         },
         type: 'danger',
       },
     ],
-    [t, showEditName, showEdit, setting, info, collection.id]
+    [
+      t,
+      showEditName,
+      showEdit,
+      onAddDocToCollection,
+      favorite,
+      onToggleFavoritePage,
+      openCollectionNewTab,
+      openCollectionSplitView,
+      service,
+      deleteInfo,
+      collection.id,
+    ]
   );
   return (
-    <>
-      {editModal}
-      {editNameModal}
-      <Menu
-        items={
-          <div style={{ minWidth: 150 }}>
-            {actions.map(action => {
-              if (action.element) {
-                return action.element;
-              }
-              return (
-                <MenuItem
-                  data-testid="collection-option"
-                  key={action.name}
-                  type={action.type}
-                  preFix={action.icon}
-                  onClick={action.click}
-                >
-                  {action.name}
-                </MenuItem>
-              );
-            })}
-          </div>
-        }
-      >
-        {children}
-      </Menu>
-    </>
+    <Menu
+      items={
+        <div style={{ minWidth: 150 }}>
+          {actions.map(action => {
+            if (action.element) {
+              return action.element;
+            }
+            return (
+              <MenuItem
+                data-testid="collection-option"
+                key={action.name}
+                type={action.type}
+                prefixIcon={action.icon}
+                onClick={action.click}
+              >
+                {action.name}
+              </MenuItem>
+            );
+          })}
+        </div>
+      }
+    >
+      {children}
+    </Menu>
   );
 };

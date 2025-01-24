@@ -3,7 +3,8 @@ import { useCallback, useRef, useState } from 'react';
 
 import { Button } from '../button';
 import { ResizePanel } from '../resize-panel/resize-panel';
-import { InlineEdit, type InlineEditHandle } from './inline-edit';
+import type { InlineEditHandle } from './inline-edit';
+import { InlineEdit } from './inline-edit';
 
 export default {
   title: 'UI/Editable/Inline Edit',
@@ -56,7 +57,6 @@ Basic.args = {
   editable: true,
   placeholder: 'Untitled',
   trigger: 'doubleClick',
-  autoSelect: true,
 };
 
 export const CustomizeText: StoryFn<typeof InlineEdit> =
@@ -103,7 +103,6 @@ export const TriggerEdit: StoryFn<typeof InlineEdit> = args => {
 TriggerEdit.args = {
   value: 'Trigger edit mode in parent component by `handleRef`',
   editable: true,
-  autoSelect: true,
 };
 
 export const UpdateValue: StoryFn<typeof InlineEdit> = args => {
@@ -136,5 +135,4 @@ export const UpdateValue: StoryFn<typeof InlineEdit> = args => {
 UpdateValue.args = {
   value: 'Update value in parent component by `value`',
   editable: true,
-  autoSelect: true,
 };

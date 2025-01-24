@@ -1,14 +1,13 @@
 import { Tooltip } from '@affine/component/ui/tooltip';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { CloseIcon, NewIcon, UserGuideIcon } from '@blocksuite/icons';
-import { useSetAtom } from 'jotai/react';
-import { useAtomValue } from 'jotai/react';
+import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
+import type { SettingTab } from '@affine/core/modules/dialogs/constant';
+import { GlobalContextService } from '@affine/core/modules/global-context';
+import { UrlService } from '@affine/core/modules/url';
+import { useI18n } from '@affine/i18n';
+import { CloseIcon, NewIcon } from '@blocksuite/icons/rc';
+import { useLiveData, useService, useServices } from '@toeverything/infra';
 import { useCallback, useState } from 'react';
-import { useParams } from 'react-router-dom';
 
-import { openOnboardingModalAtom, openSettingModalAtom } from '../../../atoms';
-import { currentModeAtom } from '../../../atoms/mode';
-import type { SettingProps } from '../../affine/setting-modal';
 import { ContactIcon, HelpIcon, KeyboardIcon } from './icons';
 import {
   StyledAnimateWrapper,
@@ -22,27 +21,33 @@ const DEFAULT_SHOW_LIST: IslandItemNames[] = [
   'contact',
   'shortcuts',
 ];
-const DESKTOP_SHOW_LIST: IslandItemNames[] = [...DEFAULT_SHOW_LIST, 'guide'];
-type IslandItemNames = 'whatNew' | 'contact' | 'shortcuts' | 'guide';
 
-const showList = environment.isDesktop ? DESKTOP_SHOW_LIST : DEFAULT_SHOW_LIST;
+const DESKTOP_SHOW_LIST: IslandItemNames[] = [...DEFAULT_SHOW_LIST];
+type IslandItemNames = 'whatNew' | 'contact' | 'shortcuts';
+
+const showList = BUILD_CONFIG.isElectron
+  ? DESKTOP_SHOW_LIST
+  : DEFAULT_SHOW_LIST;
 
 export const HelpIsland = () => {
-  const mode = useAtomValue(currentModeAtom);
-  const setOpenOnboarding = useSetAtom(openOnboardingModalAtom);
-  const setOpenSettingModalAtom = useSetAtom(openSettingModalAtom);
+  const { globalContextService, urlService } = useServices({
+    GlobalContextService,
+    UrlService,
+  });
+  const docId = useLiveData(globalContextService.globalContext.docId.$);
+  const docMode = useLiveData(globalContextService.globalContext.docMode.$);
+  const workspaceDialogService = useService(WorkspaceDialogService);
   const [spread, setShowSpread] = useState(false);
-  const t = useAFFiNEI18N();
+  const t = useI18n();
   const openSettingModal = useCallback(
-    (tab: SettingProps['activeTab']) => {
+    (tab: SettingTab) => {
       setShowSpread(false);
 
-      setOpenSettingModalAtom({
-        open: true,
+      workspaceDialogService.open('setting', {
         activeTab: tab,
       });
     },
-    [setOpenSettingModalAtom]
+    [workspaceDialogService]
   );
   const openAbout = useCallback(
     () => openSettingModal('about'),
@@ -53,8 +58,6 @@ export const HelpIsland = () => {
     [openSettingModal]
   );
 
-  const { pageId } = useParams();
-
   return (
     <StyledIsland
       spread={spread}
@@ -62,7 +65,7 @@ export const HelpIsland = () => {
       onClick={() => {
         setShowSpread(!spread);
       }}
-      inEdgelessPage={!!pageId && mode === 'edgeless'}
+      inEdgelessPage={!!docId && docMode === 'edgeless'}
     >
       <StyledAnimateWrapper
         style={{ height: spread ? `${showList.length * 40 + 4}px` : 0 }}
@@ -72,7 +75,7 @@ export const HelpIsland = () => {
             <StyledIconWrapper
               data-testid="right-bottom-change-log-icon"
               onClick={() => {
-                window.open(runtimeConfig.changelogUrl, '_blank');
+                urlService.openPopupWindow(BUILD_CONFIG.changelogUrl);
               }}
             >
               <NewIcon />
@@ -99,22 +102,6 @@ export const HelpIsland = () => {
               onClick={openShortcuts}
             >
               <KeyboardIcon />
-            </StyledIconWrapper>
-          </Tooltip>
-        )}
-        {showList.includes('guide') && (
-          <Tooltip
-            content={t['com.affine.helpIsland.gettingStarted']()}
-            side="left"
-          >
-            <StyledIconWrapper
-              data-testid="easy-guide"
-              onClick={() => {
-                setShowSpread(false);
-                setOpenOnboarding(true);
-              }}
-            >
-              <UserGuideIcon />
             </StyledIconWrapper>
           </Tooltip>
         )}

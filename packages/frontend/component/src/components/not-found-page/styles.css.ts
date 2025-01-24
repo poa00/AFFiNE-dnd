@@ -5,9 +5,10 @@ export const notFoundPageContainer = style({
   color: cssVar('textPrimaryColor'),
   height: '100vh',
   display: 'flex',
+  flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
-  width: '100vw',
+  width: '100%',
   padding: '0 20px',
 });
 export const wrapper = style({
@@ -18,4 +19,9 @@ export const wrapper = style({
 });
 export const largeButtonEffect = style({
   boxShadow: `${cssVar('largeButtonEffect')} !important`,
+});
+
+export const illustration = style({
+  maxWidth: '100%',
+  width: '670px',
 });

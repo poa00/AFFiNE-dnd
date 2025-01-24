@@ -1,7 +1,9 @@
 import { cssVar } from '@toeverything/theme';
 import { createContainer, style } from '@vanilla-extract/css';
 
-import * as itemStyles from './docs/page-list-item.css';
+import { root as collectionItemRoot } from './collections/collection-list-item.css';
+import { root as pageItemRoot } from './docs/page-list-item.css';
+import { root as tagItemRoot } from './tags/tag-list-item.css';
 export const listRootContainer = createContainer('list-root-container');
 export const pageListScrollContainer = style({
   width: '100%',
@@ -37,6 +39,10 @@ export const hideInSmallContainer = style({
     },
   },
 });
+
+export const hidden = style({
+  display: 'none',
+});
 export const favoriteCell = style({
   display: 'flex',
   alignItems: 'center',
@@ -44,9 +50,10 @@ export const favoriteCell = style({
   flexShrink: 0,
   opacity: 0,
   selectors: {
-    [`&[data-favorite], ${itemStyles.root}:hover &`]: {
-      opacity: 1,
-    },
+    [`&[data-favorite], ${pageItemRoot}:hover &, ${collectionItemRoot}:hover &, ${tagItemRoot}:hover &`]:
+      {
+        opacity: 1,
+      },
   },
 });
 export const clearLinkStyle = style({
@@ -57,5 +64,37 @@ export const clearLinkStyle = style({
   },
   ':active': {
     color: 'inherit',
+  },
+});
+
+export const editTagWrapper = style({
+  position: 'absolute',
+  right: '0',
+  width: '100%',
+  height: '60px',
+  display: 'none',
+  zIndex: 1,
+  selectors: {
+    '&[data-show=true]': {
+      background: cssVar('backgroundPrimaryColor'),
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      cursor: 'auto',
+    },
+  },
+});
+
+export const deleteButton = style({
+  color: cssVar('iconColor'),
+  ':hover': {
+    background: cssVar('backgroundErrorColor'),
+  },
+});
+export const deleteIcon = style({
+  selectors: {
+    [`${deleteButton}:hover &`]: {
+      color: cssVar('errorColor'),
+    },
   },
 });

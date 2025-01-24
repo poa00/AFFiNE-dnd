@@ -1,18 +1,15 @@
-import { Scrollable } from '@affine/component';
-import { useHasScrollTop } from '@affine/component/app-sidebar';
+import { Scrollable, useHasScrollTop } from '@affine/component';
 import clsx from 'clsx';
+import type { ForwardedRef, PropsWithChildren } from 'react';
 import {
-  type ForwardedRef,
   forwardRef,
   memo,
-  type PropsWithChildren,
   useCallback,
   useEffect,
   useImperativeHandle,
-  useRef,
 } from 'react';
 
-import { pageHeaderColsDef } from './header-col-def';
+import { usePageHeaderColsDef } from './header-col-def';
 import * as styles from './list.css';
 import { ItemGroup } from './page-group';
 import { ListTableHeader } from './page-header';
@@ -45,7 +42,7 @@ export const List = forwardRef<ItemListHandle, ListProps<ListItem>>(
 );
 
 // when pressing ESC or double clicking outside of the page list, close the selection mode
-// todo: use jotai-effect instead but it seems it does not work with jotai-scope?
+// TODO(@Peng): use jotai-effect instead but it seems it does not work with jotai-scope?
 const useItemSelectionStateEffect = () => {
   const [selectionState, setSelectionActive] = useAtom(selectionStateAtom);
   useEffect(() => {
@@ -64,11 +61,14 @@ const useItemSelectionStateEffect = () => {
         if (
           target.tagName === 'BUTTON' ||
           target.tagName === 'INPUT' ||
-          (e.target as HTMLElement).closest('button, input, [role="toolbar"]')
+          (e.target as HTMLElement).closest(
+            'button, input, [role="toolbar"], [role="list-item"]'
+          )
         ) {
           return;
         }
         setSelectionActive(false);
+        selectionState.onSelectedIdsChange?.([]);
       };
 
       const escHandler = (e: KeyboardEvent) => {
@@ -77,6 +77,7 @@ const useItemSelectionStateEffect = () => {
         }
         if (e.key === 'Escape') {
           setSelectionActive(false);
+          selectionState.onSelectedIdsChange?.([]);
         }
       };
 
@@ -90,6 +91,7 @@ const useItemSelectionStateEffect = () => {
     }
     return;
   }, [
+    selectionState,
     selectionState.selectable,
     selectionState.selectionActive,
     setSelectionActive,
@@ -117,17 +119,13 @@ export const ListInnerWrapper = memo(
       onSelectionActiveChange?.(!!selectionState.selectionActive);
     }, [onSelectionActiveChange, selectionState.selectionActive]);
 
-    useImperativeHandle(
-      handleRef,
-      () => {
-        return {
-          toggleSelectable: () => {
-            setListSelectionState(false);
-          },
-        };
-      },
-      [setListSelectionState]
-    );
+    useImperativeHandle(handleRef, () => {
+      return {
+        toggleSelectable: () => {
+          setListSelectionState(false);
+        },
+      };
+    }, [setListSelectionState]);
     return children;
   }
 );
@@ -136,7 +134,7 @@ ListInnerWrapper.displayName = 'ListInnerWrapper';
 
 const ListInner = (props: ListProps<ListItem>) => {
   const groups = useAtomValue(groupsAtom);
-
+  const pageHeaderColsDef = usePageHeaderColsDef();
   const hideHeader = props.hideHeader;
   return (
     <div className={clsx(props.className, styles.root)}>
@@ -159,8 +157,7 @@ export const ListScrollContainer = forwardRef<
   HTMLDivElement,
   PropsWithChildren<ListScrollContainerProps>
 >(({ className, children, style }, ref) => {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const hasScrollTop = useHasScrollTop(containerRef);
+  const [setContainer, hasScrollTop] = useHasScrollTop();
 
   const setNodeRef = useCallback(
     (r: HTMLDivElement) => {
@@ -171,9 +168,9 @@ export const ListScrollContainer = forwardRef<
           ref.current = r;
         }
       }
-      containerRef.current = r;
+      return setContainer(r);
     },
-    [ref]
+    [ref, setContainer]
   );
 
   return (

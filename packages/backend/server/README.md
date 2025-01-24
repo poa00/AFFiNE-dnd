@@ -11,7 +11,7 @@ yarn
 ### Build Native binding
 
 ```bash
-yarn workspace @affine/storage build
+yarn affine @affine/server-native build
 ```
 
 ### Run server

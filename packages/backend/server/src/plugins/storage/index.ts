@@ -1,5 +1,7 @@
-import { OptionalModule } from '../../fundamentals';
-import { registerStorageProvider } from '../../fundamentals/storage';
+import './config';
+
+import { registerStorageProvider } from '../../base/storage';
+import { Plugin } from '../registry';
 import { R2StorageProvider } from './providers/r2';
 import { S3StorageProvider } from './providers/s3';
 
@@ -18,7 +20,8 @@ registerStorageProvider('aws-s3', (config, bucket) => {
   return new S3StorageProvider(config.plugins['aws-s3'], bucket);
 });
 
-@OptionalModule({
+@Plugin({
+  name: 'cloudflare-r2',
   requires: [
     'plugins.cloudflare-r2.accountId',
     'plugins.cloudflare-r2.credentials.accessKeyId',
@@ -28,7 +31,8 @@ registerStorageProvider('aws-s3', (config, bucket) => {
 })
 export class CloudflareR2Module {}
 
-@OptionalModule({
+@Plugin({
+  name: 'aws-s3',
   requires: [
     'plugins.aws-s3.credentials.accessKeyId',
     'plugins.aws-s3.credentials.secretAccessKey',
@@ -36,5 +40,3 @@ export class CloudflareR2Module {}
   if: config => config.flavor.graphql,
 })
 export class AwsS3Module {}
-
-export type { R2StorageConfig, S3StorageConfig } from './types';

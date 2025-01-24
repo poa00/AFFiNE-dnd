@@ -1,15 +1,8 @@
-import { nanoid } from 'nanoid';
 import type { Mock } from 'vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { gqlFetcherFactory } from '../fetcher';
 import type { GraphQLQuery } from '../graphql';
-import {
-  generateRandUTF16Chars,
-  SPAN_ID_BYTES,
-  TRACE_ID_BYTES,
-  TraceReporter,
-} from '../utils';
 
 const query: GraphQLQuery = {
   id: 'query',
@@ -19,6 +12,7 @@ const query: GraphQLQuery = {
 };
 
 let fetch: Mock;
+let gql: ReturnType<typeof gqlFetcherFactory>;
 describe('GraphQL fetcher', () => {
   beforeEach(() => {
     fetch = vi.fn(() =>
@@ -30,14 +24,12 @@ describe('GraphQL fetcher', () => {
         })
       )
     );
-    vi.stubGlobal('fetch', fetch);
+    gql = gqlFetcherFactory('https://example.com/graphql', fetch);
   });
 
   afterEach(() => {
     fetch.mockReset();
   });
-
-  const gql = gqlFetcherFactory('https://example.com/graphql');
 
   it('should send POST request to given endpoint', async () => {
     await gql(
@@ -46,8 +38,8 @@ describe('GraphQL fetcher', () => {
     );
 
     expect(fetch).toBeCalledTimes(1);
-    expect(fetch.mock.lastCall[0]).toBe('https://example.com/graphql');
-    const ctx = fetch.mock.lastCall[1] as RequestInit;
+    expect(fetch.mock.lastCall?.[0]).toBe('https://example.com/graphql');
+    const ctx = fetch.mock.lastCall?.[1] as RequestInit;
     expect(ctx.method).toBe('POST');
   });
 
@@ -58,14 +50,13 @@ describe('GraphQL fetcher', () => {
       variables: { a: 1, b: '2', c: { d: false } },
     });
 
-    expect(fetch.mock.lastCall[1]).toEqual(
+    expect(fetch.mock.lastCall?.[1]).toEqual(
       expect.objectContaining({
         body: '{"query":"query { field }","variables":{"a":1,"b":"2","c":{"d":false}},"operationName":"query"}',
         headers: expect.objectContaining({
           'content-type': 'application/json',
           'x-definition-name': 'query',
           'x-operation-name': 'query',
-          'x-request-id': expect.any(String),
         }),
         method: 'POST',
       })
@@ -79,7 +70,7 @@ describe('GraphQL fetcher', () => {
       variables: { a: false, b: null, c: undefined },
     });
 
-    expect(fetch.mock.lastCall[1].body).toMatchInlineSnapshot(
+    expect(fetch.mock.lastCall?.[1].body).toMatchInlineSnapshot(
       `"{"query":"query { field }","variables":{"a":false,"b":null},"operationName":"query"}"`
     );
 
@@ -90,7 +81,7 @@ describe('GraphQL fetcher', () => {
       keepNilVariables: false,
     });
 
-    expect(fetch.mock.lastCall[1].body).toMatchInlineSnapshot(
+    expect(fetch.mock.lastCall?.[1].body).toMatchInlineSnapshot(
       `"{"query":"query { field }","variables":{"a":false},"operationName":"query"}"`
     );
   });
@@ -111,49 +102,8 @@ describe('GraphQL fetcher', () => {
       )
     );
 
-    await expect(gql({ query, variables: void 0 })).rejects
-      .toMatchInlineSnapshot(`
-      [
-        [GraphQLError: error],
-      ]
-    `);
-  });
-});
-
-describe('Trace Reporter', () => {
-  const startTime = new Date().toISOString();
-  const traceId = generateRandUTF16Chars(TRACE_ID_BYTES);
-  const spanId = generateRandUTF16Chars(SPAN_ID_BYTES);
-  const requestId = nanoid();
-
-  it('spanId, traceId should be right format', () => {
-    expect(
-      new RegExp(`^[0-9a-f]{${SPAN_ID_BYTES * 2}}$`).test(
-        generateRandUTF16Chars(SPAN_ID_BYTES)
-      )
-    ).toBe(true);
-    expect(
-      new RegExp(`^[0-9a-f]{${TRACE_ID_BYTES * 2}}$`).test(
-        generateRandUTF16Chars(TRACE_ID_BYTES)
-      )
-    ).toBe(true);
-  });
-
-  it('test createTraceSpan', () => {
-    const traceSpan = TraceReporter.createTraceSpan(
-      traceId,
-      spanId,
-      startTime,
-      { requestId }
-    );
-    expect(traceSpan.startTime).toBe(startTime);
-    expect(
-      traceSpan.name ===
-        `projects/{GCP_PROJECT_ID}/traces/${traceId}/spans/${spanId}`
-    ).toBe(true);
-    expect(traceSpan.spanId).toBe(spanId);
-    expect(traceSpan.attributes.attributeMap.requestId?.stringValue.value).toBe(
-      requestId
-    );
+    await expect(
+      gql({ query, variables: void 0 })
+    ).rejects.toMatchInlineSnapshot(`[GraphQLError: error]`);
   });
 });

@@ -63,7 +63,7 @@ export const innerBackdrop = style({
   },
 });
 export const tag = style({
-  height: '20px',
+  height: '22px',
   display: 'flex',
   minWidth: 0,
   alignItems: 'center',
@@ -78,16 +78,24 @@ export const tagInnerWrapper = style({
   justifyContent: 'space-between',
   padding: '0 8px',
   color: cssVar('textPrimaryColor'),
+  borderColor: cssVar('borderColor'),
+  selectors: {
+    '&[data-focused=true]': {
+      borderColor: cssVar('primaryColor'),
+    },
+  },
 });
-export const tagSticky = style([
+export const tagInline = style([
   tagInnerWrapper,
   {
-    fontSize: cssVar('fontXs'),
+    fontSize: 'inherit',
     borderRadius: '10px',
     columnGap: '4px',
-    border: `1px solid ${cssVar('borderColor')}`,
+    borderWidth: '1px',
+    borderStyle: 'solid',
     background: cssVar('backgroundPrimaryColor'),
     maxWidth: '128px',
+    height: '100%',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
@@ -119,4 +127,19 @@ export const tagLabel = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
+  userSelect: 'none',
+});
+
+export const tagRemove = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 12,
+  height: 12,
+  borderRadius: '50%',
+  flexShrink: 0,
+  cursor: 'pointer',
+  ':hover': {
+    background: 'var(--affine-hover-color)',
+  },
 });

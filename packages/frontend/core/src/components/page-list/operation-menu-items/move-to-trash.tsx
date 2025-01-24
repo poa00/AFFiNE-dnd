@@ -1,26 +1,13 @@
-import {
-  ConfirmModal,
-  type ConfirmModalProps,
-  MenuIcon,
-  MenuItem,
-  type MenuItemProps,
-} from '@affine/component';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { DeleteIcon } from '@blocksuite/icons';
+import type { ConfirmModalProps, MenuItemProps } from '@affine/component';
+import { ConfirmModal, MenuItem } from '@affine/component';
+import { useI18n } from '@affine/i18n';
+import { DeleteIcon } from '@blocksuite/icons/rc';
 
 export const MoveToTrash = (props: MenuItemProps) => {
-  const t = useAFFiNEI18N();
+  const t = useI18n();
 
   return (
-    <MenuItem
-      preFix={
-        <MenuIcon>
-          <DeleteIcon />
-        </MenuIcon>
-      }
-      type="danger"
-      {...props}
-    >
+    <MenuItem prefixIcon={<DeleteIcon />} type="danger" {...props}>
       {t['com.affine.moveToTrash.title']()}
     </MenuItem>
   );
@@ -32,7 +19,7 @@ const MoveToTrashConfirm = ({
 }: {
   titles: string[];
 } & ConfirmModalProps) => {
-  const t = useAFFiNEI18N();
+  const t = useI18n();
   const multiple = titles.length > 1;
   const title = multiple
     ? t['com.affine.moveToTrash.confirmModal.title.multiple']({
@@ -51,10 +38,10 @@ const MoveToTrashConfirm = ({
       title={title}
       description={description}
       cancelText={t['com.affine.confirmModal.button.cancel']()}
+      confirmText={t.Delete()}
       confirmButtonOptions={{
         ['data-testid' as string]: 'confirm-delete-page',
-        type: 'error',
-        children: t.Delete(),
+        variant: 'error',
       }}
       {...confirmModalProps}
     />

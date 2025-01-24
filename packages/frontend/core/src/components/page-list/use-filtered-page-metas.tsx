@@ -1,70 +1,79 @@
-import { allPageModeSelectAtom } from '@affine/core/atoms';
-import { usePageHelper } from '@affine/core/components/blocksuite/block-suite-page-list/utils';
-import { CollectionService } from '@affine/core/modules/collection';
-import type { BlockSuiteWorkspace } from '@affine/core/shared';
-import type { PageMeta } from '@blocksuite/store';
-import { useService } from '@toeverything/infra/di';
-import { useAtomValue } from 'jotai';
-import { useMemo } from 'react';
+import { CompatibleFavoriteItemsAdapter } from '@affine/core/modules/favorite';
+import { ShareDocsListService } from '@affine/core/modules/share-doc';
+import type { Collection, Filter } from '@affine/env/filter';
+import { PublicPageMode } from '@affine/graphql';
+import type { DocMeta } from '@blocksuite/affine/store';
+import { useLiveData, useService } from '@toeverything/infra';
+import { useCallback, useEffect, useMemo } from 'react';
 
-import {
-  filterPage,
-  filterPageByRules,
-  useCollectionManager,
-} from './use-collection-manager';
+import { filterPage, filterPageByRules } from './use-collection-manager';
 
 export const useFilteredPageMetas = (
-  route: 'all' | 'trash',
-  pageMetas: PageMeta[],
-  workspace: BlockSuiteWorkspace
+  pageMetas: DocMeta[],
+  options: {
+    trash?: boolean;
+    filters?: Filter[];
+    collection?: Collection;
+  } = {}
 ) => {
-  const { isPreferredEdgeless } = usePageHelper(workspace);
-  const pageMode = useAtomValue(allPageModeSelectAtom);
-  const { currentCollection, isDefault } = useCollectionManager(
-    useService(CollectionService)
+  const shareDocsListService = useService(ShareDocsListService);
+  const shareDocs = useLiveData(shareDocsListService.shareDocs?.list$);
+
+  const getPublicMode = useCallback(
+    (id: string) => {
+      const mode = shareDocs?.find(shareDoc => shareDoc.id === id)?.mode;
+      return mode
+        ? mode === PublicPageMode.Edgeless
+          ? ('edgeless' as const)
+          : ('page' as const)
+        : undefined;
+    },
+    [shareDocs]
   );
+
+  useEffect(() => {
+    // TODO(@eyhn): loading & error UI
+    shareDocsListService.shareDocs?.revalidate();
+  }, [shareDocsListService]);
+
+  const favAdapter = useService(CompatibleFavoriteItemsAdapter);
+  const favoriteItems = useLiveData(favAdapter.favorites$);
 
   const filteredPageMetas = useMemo(
     () =>
-      pageMetas
-        .filter(pageMeta => {
-          if (pageMode === 'all') {
-            return true;
-          }
-          if (pageMode === 'edgeless') {
-            return isPreferredEdgeless(pageMeta.id);
-          }
-          if (pageMode === 'page') {
-            return !isPreferredEdgeless(pageMeta.id);
-          }
-          console.error('unknown filter mode', pageMeta, pageMode);
-          return true;
-        })
-        .filter(pageMeta => {
-          if (
-            (route === 'trash' && !pageMeta.trash) ||
-            (route === 'all' && pageMeta.trash)
-          ) {
+      pageMetas.filter(pageMeta => {
+        if (options.trash) {
+          if (!pageMeta.trash) {
             return false;
           }
-          if (!currentCollection) {
-            return true;
-          }
-          return isDefault
-            ? filterPageByRules(
-                currentCollection.filterList,
-                currentCollection.allowList,
-                pageMeta
-              )
-            : filterPage(currentCollection, pageMeta);
-        }),
+        } else if (pageMeta.trash) {
+          return false;
+        }
+        const pageData = {
+          meta: pageMeta,
+          favorite: favoriteItems.some(fav => fav.id === pageMeta.id),
+          publicMode: getPublicMode(pageMeta.id),
+        };
+        if (
+          options.filters &&
+          !filterPageByRules(options.filters, [], pageData)
+        ) {
+          return false;
+        }
+
+        if (options.collection && !filterPage(options.collection, pageData)) {
+          return false;
+        }
+
+        return true;
+      }),
     [
-      currentCollection,
-      isDefault,
-      isPreferredEdgeless,
       pageMetas,
-      pageMode,
-      route,
+      options.trash,
+      options.filters,
+      options.collection,
+      favoriteItems,
+      getPublicMode,
     ]
   );
 

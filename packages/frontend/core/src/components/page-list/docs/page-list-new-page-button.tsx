@@ -1,8 +1,5 @@
-import { Workspace } from '@toeverything/infra';
-import { useService } from '@toeverything/infra/di';
-import type { PropsWithChildren } from 'react';
+import type { MouseEvent, PropsWithChildren } from 'react';
 
-import { usePageHelper } from '../../blocksuite/block-suite-page-list/utils';
 import { NewPageButton } from '../components/new-page-button';
 import * as styles from './page-list-new-page-button.css';
 
@@ -11,22 +8,27 @@ export const PageListNewPageButton = ({
   children,
   size,
   testId,
+  onCreateDoc,
+  onCreatePage,
+  onCreateEdgeless,
+  onImportFile,
 }: PropsWithChildren<{
   className?: string;
   size?: 'small' | 'default';
   testId?: string;
+  onCreateDoc: (e?: MouseEvent) => void;
+  onCreatePage: (e?: MouseEvent) => void;
+  onCreateEdgeless: (e?: MouseEvent) => void;
+  onImportFile?: (e?: MouseEvent) => void;
 }>) => {
-  const currentWorkspace = useService(Workspace);
-  const { importFile, createEdgeless, createPage } = usePageHelper(
-    currentWorkspace.blockSuiteWorkspace
-  );
   return (
     <div className={className} data-testid={testId}>
       <NewPageButton
         size={size}
-        importFile={importFile}
-        createNewEdgeless={createEdgeless}
-        createNewPage={createPage}
+        importFile={onImportFile}
+        createNewDoc={onCreateDoc}
+        createNewEdgeless={onCreateEdgeless}
+        createNewPage={onCreatePage}
       >
         <div className={styles.newPageButtonLabel}>{children}</div>
       </NewPageButton>

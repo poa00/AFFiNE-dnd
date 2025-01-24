@@ -1,13 +1,14 @@
 import { ConfirmModal } from '@affine/component/ui/modal';
-import { openQuotaModalAtom } from '@affine/core/atoms';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { useService, Workspace } from '@toeverything/infra';
+import { openQuotaModalAtom } from '@affine/core/components/atoms';
+import { WorkspaceService } from '@affine/core/modules/workspace';
+import { useI18n } from '@affine/i18n';
+import { useService } from '@toeverything/infra';
 import { useAtom } from 'jotai';
 import { useCallback, useEffect } from 'react';
 
 export const LocalQuotaModal = () => {
-  const t = useAFFiNEI18N();
-  const currentWorkspace = useService(Workspace);
+  const t = useI18n();
+  const currentWorkspace = useService(WorkspaceService).workspace;
   const [open, setOpen] = useAtom(openQuotaModalAtom);
 
   const onConfirm = useCallback(() => {
@@ -15,13 +16,13 @@ export const LocalQuotaModal = () => {
   }, [setOpen]);
 
   useEffect(() => {
-    const disposable = currentWorkspace.engine.blob.onAbortLargeBlob.on(() => {
+    const disposable = currentWorkspace.engine.blob.onReachedMaxBlobSize(() => {
       setOpen(true);
     });
     return () => {
-      disposable?.dispose();
+      disposable();
     };
-  }, [currentWorkspace.engine.blob.onAbortLargeBlob, setOpen]);
+  }, [currentWorkspace.engine.blob, setOpen]);
 
   return (
     <ConfirmModal
@@ -35,9 +36,9 @@ export const LocalQuotaModal = () => {
         hidden: true,
       }}
       onConfirm={onConfirm}
+      confirmText={t['Got it']()}
       confirmButtonOptions={{
-        type: 'primary',
-        children: t['Got it'](),
+        variant: 'primary',
       }}
     />
   );

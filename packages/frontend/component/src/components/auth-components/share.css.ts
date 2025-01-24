@@ -4,7 +4,7 @@ export const modalHeaderWrapper = style({});
 globalStyle(`${modalHeaderWrapper} .logo`, {
   fontSize: cssVar('fontH3'),
   fontWeight: 600,
-  color: cssVar('blue'),
+  color: cssVar('black'),
   marginRight: '6px',
   verticalAlign: 'middle',
 });
@@ -32,7 +32,7 @@ export const authInputWrapper = style({
 });
 globalStyle(`${authInputWrapper} label`, {
   display: 'block',
-  color: 'var(--light-text-color-text-secondary-color, #8E8D91)',
+  color: cssVar('textSecondaryColor'),
   marginBottom: '4px',
   fontSize: cssVar('fontSm'),
   fontWeight: 600,
@@ -42,6 +42,7 @@ export const formHint = style({
   fontSize: cssVar('fontSm'),
   position: 'absolute',
   bottom: '4px',
+  height: '22px',
   left: 0,
   lineHeight: '22px',
   selectors: {
@@ -158,14 +159,33 @@ export const authPageContainer = style({
 globalStyle(`${authPageContainer} .wrapper`, {
   display: 'flex',
   alignItems: 'center',
+  width: '100%',
+  justifyContent: 'center',
+  overflow: 'hidden',
   '@media': {
     'screen and (max-width: 1024px)': {
       flexDirection: 'column',
+      justifyContent: 'flex-start',
     },
   },
 });
 globalStyle(`${authPageContainer} .content`, {
-  maxWidth: '700px',
+  maxWidth: '810px',
+  '@media': {
+    'screen and (min-width: 1024px)': {
+      marginLeft: '200px',
+      minWidth: '500px',
+      marginRight: '60px',
+      flexGrow: 1,
+      flexShrink: 0,
+      flexBasis: 0,
+    },
+    'screen and (max-width: 1024px)': {
+      maxWidth: '600px',
+      width: '100%',
+      margin: 'auto',
+    },
+  },
 });
 globalStyle(`${authPageContainer} .title`, {
   fontSize: cssVar('fontTitle'),
@@ -179,8 +199,12 @@ globalStyle(`${authPageContainer} a`, {
   color: cssVar('linkColor'),
 });
 export const signInPageContainer = style({
-  width: '400px',
-  margin: '205px auto 0',
+  height: '100vh',
+  width: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  justifyContent: 'center',
+  alignItems: 'center',
 });
 export const input = style({
   width: '330px',
@@ -189,4 +213,17 @@ export const input = style({
       width: '100%',
     },
   },
+});
+
+export const hideInSmallScreen = style({
+  '@media': {
+    'screen and (max-width: 1024px)': {
+      display: 'none',
+    },
+  },
+});
+
+export const illustration = style({
+  flexShrink: 0,
+  width: '670px',
 });

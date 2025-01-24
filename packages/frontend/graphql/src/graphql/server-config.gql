@@ -1,3 +1,6 @@
+#import './fragments/password-limits.gql'
+#import './fragments/credentials-requirement.gql'
+
 query serverConfig {
   serverConfig {
     version
@@ -5,5 +8,9 @@ query serverConfig {
     name
     features
     type
+    initialized
+    credentialsRequirement {
+      ...CredentialsRequirements
+    }
   }
 }

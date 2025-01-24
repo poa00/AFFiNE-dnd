@@ -2,9 +2,15 @@ import type { Meta, StoryFn } from '@storybook/react';
 import { useCallback, useState } from 'react';
 
 import { Button } from '../button';
-import { Input, type InputProps } from '../input';
-import { ConfirmModal, type ConfirmModalProps } from './confirm-modal';
-import { Modal, type ModalProps } from './modal';
+import type { InputProps } from '../input';
+import { Input } from '../input';
+import { RadioGroup } from '../radio';
+import type { ConfirmModalProps } from './confirm-modal';
+import { ConfirmModal } from './confirm-modal';
+import type { ModalProps } from './modal';
+import { Modal } from './modal';
+import type { OverlayModalProps } from './overlay-modal';
+import { OverlayModal } from './overlay-modal';
 
 export default {
   title: 'UI/Modal',
@@ -53,10 +59,10 @@ const ConfirmModalTemplate: StoryFn<ConfirmModalProps> = () => {
         onConfirm={handleConfirm}
         title="Modal Title"
         description="Modal description"
+        confirmText="Confirm"
         confirmButtonOptions={{
           loading: loading,
-          type: 'primary',
-          children: 'Confirm',
+          variant: 'primary',
         }}
       >
         <Input placeholder="input someting" status={inputStatus} />
@@ -65,5 +71,105 @@ const ConfirmModalTemplate: StoryFn<ConfirmModalProps> = () => {
   );
 };
 
+const OverlayModalTemplate: StoryFn<OverlayModalProps> = () => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>Open Overlay Modal</Button>
+      <OverlayModal
+        open={open}
+        onOpenChange={setOpen}
+        title="Modal Title"
+        description="Modal description"
+        confirmButtonOptions={{
+          variant: 'primary',
+        }}
+        topImage={
+          <div
+            style={{
+              width: '400px',
+              height: '300px',
+              background: '#66ccff',
+              opacity: 0.1,
+              color: '#fff',
+            }}
+          ></div>
+        }
+      />
+    </>
+  );
+};
+
 export const Confirm: StoryFn<ModalProps> =
   ConfirmModalTemplate.bind(undefined);
+
+export const Overlay: StoryFn<ModalProps> =
+  OverlayModalTemplate.bind(undefined);
+
+export const Animations = () => {
+  const animations = ['fadeScaleTop', 'slideBottom', 'none'];
+  const [open, setOpen] = useState(false);
+  const [animation, setAnimation] =
+    useState<ModalProps['animation']>('fadeScaleTop');
+
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <RadioGroup
+        value={animation}
+        onChange={setAnimation}
+        items={animations}
+      />
+      <Button onClick={() => setOpen(true)}>Open dialog</Button>
+      <Modal
+        contentWrapperStyle={
+          animation === 'slideBottom'
+            ? {
+                alignItems: 'end',
+                padding: 10,
+              }
+            : {}
+        }
+        open={open}
+        onOpenChange={setOpen}
+        animation={animation}
+      >
+        This is a dialog with animation: {animation}
+      </Modal>
+    </div>
+  );
+};
+
+export const Nested = () => {
+  const [openRoot, setOpenRoot] = useState(false);
+  const [openNested, setOpenNested] = useState(false);
+
+  return (
+    <>
+      <Button onClick={() => setOpenRoot(true)}>Open Root Modal</Button>
+      <Modal
+        animation="slideBottom"
+        open={openRoot}
+        onOpenChange={setOpenRoot}
+        contentOptions={{
+          style: {
+            transition: 'all .3s ease 0.1s',
+            transform: openNested
+              ? `scale(0.95) translateY(-20px)`
+              : 'scale(1) translateY(0)',
+          },
+        }}
+      >
+        <Button onClick={() => setOpenNested(true)}>Open Nested Modal</Button>
+      </Modal>
+      <Modal
+        animation="slideBottom"
+        open={openNested}
+        onOpenChange={setOpenNested}
+        overlayOptions={{ style: { background: 'transparent' } }}
+      >
+        Nested Modal
+      </Modal>
+    </>
+  );
+};

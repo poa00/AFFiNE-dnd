@@ -1,8 +1,8 @@
 import type { FC } from 'react';
 
-export interface FallbackProps<T extends Error = Error> {
+export interface FallbackProps<T = unknown> {
   error: T;
-  resetError: () => void;
+  resetError?: () => void;
 }
 
 export const ERROR_REFLECT_KEY = Symbol('ERROR_REFLECT_KEY');

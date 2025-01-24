@@ -1,19 +1,20 @@
-import type { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { ImportIcon, PlusIcon } from '@blocksuite/icons';
-import { registerAffineCommand } from '@toeverything/infra/command';
-import type { createStore } from 'jotai';
+import type { useI18n } from '@affine/i18n';
+import { track } from '@affine/track';
+import type { DocMode } from '@blocksuite/affine/blocks';
+import { ImportIcon, PlusIcon } from '@blocksuite/icons/rc';
 
-import { openCreateWorkspaceModalAtom } from '../atoms';
 import type { usePageHelper } from '../components/blocksuite/block-suite-page-list/utils';
+import type { GlobalDialogService } from '../modules/dialogs';
+import { registerAffineCommand } from './registry';
 
 export function registerAffineCreationCommands({
-  store,
   pageHelper,
   t,
+  globalDialogService,
 }: {
-  t: ReturnType<typeof useAFFiNEI18N>;
-  store: ReturnType<typeof createStore>;
+  t: ReturnType<typeof useI18n>;
   pageHelper: ReturnType<typeof usePageHelper>;
+  globalDialogService: GlobalDialogService;
 }) {
   const unsubs: Array<() => void> = [];
   unsubs.push(
@@ -22,14 +23,16 @@ export function registerAffineCreationCommands({
       category: 'affine:creation',
       label: t['com.affine.cmdk.affine.new-page'](),
       icon: <PlusIcon />,
-      keyBinding: environment.isDesktop
+      keyBinding: BUILD_CONFIG.isElectron
         ? {
             binding: '$mod+N',
             skipRegister: true,
           }
         : undefined,
       run() {
-        pageHelper.createPage();
+        track.$.cmdk.creation.createDoc({ mode: 'page' });
+
+        pageHelper.createPage('page' as DocMode);
       },
     })
   );
@@ -41,6 +44,10 @@ export function registerAffineCreationCommands({
       icon: <PlusIcon />,
       label: t['com.affine.cmdk.affine.new-edgeless-page'](),
       run() {
+        track.$.cmdk.creation.createDoc({
+          mode: 'edgeless',
+        });
+
         pageHelper.createEdgeless();
       },
     })
@@ -53,7 +60,9 @@ export function registerAffineCreationCommands({
       icon: <PlusIcon />,
       label: t['com.affine.cmdk.affine.new-workspace'](),
       run() {
-        store.set(openCreateWorkspaceModalAtom, 'new');
+        track.$.cmdk.workspace.createWorkspace();
+
+        globalDialogService.open('create-workspace', {});
       },
     })
   );
@@ -64,10 +73,14 @@ export function registerAffineCreationCommands({
       icon: <ImportIcon />,
       label: t['com.affine.cmdk.affine.import-workspace'](),
       preconditionStrategy: () => {
-        return environment.isDesktop;
+        return BUILD_CONFIG.isElectron;
       },
       run() {
-        store.set(openCreateWorkspaceModalAtom, 'add');
+        track.$.cmdk.workspace.createWorkspace({
+          control: 'import',
+        });
+
+        globalDialogService.open('import-workspace', undefined);
       },
     })
   );

@@ -1,6 +1,7 @@
 // components/checkbox.tsx
 import clsx from 'clsx';
-import { type HTMLAttributes, useCallback, useEffect, useRef } from 'react';
+import type { HTMLAttributes } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import * as icons from './icons';
 import * as styles from './index.css';
@@ -10,7 +11,7 @@ export type CheckboxProps = Omit<
   'onChange'
 > & {
   checked: boolean;
-  onChange: (
+  onChange?: (
     event: React.ChangeEvent<HTMLInputElement>,
     checked: boolean
   ) => void;
@@ -26,7 +27,7 @@ export type CheckboxProps = Omit<
 export const Checkbox = ({
   checked,
   onChange,
-  indeterminate: indeterminate,
+  indeterminate,
   disabled,
   animation,
   name,
@@ -40,7 +41,7 @@ export const Checkbox = ({
   const handleChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const newChecked = event.target.checked;
-      onChange(event, newChecked);
+      onChange?.(event, newChecked);
       const inputElement = inputRef.current;
       if (newChecked && inputElement && animation) {
         playCheckAnimation(inputElement.parentElement as Element).catch(

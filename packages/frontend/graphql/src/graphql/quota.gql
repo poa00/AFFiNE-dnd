@@ -1,5 +1,6 @@
 query quota {
   currentUser {
+    id
     quota {
       name
       blobLimit
@@ -13,6 +14,9 @@ query quota {
         historyPeriod
         memberLimit
       }
+    }
+    quotaUsage {
+      storageQuota
     }
   }
 }

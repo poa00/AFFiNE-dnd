@@ -1,4 +1,4 @@
-import { SortDownIcon, SortUpIcon } from '@blocksuite/icons';
+import { SortDownIcon, SortUpIcon } from '@blocksuite/icons/rc';
 import { useCallback } from 'react';
 
 import type { ColWrapperProps, ListItem } from '../types';
@@ -22,6 +22,7 @@ export const ListHeaderCell = ({
   alignment,
   flex,
   style,
+  hidden,
   hideInSmallContainer,
   children,
 }: HeaderCellProps) => {
@@ -39,6 +40,7 @@ export const ListHeaderCell = ({
       className={styles.headerCell}
       data-sortable={sortable ? true : undefined}
       data-sorting={sorting ? true : undefined}
+      hidden={hidden}
       style={style}
       role="columnheader"
       hideInSmallContainer={hideInSmallContainer}

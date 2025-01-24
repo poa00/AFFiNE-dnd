@@ -1,11 +1,13 @@
 import { Menu } from '@affine/component';
-import type { Tag } from '@affine/env/filter';
-import { MoreHorizontalIcon } from '@blocksuite/icons';
+import { TagItem as TagItemComponent } from '@affine/core/components/tags';
+import type { Tag } from '@affine/core/modules/tag';
+import { stopPropagation } from '@affine/core/utils';
+import { MoreHorizontalIcon } from '@blocksuite/icons/rc';
+import { LiveData, useLiveData } from '@toeverything/infra';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import clsx from 'clsx';
 import { useMemo } from 'react';
 
-import { stopPropagation, tagColorMap } from '../utils';
 import * as styles from './page-tags.css';
 
 export interface PageTagsProps {
@@ -16,33 +18,61 @@ export interface PageTagsProps {
 }
 
 interface TagItemProps {
-  tag: Tag;
-  idx: number;
-  mode: 'sticky' | 'list-item';
+  tag?: Tag;
+  idx?: number;
+  maxWidth?: number | string;
+  mode: 'inline' | 'list-item';
+  focused?: boolean;
+  onRemoved?: () => void;
   style?: React.CSSProperties;
 }
 
-export const TagItem = ({ tag, idx, mode, style }: TagItemProps) => {
+export const TagItem = ({ tag, ...props }: TagItemProps) => {
+  const value = useLiveData(tag?.value$);
+  const color = useLiveData(tag?.color$);
+
+  if (!tag || !value || !color) {
+    return null;
+  }
+
   return (
-    <div
-      data-testid="page-tag"
-      className={styles.tag}
-      data-idx={idx}
-      title={tag.value}
-      style={style}
-    >
-      <div
-        className={mode === 'sticky' ? styles.tagSticky : styles.tagListItem}
-      >
-        <div
-          className={styles.tagIndicator}
-          style={{
-            backgroundColor: tagColorMap(tag.color),
-          }}
-        />
-        <div className={styles.tagLabel}>{tag.value}</div>
-      </div>
-    </div>
+    <TagItemComponent
+      {...props}
+      mode={props.mode === 'inline' ? 'inline-tag' : 'list-tag'}
+      tag={{
+        id: tag?.id,
+        value: value,
+        color: color,
+      }}
+    />
+  );
+};
+
+const TagItemNormal = ({
+  tags,
+  maxItems,
+}: {
+  tags: Tag[];
+  maxItems?: number;
+}) => {
+  const nTags = useMemo(() => {
+    return maxItems ? tags.slice(0, maxItems) : tags;
+  }, [maxItems, tags]);
+
+  const tagsOrdered = useLiveData(
+    useMemo(() => {
+      return LiveData.computed(get =>
+        [...nTags].sort((a, b) => get(a.value$).length - get(b.value$).length)
+      );
+    }, [nTags])
+  );
+
+  return useMemo(
+    () =>
+      tagsOrdered.map((tag, idx) => (
+        <TagItem key={tag.id} tag={tag} idx={idx} mode="inline" />
+      )),
+    [tagsOrdered]
   );
 };
 
@@ -69,16 +99,6 @@ export const PageTags = ({
     );
   }, [maxItems, tags]);
 
-  const tagsNormal = useMemo(() => {
-    const nTags = maxItems ? tags.slice(0, maxItems) : tags;
-
-    // sort tags by length
-    nTags.sort((a, b) => a.value.length - b.value.length);
-
-    return nTags.map((tag, idx) => (
-      <TagItem key={tag.id} tag={tag} idx={idx} mode="sticky" />
-    ));
-  }, [maxItems, tags]);
   return (
     <div
       data-testid="page-tags"
@@ -95,7 +115,9 @@ export const PageTags = ({
         className={clsx(styles.innerContainer)}
       >
         <div className={styles.innerBackdrop} />
-        <div className={styles.tagsScrollContainer}>{tagsNormal}</div>
+        <div className={styles.tagsScrollContainer}>
+          <TagItemNormal tags={tags} maxItems={maxItems} />
+        </div>
         {maxItems && tags.length > maxItems ? (
           <Menu
             items={tagsInPopover}

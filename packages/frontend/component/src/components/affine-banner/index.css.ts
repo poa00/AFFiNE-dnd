@@ -3,12 +3,14 @@ import { style } from '@vanilla-extract/css';
 export const browserWarningStyle = style({
   backgroundColor: cssVar('backgroundWarningColor'),
   color: cssVar('warningColor'),
-  height: '36px',
+  width: '100%',
+  padding: '8px 16px',
   fontSize: cssVar('fontSm'),
   display: 'flex',
   justifyContent: 'center',
   alignItems: 'center',
-  position: 'relative',
+  position: 'absolute',
+  zIndex: 1,
 });
 export const closeButtonStyle = style({
   width: '36px',
@@ -37,7 +39,8 @@ export const tipsContainer = style({
   justifyContent: 'space-between',
   alignItems: 'center',
   padding: '12px 16px',
-  position: 'sticky',
+  position: 'absolute',
+  zIndex: 1,
   gap: '16px',
   containerType: 'inline-size',
   '@media': {

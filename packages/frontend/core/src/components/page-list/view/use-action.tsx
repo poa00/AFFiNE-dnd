@@ -1,9 +1,8 @@
-import type { Collection, DeleteCollectionInfo } from '@affine/env/filter';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { DeleteIcon, FilterIcon } from '@blocksuite/icons';
-import { type ReactNode, useMemo } from 'react';
-
-import type { useCollectionManager } from '../use-collection-manager';
+import type { Collection } from '@affine/env/filter';
+import { useI18n } from '@affine/i18n';
+import { DeleteIcon, FilterIcon } from '@blocksuite/icons/rc';
+import type { ReactNode } from 'react';
+import { useMemo } from 'react';
 
 interface CollectionBarAction {
   icon: ReactNode;
@@ -15,16 +14,14 @@ interface CollectionBarAction {
 
 export const useActions = ({
   collection,
-  setting,
   openEdit,
-  info,
+  onDelete,
 }: {
-  info: DeleteCollectionInfo;
   collection: Collection;
-  setting: ReturnType<typeof useCollectionManager>;
   openEdit: (open: Collection) => void;
+  onDelete: () => void;
 }) => {
-  const t = useAFFiNEI18N();
+  const t = useI18n();
   return useMemo<CollectionBarAction[]>(() => {
     return [
       {
@@ -39,10 +36,8 @@ export const useActions = ({
         icon: <DeleteIcon style={{ color: 'var(--affine-error-color)' }} />,
         name: 'delete',
         tooltip: t['com.affine.collection-bar.action.tooltip.delete'](),
-        click: () => {
-          setting.deleteCollection(info, collection.id);
-        },
+        click: onDelete,
       },
     ];
-  }, [info, collection, t, setting, openEdit]);
+  }, [t, onDelete, openEdit, collection]);
 };

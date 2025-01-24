@@ -1,44 +1,35 @@
-import { MenuItem } from '@affine/component/app-sidebar';
-import { currentPageIdAtom } from '@affine/core/atoms/mode';
-import {
-  useJournalInfoHelper,
-  useJournalRouteHelper,
-} from '@affine/core/hooks/use-journal';
-import type { BlockSuiteWorkspace } from '@affine/core/shared';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { TodayIcon, TomorrowIcon, YesterdayIcon } from '@blocksuite/icons';
-import { useAtomValue } from 'jotai';
-import { useParams } from 'react-router-dom';
+import { MenuLinkItem } from '@affine/core/modules/app-sidebar/views';
+import { DocDisplayMetaService } from '@affine/core/modules/doc-display-meta';
+import { JournalService } from '@affine/core/modules/journal';
+import { WorkbenchService } from '@affine/core/modules/workbench';
+import { useI18n } from '@affine/i18n';
+import { TodayIcon } from '@blocksuite/icons/rc';
+import { useLiveData, useService } from '@toeverything/infra';
 
-interface AppSidebarJournalButtonProps {
-  workspace: BlockSuiteWorkspace;
-}
+export const AppSidebarJournalButton = () => {
+  const t = useI18n();
+  const docDisplayMetaService = useService(DocDisplayMetaService);
+  const journalService = useService(JournalService);
+  const workbench = useService(WorkbenchService).workbench;
+  const location = useLiveData(workbench.location$);
+  const maybeDocId = location.pathname.split('/')[1];
+  const isJournal = !!useLiveData(journalService.journalDate$(maybeDocId));
 
-export const AppSidebarJournalButton = ({
-  workspace,
-}: AppSidebarJournalButtonProps) => {
-  const t = useAFFiNEI18N();
-  const currentPageId = useAtomValue(currentPageIdAtom);
-  const { openToday } = useJournalRouteHelper(workspace);
-  const { journalDate, isJournal } = useJournalInfoHelper(
-    workspace,
-    currentPageId
+  const JournalIcon = useLiveData(
+    docDisplayMetaService.icon$(maybeDocId, {
+      compareDate: new Date(),
+    })
   );
-  const params = useParams();
-  const isJournalActive = isJournal && !!params.pageId;
-
-  const Icon =
-    isJournalActive && journalDate
-      ? journalDate.isBefore(new Date(), 'day')
-        ? YesterdayIcon
-        : journalDate.isAfter(new Date(), 'day')
-          ? TomorrowIcon
-          : TodayIcon
-      : TodayIcon;
+  const Icon = isJournal ? JournalIcon : TodayIcon;
 
   return (
-    <MenuItem active={isJournalActive} onClick={openToday} icon={<Icon />}>
+    <MenuLinkItem
+      data-testid="slider-bar-journals-button"
+      active={isJournal}
+      to={'/journals'}
+      icon={<Icon />}
+    >
       {t['com.affine.journal.app-sidebar-title']()}
-    </MenuItem>
+    </MenuLinkItem>
   );
 };

@@ -1,47 +1,60 @@
 import { Tooltip } from '@affine/component/ui/tooltip';
 import { SubscriptionPlan } from '@affine/graphql';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { useSetAtom } from 'jotai';
-import { useCallback } from 'react';
-import { withErrorBoundary } from 'react-error-boundary';
+import { useI18n } from '@affine/i18n';
+import { useLiveData, useService } from '@toeverything/infra';
+import { type SyntheticEvent, useEffect } from 'react';
 
-import { openSettingModalAtom } from '../../../atoms';
-import { useUserSubscription } from '../../../hooks/use-subscription';
+import { ServerService, SubscriptionService } from '../../../modules/cloud';
 import * as styles from './style.css';
 
-const UserPlanButtonWithData = () => {
-  const [subscription] = useUserSubscription();
-  const plan = subscription?.plan ?? SubscriptionPlan.Free;
+export const UserPlanButton = ({
+  onClick,
+}: {
+  onClick: (e: SyntheticEvent<Element, Event>) => void;
+}) => {
+  const serverService = useService(ServerService);
+  const subscriptionService = useService(SubscriptionService);
 
-  const setSettingModalAtom = useSetAtom(openSettingModalAtom);
-  const handleClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      e.stopPropagation();
-      setSettingModalAtom({
-        open: true,
-        activeTab: 'plans',
-      });
-    },
-    [setSettingModalAtom]
+  const hasPayment = useLiveData(
+    serverService.server.features$.map(r => r?.payment)
   );
+  const plan = useLiveData(
+    subscriptionService.subscription.pro$.map(subscription =>
+      subscription !== null ? subscription?.plan : null
+    )
+  );
+  const isBeliever = useLiveData(subscriptionService.subscription.isBeliever$);
+  const isLoading = plan === null;
 
-  const t = useAFFiNEI18N();
+  useEffect(() => {
+    // revalidate subscription to get the latest status
+    subscriptionService.subscription.revalidate();
+  }, [subscriptionService]);
 
-  if (plan === SubscriptionPlan.SelfHosted) {
-    // Self hosted version doesn't have a payment apis.
-    return <div className={styles.userPlanButton}>{plan}</div>;
+  const t = useI18n();
+
+  if (!hasPayment) {
+    // no payment feature
+    return;
   }
+
+  if (isLoading) {
+    // loading, do nothing
+    return;
+  }
+
+  const planLabel = isBeliever ? 'Believer' : (plan ?? SubscriptionPlan.Free);
 
   return (
     <Tooltip content={t['com.affine.payment.tag-tooltips']()} side="top">
-      <div className={styles.userPlanButton} onClick={handleClick}>
-        {plan}
+      <div
+        data-is-believer={isBeliever ? 'true' : undefined}
+        className={styles.userPlanButton}
+        onClick={onClick}
+        data-event-props="$.settingsPanel.profileAndBadge.viewPlans"
+      >
+        {planLabel}
       </div>
     </Tooltip>
   );
 };
-
-// If fetch user data failed, just render empty.
-export const UserPlanButton = withErrorBoundary(UserPlanButtonWithData, {
-  fallbackRender: () => null,
-});

@@ -1,4 +1,3 @@
-import { BadRequestException, UseGuards } from '@nestjs/common';
 import {
   Args,
   Field,
@@ -10,13 +9,21 @@ import {
   Resolver,
 } from '@nestjs/graphql';
 import type { WorkspacePage as PrismaWorkspacePage } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 
-import { CloudThrottlerGuard, PrismaService } from '../../../fundamentals';
-import { Auth, CurrentUser } from '../../auth';
-import { UserType } from '../../users';
+import {
+  ExpectToPublishPage,
+  ExpectToRevokePublicPage,
+  PageIsNotPublic,
+} from '../../../base';
+import { CurrentUser } from '../../auth';
+import {
+  Permission,
+  PermissionService,
+  PublicPageMode,
+} from '../../permission';
 import { DocID } from '../../utils/doc';
-import { PermissionService, PublicPageMode } from '../permission';
-import { Permission, WorkspaceType } from '../types';
+import { WorkspaceType } from '../types';
 
 registerEnumType(PublicPageMode, {
   name: 'PublicPageMode',
@@ -38,12 +45,10 @@ class WorkspacePage implements Partial<PrismaWorkspacePage> {
   public!: boolean;
 }
 
-@UseGuards(CloudThrottlerGuard)
-@Auth()
 @Resolver(() => WorkspaceType)
 export class PagePermissionResolver {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly prisma: PrismaClient,
     private readonly permission: PermissionService
   ) {}
 
@@ -79,15 +84,33 @@ export class PagePermissionResolver {
     });
   }
 
+  @ResolveField(() => WorkspacePage, {
+    description: 'Get public page of a workspace by page id.',
+    complexity: 2,
+    nullable: true,
+  })
+  async publicPage(
+    @Parent() workspace: WorkspaceType,
+    @Args('pageId') pageId: string
+  ) {
+    return this.prisma.workspacePage.findFirst({
+      where: {
+        workspaceId: workspace.id,
+        pageId,
+        public: true,
+      },
+    });
+  }
+
   /**
    * @deprecated
    */
   @Mutation(() => Boolean, {
     name: 'sharePage',
-    deprecationReason: 'renamed to publicPage',
+    deprecationReason: 'renamed to publishPage',
   })
   async deprecatedSharePage(
-    @CurrentUser() user: UserType,
+    @CurrentUser() user: CurrentUser,
     @Args('workspaceId') workspaceId: string,
     @Args('pageId') pageId: string
   ) {
@@ -97,7 +120,7 @@ export class PagePermissionResolver {
 
   @Mutation(() => WorkspacePage)
   async publishPage(
-    @CurrentUser() user: UserType,
+    @CurrentUser() user: CurrentUser,
     @Args('workspaceId') workspaceId: string,
     @Args('pageId') pageId: string,
     @Args({
@@ -111,13 +134,13 @@ export class PagePermissionResolver {
     const docId = new DocID(pageId, workspaceId);
 
     if (docId.isWorkspace) {
-      throw new BadRequestException('Expect page not to be workspace');
+      throw new ExpectToPublishPage();
     }
 
     await this.permission.checkWorkspace(
       docId.workspace,
       user.id,
-      Permission.Read
+      Permission.Write
     );
 
     return this.permission.publishPage(docId.workspace, docId.guid, mode);
@@ -131,7 +154,7 @@ export class PagePermissionResolver {
     deprecationReason: 'use revokePublicPage',
   })
   async deprecatedRevokePage(
-    @CurrentUser() user: UserType,
+    @CurrentUser() user: CurrentUser,
     @Args('workspaceId') workspaceId: string,
     @Args('pageId') pageId: string
   ) {
@@ -141,20 +164,20 @@ export class PagePermissionResolver {
 
   @Mutation(() => WorkspacePage)
   async revokePublicPage(
-    @CurrentUser() user: UserType,
+    @CurrentUser() user: CurrentUser,
     @Args('workspaceId') workspaceId: string,
     @Args('pageId') pageId: string
   ) {
     const docId = new DocID(pageId, workspaceId);
 
     if (docId.isWorkspace) {
-      throw new BadRequestException('Expect page not to be workspace');
+      throw new ExpectToRevokePublicPage('Expect page not to be workspace');
     }
 
     await this.permission.checkWorkspace(
       docId.workspace,
       user.id,
-      Permission.Read
+      Permission.Write
     );
 
     const isPublic = await this.permission.isPublicPage(
@@ -163,7 +186,7 @@ export class PagePermissionResolver {
     );
 
     if (!isPublic) {
-      throw new BadRequestException('Page is not public');
+      throw new PageIsNotPublic('Page is not public');
     }
 
     return this.permission.revokePublicPage(docId.workspace, docId.guid);

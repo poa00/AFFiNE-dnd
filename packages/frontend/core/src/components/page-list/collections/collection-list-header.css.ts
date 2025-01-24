@@ -16,12 +16,13 @@ export const collectionListHeaderTitle = style({
   display: 'flex',
   alignItems: 'center',
   gap: 8,
+  userSelect: 'none',
 });
 export const newCollectionButton = style({
   padding: '6px 10px',
   borderRadius: '8px',
   background: cssVar('backgroundPrimaryColor'),
-  fontSize: cssVar('fontSm'),
-  fontWeight: 600,
-  height: '32px',
+  fontSize: cssVar('fontXs'),
+  fontWeight: 500,
+  height: '28px',
 });

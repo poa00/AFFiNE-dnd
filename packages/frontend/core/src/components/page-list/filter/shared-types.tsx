@@ -5,11 +5,12 @@ import type {
   VariableMap,
 } from '@affine/env/filter';
 import {
+  CloudWorkspaceIcon,
   CreatedIcon,
   FavoriteIcon,
   TagsIcon,
   UpdatedIcon,
-} from '@blocksuite/icons';
+} from '@blocksuite/icons/rc';
 import type { ReactElement } from 'react';
 
 import { tBoolean, tDate, tTag } from './logical/custom-type';
@@ -43,6 +44,10 @@ export const variableDefineMap = {
   Tags: {
     type: meta => tArray(tTag.create({ tags: meta.tags?.options ?? [] })),
     icon: <TagsIcon />,
+  },
+  'Is Public': {
+    type: () => tBoolean.create(),
+    icon: <CloudWorkspaceIcon />,
   },
   // Imported: {
   //   type: tBoolean.create(),

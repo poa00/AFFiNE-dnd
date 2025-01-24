@@ -5,25 +5,28 @@
       2,
       "always",
       [
+        "admin",
         "electron",
         "server",
         "core",
+        "web",
+        "mobile",
+        "ios",
+        "android",
+        "mobile-native",
         "docs",
-        "storybook",
         "component",
-        "workspace",
         "env",
         "graphql",
-        "cli",
         "hooks",
         "i18n",
         "native",
         "templates",
-        "y-indexeddb",
-        "y-provider",
         "debug",
-        "storage",
-        "infra"
+        "nbstore",
+        "infra",
+        "editor",
+        "tools"
       ]
     ]
   }

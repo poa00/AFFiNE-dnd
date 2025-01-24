@@ -1,11 +1,13 @@
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
+import { Tooltip } from '@affine/component';
+import { useI18n } from '@affine/i18n';
 
+import { ellipsisTextStyle } from './index.css';
 type FilterTagProps = {
   name: string;
 };
 
 const useFilterTag = ({ name }: FilterTagProps) => {
-  const t = useAFFiNEI18N();
+  const t = useI18n();
   switch (name) {
     case 'Created':
       return t['Created']();
@@ -15,6 +17,8 @@ const useFilterTag = ({ name }: FilterTagProps) => {
       return t['Tags']();
     case 'Is Favourited':
       return t['com.affine.filter.is-favourited']();
+    case 'Is Public':
+      return t['com.affine.filter.is-public']();
     case 'after':
       return t['com.affine.filter.after']();
     case 'before':
@@ -47,5 +51,11 @@ const useFilterTag = ({ name }: FilterTagProps) => {
 export const FilterTag = ({ name }: FilterTagProps) => {
   const tag = useFilterTag({ name });
 
-  return <span data-testid={`filler-tag-${tag}`}>{tag}</span>;
+  return (
+    <Tooltip content={tag}>
+      <span className={ellipsisTextStyle} data-testid={`filler-tag-${tag}`}>
+        {tag}
+      </span>
+    </Tooltip>
+  );
 };

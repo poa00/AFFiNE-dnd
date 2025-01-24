@@ -1,7 +1,8 @@
-import { IconButton, type IconButtonProps } from '@affine/component';
-import { Tooltip } from '@affine/component';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { FavoritedIcon, FavoriteIcon } from '@blocksuite/icons';
+import type { IconButtonProps } from '@affine/component';
+import { IconButton } from '@affine/component';
+import { useI18n } from '@affine/i18n';
+import { FavoritedIcon, FavoriteIcon } from '@blocksuite/icons/rc';
+import { cssVar } from '@toeverything/theme';
 import Lottie from 'lottie-react';
 import { forwardRef, useCallback, useState } from 'react';
 
@@ -14,7 +15,7 @@ export const FavoriteTag = forwardRef<
   } & Omit<IconButtonProps, 'children'>
 >(({ active, onClick, ...props }, ref) => {
   const [playAnimation, setPlayAnimation] = useState(false);
-  const t = useAFFiNEI18N();
+  const t = useI18n();
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLButtonElement>) => {
       e.stopPropagation();
@@ -25,24 +26,32 @@ export const FavoriteTag = forwardRef<
     [active, onClick]
   );
   return (
-    <Tooltip content={active ? t['Favorited']() : t['Favorite']()} side="top">
-      <IconButton ref={ref} active={active} onClick={handleClick} {...props}>
-        {active ? (
-          playAnimation ? (
-            <Lottie
-              loop={false}
-              animationData={favoritedAnimation}
-              onComplete={() => setPlayAnimation(false)}
-              style={{ width: '20px', height: '20px' }}
-            />
-          ) : (
-            <FavoritedIcon data-testid="favorited-icon" />
-          )
+    <IconButton
+      tooltip={active ? t['Favorited']() : t['Favorite']()}
+      tooltipOptions={{ side: 'top' }}
+      ref={ref}
+      onClick={handleClick}
+      size="20"
+      {...props}
+    >
+      {active ? (
+        playAnimation ? (
+          <Lottie
+            loop={false}
+            animationData={favoritedAnimation}
+            onComplete={() => setPlayAnimation(false)}
+            style={{ width: '20px', height: '20px' }}
+          />
         ) : (
-          <FavoriteIcon />
-        )}
-      </IconButton>
-    </Tooltip>
+          <FavoritedIcon
+            color={cssVar('primaryColor')}
+            data-testid="favorited-icon"
+          />
+        )
+      ) : (
+        <FavoriteIcon />
+      )}
+    </IconButton>
   );
 });
 FavoriteTag.displayName = 'FavoriteTag';

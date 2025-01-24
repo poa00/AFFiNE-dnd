@@ -1,3 +1,4 @@
+import { shallowEqual } from '@affine/component';
 import { DEFAULT_SORT_KEY } from '@affine/env/constant';
 import { atom } from 'jotai';
 import { selectAtom } from 'jotai/utils';
@@ -10,11 +11,9 @@ import type {
   MetaRecord,
   VirtualizedListProps,
 } from './types';
-import { shallowEqual } from './utils';
 
 // for ease of use in the component tree
 // note: must use selectAtom to access this atom for efficiency
-// @ts-expect-error the error is expected but we will assume the default value is always there by using useHydrateAtoms
 export const listPropsAtom = atom<
   ListProps<ListItem> & Partial<VirtualizedListProps<ListItem>>
 >();
@@ -22,12 +21,16 @@ export const listPropsAtom = atom<
 // whether or not the table is in selection mode (showing selection checkbox & selection floating bar)
 const selectionActiveAtom = atom(false);
 
+export const anchorIndexAtom = atom<number | undefined>(undefined);
+
+export const rangeIdsAtom = atom<string[]>([]);
+
 export const selectionStateAtom = atom(
   get => {
     const baseAtom = selectAtom(
       listPropsAtom,
       props => {
-        const { selectable, selectedIds, onSelectedIdsChange } = props;
+        const { selectable, selectedIds, onSelectedIdsChange } = props ?? {};
         return {
           selectable,
           selectedIds,
@@ -59,7 +62,7 @@ export const groupCollapseStateAtom = atom<Record<string, boolean>>({});
 export const listHandlersAtom = selectAtom(
   listPropsAtom,
   props => {
-    const { onSelectedIdsChange } = props;
+    const { onSelectedIdsChange } = props ?? {};
     return {
       onSelectedIdsChange,
     };
@@ -69,13 +72,13 @@ export const listHandlersAtom = selectAtom(
 
 export const itemsAtom = selectAtom(
   listPropsAtom,
-  props => props.items,
+  props => props?.items,
   shallowEqual
 );
 
 export const showOperationsAtom = selectAtom(
   listPropsAtom,
-  props => !!props.operationsRenderer
+  props => !!props?.operationsRenderer
 );
 
 type SortingContext<KeyType extends string | number | symbol> = {
@@ -133,12 +136,12 @@ const defaultSortingFn: SorterConfig<MetaRecord<ListItem>>['sortingFn'] = (
   return 0;
 };
 
-const validKeys: Array<keyof MetaRecord<ListItem>> = [
+const validKeys: Set<keyof MetaRecord<ListItem>> = new Set([
   'id',
   'title',
   'createDate',
   'updatedDate',
-];
+]);
 
 const sorterStateAtom = atom<SorterConfig<MetaRecord<ListItem>>>({
   key: DEFAULT_SORT_KEY,
@@ -163,7 +166,7 @@ export const sorterAtom = atom(
       }
       const compareFn = (a: MetaRecord<ListItem>, b: MetaRecord<ListItem>) =>
         sorterState.sortingFn(sortCtx, a, b);
-      items = [...items].sort(compareFn);
+      items = items ? [...items].sort(compareFn) : [];
     }
     return {
       items,
@@ -172,7 +175,7 @@ export const sorterAtom = atom(
   },
   (_get, set, { newSortKey }: { newSortKey: keyof MetaRecord<ListItem> }) => {
     set(sorterStateAtom, sorterState => {
-      if (validKeys.includes(newSortKey)) {
+      if (validKeys.has(newSortKey)) {
         return {
           ...sorterState,
           key: newSortKey,
@@ -186,26 +189,15 @@ export const sorterAtom = atom(
 );
 
 export const groupsAtom = atom(get => {
-  let groupBy = get(selectAtom(listPropsAtom, props => props.groupBy));
+  const groupBy = get(selectAtom(listPropsAtom, props => props?.groupBy));
   const sorter = get(sorterAtom);
 
-  if (groupBy === false) {
-    groupBy = undefined;
-  } else if (groupBy === undefined) {
-    groupBy =
-      sorter.key === 'createDate' || sorter.key === 'updatedDate'
-        ? sorter.key
-        : // default sort
-          !sorter.key
-          ? DEFAULT_SORT_KEY
-          : undefined;
-  }
-  return itemsToItemGroups<ListItem>(sorter.items, groupBy);
+  return itemsToItemGroups<ListItem>(sorter.items ?? [], groupBy);
 });
 
-export const {
-  Provider: ListProvider,
-  useAtom,
-  useAtomValue,
-  useSetAtom,
-} = createIsolation();
+const { Provider, useAtom, useAtomValue, useSetAtom } = createIsolation();
+
+export const ListProvider: ReturnType<typeof createIsolation>['Provider'] =
+  Provider;
+
+export { useAtom, useAtomValue, useSetAtom };
