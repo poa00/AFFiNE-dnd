@@ -2,6 +2,8 @@ import type { getCopilotHistoriesQuery, RequestOptions } from '@affine/graphql';
 import type { EditorHost } from '@blocksuite/affine/block-std';
 import type { BlockModel } from '@blocksuite/affine/store';
 
+import type { DocContext } from '../chat-panel/chat-context';
+
 export const translateLangs = [
   'English',
   'Spanish',
@@ -37,7 +39,7 @@ export const imageProcessingTypes = [
 ] as const;
 
 declare global {
-  // eslint-disable-next-line @typescript-eslint/no-namespace
+  // oxlint-disable-next-line @typescript-eslint/no-namespace
   namespace BlockSuitePresets {
     type TrackerControl =
       | 'format-bar'
@@ -57,6 +59,7 @@ declare global {
     }
 
     interface AITextActionOptions {
+      // user input text
       input?: string;
       stream?: boolean;
       attachments?: (string | File | Blob)[]; // blob could only be strings for the moments (url or data urls)
@@ -101,6 +104,8 @@ declare global {
       T['stream'] extends true ? TextStream : Promise<string>;
 
     interface ChatOptions extends AITextActionOptions {
+      // related documents
+      docs?: DocContext[];
       sessionId?: string;
       isRootSession?: boolean;
     }

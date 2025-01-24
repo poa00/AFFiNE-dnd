@@ -6,7 +6,7 @@ import {
   useConfirmModal,
   useDisposable,
 } from '@affine/component';
-import { Pagination } from '@affine/component/member-components';
+import { Pagination } from '@affine/component/setting-components';
 import { BlobManagementService } from '@affine/core/modules/blob-management/services';
 import { useI18n } from '@affine/i18n';
 import type { ListedBlobRecord } from '@affine/nbstore';
@@ -80,7 +80,8 @@ const BlobPreview = ({ blobRecord }: { blobRecord: ListedBlobRecord }) => {
       <div className={styles.blobPreviewFooter}>
         <div className={styles.blobPreviewName}>{blobRecord.key}</div>
         <div className={styles.blobPreviewInfo}>
-          {data?.type} · {bytes(blobRecord.size)}
+          {data?.type ? `${data.type} · ` : ''}
+          {bytes(blobRecord.size)}
         </div>
       </div>
     </div>
@@ -93,7 +94,7 @@ const BlobCard = ({
   selected,
 }: {
   blobRecord: ListedBlobRecord;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent) => void;
   selected: boolean;
 }) => {
   return (
@@ -119,6 +120,8 @@ export const BlobManagementPanel = () => {
   const isLoading = useLiveData(unusedBlobsEntity.isLoading$);
   const [pageNum, setPageNum] = useState(0);
   const [skip, setSkip] = useState(0);
+  const [selectionAnchor, setSelectionAnchor] =
+    useState<ListedBlobRecord | null>(null);
 
   const [unusedBlobs, setUnusedBlobs] = useState<ListedBlobRecord[]>([]);
   const unusedBlobsPage = useMemo(() => {
@@ -149,9 +152,60 @@ export const BlobManagementPanel = () => {
     setSelectedBlobs(prev => prev.filter(b => b.key !== blob.key));
   }, []);
 
-  const handleSelectAll = useCallback(() => {
-    unusedBlobsPage.forEach(blob => handleSelectBlob(blob));
-  }, [unusedBlobsPage, handleSelectBlob]);
+  const handleBlobClick = useCallback(
+    (blob: ListedBlobRecord, event: React.MouseEvent) => {
+      const isMetaKey = event.metaKey || event.ctrlKey;
+
+      if (event.shiftKey && selectionAnchor) {
+        // Shift+click: Select range from anchor to current
+        const anchorIndex = unusedBlobsPage.findIndex(
+          b => b.key === selectionAnchor.key
+        );
+        const currentIndex = unusedBlobsPage.findIndex(b => b.key === blob.key);
+
+        if (anchorIndex !== -1 && currentIndex !== -1) {
+          const start = Math.min(anchorIndex, currentIndex);
+          const end = Math.max(anchorIndex, currentIndex);
+          const blobsToSelect = unusedBlobsPage.slice(start, end + 1);
+
+          setSelectedBlobs(prev => {
+            // If meta/ctrl is also pressed, add to existing selection
+            const baseSelection = isMetaKey ? prev : [];
+            const newSelection = new Set([...baseSelection, ...blobsToSelect]);
+            return Array.from(newSelection);
+          });
+        }
+      } else {
+        if (selectedBlobs.includes(blob)) {
+          handleUnselectBlob(blob);
+        } else {
+          handleSelectBlob(blob);
+        }
+        if (selectedBlobs.length === 0) {
+          setSelectionAnchor(selectedBlobs.includes(blob) ? null : blob);
+        }
+      }
+    },
+    [
+      selectionAnchor,
+      unusedBlobsPage,
+      selectedBlobs,
+      handleSelectBlob,
+      handleUnselectBlob,
+    ]
+  );
+
+  const handleSelectAll = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      unusedBlobsPage.forEach(blob => handleSelectBlob(blob));
+    },
+    [unusedBlobsPage, handleSelectBlob]
+  );
+
+  const showSelectAll = !unusedBlobsPage.every(blob =>
+    selectedBlobs.includes(blob)
+  );
 
   const { openConfirmModal } = useConfirmModal();
 
@@ -193,10 +247,7 @@ export const BlobManagementPanel = () => {
     if (blobPreviewGridRef.current) {
       const unselectBlobs = (e: MouseEvent) => {
         const target = e.target as HTMLElement;
-        if (
-          !blobPreviewGridRef.current?.contains(target) &&
-          !target.closest('modal-transition-container')
-        ) {
+        if (!blobPreviewGridRef.current?.contains(target)) {
           setSelectedBlobs([]);
         }
       };
@@ -216,9 +267,11 @@ export const BlobManagementPanel = () => {
             {`${selectedBlobs.length} ${t['com.affine.settings.workspace.storage.unused-blobs.selected']()}`}
           </div>
           <div className={styles.spacer} />
-          <Button onClick={handleSelectAll} variant="primary">
-            {t['com.affine.keyboardShortcuts.selectAll']()}
-          </Button>
+          {showSelectAll && (
+            <Button onClick={handleSelectAll} variant="primary">
+              {t['com.affine.keyboardShortcuts.selectAll']()}
+            </Button>
+          )}
           <Button
             loading={deleting}
             onClick={handleDeleteSelectedBlobs}
@@ -243,31 +296,29 @@ export const BlobManagementPanel = () => {
         ) : (
           <>
             <div className={styles.blobPreviewGrid} ref={blobPreviewGridRef}>
-              {unusedBlobs.slice(skip, skip + PAGE_SIZE).map(blob => {
+              {unusedBlobsPage.map(blob => {
                 const selected = selectedBlobs.includes(blob);
                 return (
                   <BlobCard
                     key={blob.key}
                     blobRecord={blob}
-                    onClick={() =>
-                      selected
-                        ? handleUnselectBlob(blob)
-                        : handleSelectBlob(blob)
-                    }
+                    onClick={e => handleBlobClick(blob, e)}
                     selected={selected}
                   />
                 );
               })}
             </div>
-            <Pagination
-              pageNum={pageNum}
-              totalCount={unusedBlobs.length}
-              countPerPage={PAGE_SIZE}
-              onPageChange={(_, pageNum) => {
-                setPageNum(pageNum);
-                setSkip(pageNum * PAGE_SIZE);
-              }}
-            />
+            {unusedBlobs.length > PAGE_SIZE && (
+              <Pagination
+                pageNum={pageNum}
+                totalCount={unusedBlobs.length}
+                countPerPage={PAGE_SIZE}
+                onPageChange={(_, pageNum) => {
+                  setPageNum(pageNum);
+                  setSkip(pageNum * PAGE_SIZE);
+                }}
+              />
+            )}
           </>
         )}
       </div>

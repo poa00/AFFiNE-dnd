@@ -629,6 +629,57 @@ test('should revert message correctly', async t => {
   }
 });
 
+test('should handle params correctly in chat session', async t => {
+  const { prompt, session } = t.context;
+
+  await prompt.set('prompt', 'model', [
+    { role: 'system', content: 'hello {{word}}' },
+  ]);
+
+  const sessionId = await session.create({
+    docId: 'test',
+    workspaceId: 'test',
+    userId,
+    promptName: 'prompt',
+  });
+
+  const s = (await session.get(sessionId))!;
+
+  // Case 1: When params is provided directly
+  {
+    const directParams = { word: 'direct' };
+    const messages = s.finish(directParams);
+    t.is(messages[0].content, 'hello direct', 'should use provided params');
+  }
+
+  // Case 2: When no params provided but last message has params
+  {
+    s.push({
+      role: 'user',
+      content: 'test message',
+      params: { word: 'fromMessage' },
+      createdAt: new Date(),
+    });
+    const messages = s.finish({});
+    t.is(
+      messages[0].content,
+      'hello fromMessage',
+      'should use params from last message'
+    );
+  }
+
+  // Case 3: When neither params provided nor last message has params
+  {
+    s.push({
+      role: 'user',
+      content: 'test message without params',
+      createdAt: new Date(),
+    });
+    const messages = s.finish({});
+    t.is(messages[0].content, 'hello ', 'should use empty params');
+  }
+});
+
 // ==================== provider ====================
 
 test('should be able to get provider', async t => {
@@ -1102,7 +1153,7 @@ test('CitationParser should replace citation placeholders with URLs', t => {
     'This is [a] test sentence with [citations [^1]] and [^2] and [3].',
     `[^1]: {"type":"url","url":"${encodeURIComponent(citations[0])}"}`,
     `[^2]: {"type":"url","url":"${encodeURIComponent(citations[1])}"}`,
-  ].join('\n\n');
+  ].join('\n');
 
   t.is(result, expected);
 });
@@ -1145,7 +1196,7 @@ test('CitationParser should replace chunks of citation placeholders with URLs', 
     `[^5]: {"type":"url","url":"${encodeURIComponent(citations[4])}"}`,
     `[^6]: {"type":"url","url":"${encodeURIComponent(citations[5])}"}`,
     `[^7]: {"type":"url","url":"${encodeURIComponent(citations[6])}"}`,
-  ].join('\n\n');
+  ].join('\n');
   t.is(result, expected);
 });
 
@@ -1166,7 +1217,7 @@ test('CitationParser should not replace citation already with URLs', t => {
     `[^1]: {"type":"url","url":"${encodeURIComponent(citations[0])}"}`,
     `[^2]: {"type":"url","url":"${encodeURIComponent(citations[1])}"}`,
     `[^3]: {"type":"url","url":"${encodeURIComponent(citations[2])}"}`,
-  ].join('\n\n');
+  ].join('\n');
   t.is(result, expected);
 });
 
@@ -1193,6 +1244,6 @@ test('CitationParser should not replace chunks of citation already with URLs', t
     `[^1]: {"type":"url","url":"${encodeURIComponent(citations[0])}"}`,
     `[^2]: {"type":"url","url":"${encodeURIComponent(citations[1])}"}`,
     `[^3]: {"type":"url","url":"${encodeURIComponent(citations[2])}"}`,
-  ].join('\n\n');
+  ].join('\n');
   t.is(result, expected);
 });

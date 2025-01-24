@@ -8,7 +8,17 @@ import {
   onStart,
 } from '@toeverything/infra';
 import { fileTypeFromBuffer } from 'file-type';
-import { EMPTY, mergeMap, switchMap } from 'rxjs';
+import {
+  combineLatest,
+  EMPTY,
+  filter,
+  firstValueFrom,
+  fromEvent,
+  map,
+  mergeMap,
+  switchMap,
+  takeUntil,
+} from 'rxjs';
 
 import type { DocsSearchService } from '../../docs-search';
 import type { WorkspaceService } from '../../workspace';
@@ -91,10 +101,22 @@ export class UnusedBlobs extends Entity {
   }
 
   async getUnusedBlobs(abortSignal?: AbortSignal) {
-    // wait for the indexer to finish
-    await this.docsSearchService.indexer.status$.waitFor(
-      status => status.remaining === undefined || status.remaining === 0,
+    // Wait for both sync and indexing to complete
+    const ready$ = combineLatest([
+      this.workspaceService.workspace.engine.doc.state$.pipe(
+        filter(state => state.syncing === 0 && !state.syncRetrying)
+      ),
+      this.docsSearchService.indexer.status$.pipe(
+        filter(
+          status => status.remaining === undefined || status.remaining === 0
+        )
+      ),
+    ]).pipe(map(() => true));
+
+    await firstValueFrom(
       abortSignal
+        ? ready$.pipe(takeUntil(fromEvent(abortSignal, 'abort')))
+        : ready$
     );
 
     const [blobs, usedBlobs] = await Promise.all([

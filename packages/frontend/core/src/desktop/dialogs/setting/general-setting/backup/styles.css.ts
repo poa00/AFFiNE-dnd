@@ -15,7 +15,7 @@ export const listContainer = style({
 export const list = style({
   display: 'flex',
   flexDirection: 'column',
-  gap: '8px',
+  gap: '4px',
 });
 
 export const listItem = style({

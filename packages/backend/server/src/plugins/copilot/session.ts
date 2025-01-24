@@ -165,9 +165,10 @@ export class ChatSession implements AsyncDisposable {
       return finished;
     }
 
+    const lastMessage = messages.at(-1);
     return [
       ...this.state.prompt.finish(
-        Object.keys(params).length ? params : firstMessage?.params || {},
+        Object.keys(params).length ? params : lastMessage?.params || {},
         this.config.sessionId
       ),
       ...messages.filter(m => m.content?.trim() || m.attachments?.length),

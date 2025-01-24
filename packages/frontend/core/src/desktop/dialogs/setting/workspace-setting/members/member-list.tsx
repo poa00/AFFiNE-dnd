@@ -1,5 +1,5 @@
 import { Avatar, IconButton, Loading, Menu, notify } from '@affine/component';
-import { Pagination } from '@affine/component/member-components';
+import { Pagination } from '@affine/component/setting-components';
 import { type AuthAccountInfo, AuthService } from '@affine/core/modules/cloud';
 import {
   type Member,

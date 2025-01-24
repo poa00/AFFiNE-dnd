@@ -117,11 +117,22 @@ export function setupAIProvider(
     const sessionId =
       options.sessionId ??
       getChatSessionId(options.workspaceId, options.docId, options.attachments);
+    const { input, docs, ...rest } = options;
+    const params = docs?.length
+      ? {
+          docs: docs.map((doc, i) => ({
+            docId: doc.docId,
+            markdown: doc.markdown,
+            index: i + 1,
+          })),
+        }
+      : undefined;
     return textToText({
-      ...options,
+      ...rest,
       client,
-      content: options.input,
+      content: input,
       sessionId,
+      params,
     });
   });
 
