@@ -17,7 +17,7 @@ export type TextToTextOptions = {
   sessionId?: string | Promise<string>;
   content?: string;
   attachments?: (string | Blob | File)[];
-  params?: Record<string, string>;
+  params?: Record<string, any>;
   timeout?: number;
   stream?: boolean;
   signal?: AbortSignal;

@@ -29,7 +29,7 @@ import {
 } from '@toeverything/infra';
 import clsx from 'clsx';
 import type React from 'react';
-import { forwardRef, useCallback, useState } from 'react';
+import { forwardRef, useCallback, useMemo, useState } from 'react';
 
 import { DocPropertyIcon } from './icons/doc-property-icon';
 import { CreatePropertyMenuItems } from './menu/create-doc-property';
@@ -401,6 +401,17 @@ const DocPropertiesTableInner = ({
   className,
 }: DocPropertiesTableProps) => {
   const [expanded, setExpanded] = useState(!!defaultOpenProperty);
+  const defaultOpen = useMemo(() => {
+    return defaultOpenProperty?.type === 'database'
+      ? [
+          {
+            databaseBlockId: defaultOpenProperty.databaseId,
+            rowId: defaultOpenProperty.databaseRowId,
+            docId: defaultOpenProperty.docId,
+          },
+        ]
+      : [];
+  }, [defaultOpenProperty]);
   return (
     <div className={clsx(styles.root, className)}>
       <Collapsible.Root open={expanded} onOpenChange={setExpanded}>
@@ -421,17 +432,7 @@ const DocPropertiesTableInner = ({
           <div className={styles.tableHeaderDivider} />
           <DocDatabaseBacklinkInfo
             onChange={onDatabasePropertyChange}
-            defaultOpen={
-              defaultOpenProperty?.type === 'database'
-                ? [
-                    {
-                      databaseBlockId: defaultOpenProperty.databaseId,
-                      rowId: defaultOpenProperty.databaseRowId,
-                      docId: defaultOpenProperty.docId,
-                    },
-                  ]
-                : []
-            }
+            defaultOpen={defaultOpen}
           />
         </Collapsible.Content>
       </Collapsible.Root>

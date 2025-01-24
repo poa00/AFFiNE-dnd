@@ -21,7 +21,6 @@ import {
   getSelectedTextContent,
   getTextContentFromBlockModels,
   selectedToCanvas,
-  traverse,
 } from './selection-utils';
 
 export async function extractSelectedContent(
@@ -165,7 +164,6 @@ export async function extractMarkdownFromDoc(
       !BlocksUtils.matchFlavours(model, ['affine:image', 'affine:database'])
   );
   const drafts = textModels.map(toDraftModel);
-  drafts.forEach(draft => traverse(draft, drafts));
   const slice = Slice.fromModels(doc, drafts);
 
   const snapshot = transformer.sliceToSnapshot(slice);

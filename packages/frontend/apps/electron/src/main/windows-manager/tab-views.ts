@@ -890,6 +890,9 @@ export class WebContentViewsManager {
 
     view.webContents.on('did-finish-load', () => {
       this.resizeView(view);
+      if (process.env.SKIP_ONBOARDING) {
+        this.skipOnboarding(view).catch(err => logger.error(err));
+      }
     });
 
     // reorder will add to main window when loaded
@@ -898,6 +901,15 @@ export class WebContentViewsManager {
     logger.info(`view ${viewId} created in ${performance.now() - start}ms`);
     return view;
   };
+
+  private async skipOnboarding(view: WebContentsView) {
+    await view.webContents.executeJavaScript(`
+    window.localStorage.setItem('app_config', '{"onBoarding":false}');
+    window.localStorage.setItem('dismissAiOnboarding', 'true');
+    window.localStorage.setItem('dismissAiOnboardingEdgeless', 'true');
+    window.localStorage.setItem('dismissAiOnboardingLocal', 'true');
+    `);
+  }
 }
 
 // there is no proper way to listen to webContents resize event

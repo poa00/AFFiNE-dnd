@@ -25,7 +25,7 @@ import { AIProvider } from '../provider';
 import { reportResponse } from '../utils/action-reporter';
 import { readBlobAsURL } from '../utils/image';
 import type { AINetworkSearchConfig } from './chat-config';
-import type { ChatContextValue, ChatMessage } from './chat-context';
+import type { ChatContextValue, ChatMessage, DocContext } from './chat-context';
 import { isDocChip } from './components/utils';
 
 const MaximumImageCount = 32;
@@ -512,15 +512,10 @@ export class ChatPanelInput extends SignalWatcher(WithDisposable(LitElement)) {
     if (status === 'loading' || status === 'transmitting') return;
 
     const { images } = this.chatContextValue;
-    if (!text && images.length === 0) {
+    if (!text) {
       return;
     }
     const { doc } = this.host;
-
-    const docsContent = chips
-      .filter(isDocChip)
-      .map(chip => chip.content?.value || '')
-      .join('\n');
 
     this.updateContext({
       images: [],
@@ -534,16 +529,14 @@ export class ChatPanelInput extends SignalWatcher(WithDisposable(LitElement)) {
       images?.map(image => readBlobAsURL(image))
     );
 
-    const content =
-      (markdown ? `${markdown}\n` : '') + `${docsContent}\n` + text;
-
+    const userInput = (markdown ? `${markdown}\n` : '') + text;
     this.updateContext({
       items: [
         ...this.chatContextValue.items,
         {
           id: '',
           role: 'user',
-          content: content,
+          content: userInput,
           createdAt: new Date().toISOString(),
           attachments,
         },
@@ -558,8 +551,16 @@ export class ChatPanelInput extends SignalWatcher(WithDisposable(LitElement)) {
 
     try {
       const abortController = new AbortController();
+      const docs: DocContext[] = chips
+        .filter(isDocChip)
+        .filter(chip => !!chip.markdown?.value && chip.state === 'success')
+        .map(chip => ({
+          docId: chip.docId,
+          markdown: chip.markdown?.value || '',
+        }));
       const stream = AIProvider.actions.chat?.({
-        input: content,
+        input: userInput,
+        docs: docs,
         docId: doc.id,
         attachments: images,
         workspaceId: doc.workspace.id,
