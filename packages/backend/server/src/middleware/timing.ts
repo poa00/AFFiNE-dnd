@@ -16,12 +16,10 @@ export const serverTimingAndCache = (
     const serverTiming = res.getHeader('Server-Timing') as string | undefined;
     const serverTimingValue = `${
       serverTiming ? `${serverTiming}, ` : ''
-    }total;dur=${costInMilliseconds}`;
+    }affine-server;dur=${costInMilliseconds}`;
 
     res.setHeader('Server-Timing', serverTimingValue);
   });
-
-  res.setHeader('Cache-Control', 'max-age=0, private, must-revalidate');
 
   next();
 };

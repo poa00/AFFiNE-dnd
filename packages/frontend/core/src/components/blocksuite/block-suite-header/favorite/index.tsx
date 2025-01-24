@@ -1,11 +1,9 @@
 import { FavoriteTag } from '@affine/core/components/page-list';
-import { useBlockSuiteMetaHelper } from '@affine/core/hooks/affine/use-block-suite-meta-helper';
-import { useBlockSuitePageMeta } from '@affine/core/hooks/use-block-suite-page-meta';
-import { waitForCurrentWorkspaceAtom } from '@affine/core/modules/workspace';
+import { CompatibleFavoriteItemsAdapter } from '@affine/core/modules/favorite';
 import { toast } from '@affine/core/utils';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { assertExists } from '@blocksuite/global/utils';
-import { useAtomValue } from 'jotai';
+import { useI18n } from '@affine/i18n';
+import { track } from '@affine/track';
+import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback } from 'react';
 
 export interface FavoriteButtonProps {
@@ -13,28 +11,19 @@ export interface FavoriteButtonProps {
 }
 
 export const useFavorite = (pageId: string) => {
-  const t = useAFFiNEI18N();
-  const workspace = useAtomValue(waitForCurrentWorkspaceAtom);
-  const blockSuiteWorkspace = workspace.blockSuiteWorkspace;
-  const currentPage = blockSuiteWorkspace.getPage(pageId);
-  assertExists(currentPage);
+  const t = useI18n();
+  const favAdapter = useService(CompatibleFavoriteItemsAdapter);
 
-  const pageMeta = useBlockSuitePageMeta(blockSuiteWorkspace).find(
-    meta => meta.id === pageId
-  );
-  const favorite = pageMeta?.favorite ?? false;
-
-  const { toggleFavorite: _toggleFavorite } =
-    useBlockSuiteMetaHelper(blockSuiteWorkspace);
+  const favorite = useLiveData(favAdapter.isFavorite$(pageId, 'doc'));
 
   const toggleFavorite = useCallback(() => {
-    _toggleFavorite(pageId);
+    favAdapter.toggle(pageId, 'doc');
     toast(
       favorite
         ? t['com.affine.toastMessage.removedFavorites']()
         : t['com.affine.toastMessage.addedFavorites']()
     );
-  }, [favorite, pageId, t, _toggleFavorite]);
+  }, [favorite, pageId, t, favAdapter]);
 
   return { favorite, toggleFavorite };
 };
@@ -42,5 +31,16 @@ export const useFavorite = (pageId: string) => {
 export const FavoriteButton = ({ pageId }: FavoriteButtonProps) => {
   const { favorite, toggleFavorite } = useFavorite(pageId);
 
-  return <FavoriteTag active={!!favorite} onClick={toggleFavorite} />;
+  const handleFavorite = useCallback(() => {
+    track.$.header.actions.toggleFavorite();
+    toggleFavorite();
+  }, [toggleFavorite]);
+
+  return (
+    <FavoriteTag
+      data-testid="pin-button"
+      active={!!favorite}
+      onClick={handleFavorite}
+    />
+  );
 };

@@ -1,31 +1,31 @@
-import type { Workspace } from '@blocksuite/store';
-import { useAtomValue } from 'jotai';
-import { Suspense } from 'react';
-
-import { useBlockSuitePagePreview } from './use-block-suite-page-preview';
-import { useBlockSuiteWorkspacePage } from './use-block-suite-workspace-page';
-
-interface PagePreviewInnerProps {
-  workspace: Workspace;
-  pageId: string;
-}
-
-const PagePreviewInner = ({ workspace, pageId }: PagePreviewInnerProps) => {
-  const page = useBlockSuiteWorkspacePage(workspace, pageId);
-  const previewAtom = useBlockSuitePagePreview(page);
-  const preview = useAtomValue(previewAtom);
-  return preview ? preview : null;
-};
+import { DocsSearchService } from '@affine/core/modules/docs-search';
+import { LiveData, useLiveData, useService } from '@toeverything/infra';
+import { type ReactNode, useMemo } from 'react';
 
 interface PagePreviewProps {
-  workspace: Workspace;
   pageId: string;
+  emptyFallback?: ReactNode;
+  fallback?: ReactNode;
 }
 
-export const PagePreview = ({ workspace, pageId }: PagePreviewProps) => {
-  return (
-    <Suspense>
-      <PagePreviewInner workspace={workspace} pageId={pageId} />
-    </Suspense>
+const PagePreviewInner = ({
+  pageId,
+  emptyFallback,
+  fallback,
+}: PagePreviewProps) => {
+  const docSummary = useService(DocsSearchService);
+  const summary = useLiveData(
+    useMemo(
+      () => LiveData.from(docSummary.watchDocSummary(pageId), null),
+      [docSummary, pageId]
+    )
   );
+
+  const res =
+    summary === null ? fallback : summary === '' ? emptyFallback : summary;
+  return res;
+};
+
+export const PagePreview = (props: PagePreviewProps) => {
+  return <PagePreviewInner {...props} />;
 };

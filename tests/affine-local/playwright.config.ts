@@ -1,3 +1,4 @@
+import { testResultDir } from '@affine-test/kit/playwright';
 import type {
   PlaywrightTestConfig,
   PlaywrightWorkerOptions,
@@ -17,6 +18,7 @@ const config: PlaywrightTestConfig = {
   testDir: './e2e',
   fullyParallel: true,
   timeout: process.env.CI ? 50_000 : 30_000,
+  outputDir: testResultDir,
   use: {
     baseURL: 'http://localhost:8080/',
     browserName:
@@ -42,19 +44,9 @@ const config: PlaywrightTestConfig = {
   reporter: process.env.CI ? 'github' : 'list',
 
   webServer: [
-    {
-      command: 'yarn run serve:test-static',
-      port: 8081,
-      timeout: 120 * 1000,
-      reuseExistingServer: !process.env.CI,
-      env: {
-        COVERAGE: process.env.COVERAGE || 'false',
-        ENABLE_DEBUG_PAGE: '1',
-      },
-    },
     // Intentionally not building the web, reminds you to run it by yourself.
     {
-      command: 'yarn run start:web-static',
+      command: 'yarn run -T affine dev -p @affine/web',
       port: 8080,
       timeout: 120 * 1000,
       reuseExistingServer: !process.env.CI,

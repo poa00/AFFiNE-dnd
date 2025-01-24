@@ -2,7 +2,8 @@
 // License on the MIT
 // https://github.com/emilkowalski/sonner/blob/5cb703edc108a23fd74979235c2f3c4005edd2a7/src/index.tsx
 
-import { CloseIcon, InformationFillDuotoneIcon } from '@blocksuite/icons';
+import { useI18n } from '@affine/i18n';
+import { CloseIcon, InformationFillDuotoneIcon } from '@blocksuite/icons/rc';
 import * as Toast from '@radix-ui/react-toast';
 import clsx from 'clsx';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
@@ -71,6 +72,7 @@ const typeColorMap = {
 };
 
 function NotificationCard(props: NotificationCardProps): ReactNode {
+  const t = useI18n();
   const removeNotification = useSetAtom(removeNotificationAtom);
   const { notification, notifications, setHeights, heights, index } = props;
 
@@ -83,7 +85,7 @@ function NotificationCard(props: NotificationCardProps): ReactNode {
   const [animationKey, setAnimationKey] = useState(0);
   const animationRef = useRef<SVGAnimateElement>(null);
   const notificationRef = useRef<HTMLLIElement>(null);
-  const timerIdRef = useRef<number>();
+  const timerIdRef = useRef<number | null>(null);
   const isFront = index === 0;
   const isVisible = index + 1 <= 3;
   const progressDuration = notification.timeout || 3000;
@@ -134,7 +136,6 @@ function NotificationCard(props: NotificationCardProps): ReactNode {
     notificationNode.style.height = 'auto';
     const newHeight = notificationNode.getBoundingClientRect().height;
     notificationNode.style.height = originalHeight;
-
     setInitialHeight(newHeight);
 
     setHeights(heights => {
@@ -190,9 +191,9 @@ function NotificationCard(props: NotificationCardProps): ReactNode {
     };
   }, [duration, expand, onClickRemove]);
 
-  const onClickUndo = useCallback(() => {
-    if (notification.undo) {
-      notification.undo().catch(err => {
+  const onClickAction = useCallback(() => {
+    if (notification.action) {
+      notification.action().catch(err => {
         console.error(err);
       });
     }
@@ -298,7 +299,7 @@ function NotificationCard(props: NotificationCardProps): ReactNode {
           <div className={styles.notificationTitleContactStyle}>
             {notification.title}
           </div>
-          {notification.undo && (
+          {notification.action && (
             <div
               className={clsx(styles.undoButtonStyle, {
                 [styles.darkColorStyle]:
@@ -306,15 +307,16 @@ function NotificationCard(props: NotificationCardProps): ReactNode {
                   notification.theme !== 'default',
                 [styles.undoButtonWithMediaStyle]: notification.multimedia,
               })}
-              onClick={onClickUndo}
+              onClick={onClickAction}
             >
-              UNDO
+              {notification.actionLabel ??
+                t['com.affine.keyboardShortcuts.undo']()}
             </div>
           )}
           {notification.multimedia ? null : (
             <IconButton
               className={clsx(styles.closeButtonStyle, {
-                [styles.closeButtonWithoutUndoStyle]: !notification.undo,
+                [styles.closeButtonWithoutUndoStyle]: !notification.action,
               })}
               style={{
                 color:
@@ -373,6 +375,9 @@ function NotificationCard(props: NotificationCardProps): ReactNode {
   );
 }
 
+/**
+ * @deprecated use `import { NotificationCenter } from '@affine/component'` instead
+ */
 export function NotificationCenter(): ReactNode {
   const notifications = useAtomValue(notificationsAtom);
   const [expand, setExpand] = useAtom(expandNotificationCenterAtom);

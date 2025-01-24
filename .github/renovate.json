@@ -7,71 +7,60 @@
     "**/bower_components/**",
     "**/vendor/**",
     "**/examples/**",
-    "**/__tests__/**",
-    "**/test/**",
-    "**/__fixtures__/**"
+    "**/__tests__/**"
   ],
   "packageRules": [
     {
-      "matchPackageNames": ["napi", "napi-build", "napi-derive"],
       "rangeStrategy": "replace",
-      "groupName": "napi-rs"
+      "groupName": "linter",
+      "matchPackageNames": ["/^eslint/", "/^@typescript-eslint/"]
     },
     {
-      "matchPackagePatterns": ["^eslint", "^@typescript-eslint"],
+      "matchDepNames": ["oxlint"],
       "rangeStrategy": "replace",
-      "groupName": "linter"
+      "groupName": "oxlint"
     },
     {
-      "matchPackagePatterns": ["^@nestjs"],
+      "groupName": "blocksuite",
       "rangeStrategy": "replace",
-      "groupName": "nestjs"
-    },
-    {
-      "matchPackagePatterns": ["^@opentelemetry"],
-      "rangeStrategy": "replace",
-      "groupName": "opentelemetry"
-    },
-    {
-      "matchPackageNames": [
-        "@prisma/client",
-        "@prisma/instrumentation",
-        "prisma"
-      ],
-      "rangeStrategy": "replace",
-      "groupName": "prisma"
-    },
-    {
-      "matchPackagePatterns": ["^@electron-forge"],
-      "rangeStrategy": "replace",
-      "groupName": "electron-forge"
-    },
-    {
-      "groupName": "blocksuite-nightly",
-      "matchPackagePatterns": ["^@blocksuite"],
-      "excludePackageNames": ["@blocksuite/icons"],
-      "rangeStrategy": "replace",
-      "followTag": "nightly"
+      "changelogUrl": "https://github.com/toeverything/blocksuite/blob/master/packages/blocks/CHANGELOG.md",
+      "matchPackageNames": ["/^@blocksuite/", "!@blocksuite/icons"]
     },
     {
       "groupName": "all non-major dependencies",
       "groupSlug": "all-minor-patch",
-      "matchPackagePatterns": ["*"],
-      "excludePackagePatterns": ["^@blocksuite/"],
-      "matchUpdateTypes": ["minor", "patch"]
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchPackageNames": ["*", "!/^@blocksuite//", "!/oxlint/"]
     },
     {
-      "matchPackagePatterns": ["*"],
-      "rangeStrategy": "replace",
-      "excludePackagePatterns": ["^@blocksuite/"]
+      "groupName": "rust toolchain",
+      "matchManagers": ["custom.regex"],
+      "matchDepNames": ["rustc"]
+    },
+    {
+      "groupName": "nestjs",
+      "matchPackageNames": ["/^@nestjs/"]
     }
   ],
   "commitMessagePrefix": "chore: ",
   "commitMessageAction": "bump up",
   "commitMessageTopic": "{{depName}} version",
   "ignoreDeps": [],
+  "postUpdateOptions": ["yarnDedupeHighest"],
   "lockFileMaintenance": {
     "enabled": true,
     "extends": ["schedule:weekly"]
-  }
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": ["^rust-toolchain\\.toml?$"],
+      "matchStrings": [
+        "channel\\s*=\\s*\"(?<currentValue>\\d+\\.\\d+(\\.\\d+)?)\""
+      ],
+      "depNameTemplate": "rustc",
+      "packageNameTemplate": "rust-lang/rust",
+      "datasourceTemplate": "github-releases"
+    }
+  ]
 }

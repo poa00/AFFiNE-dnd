@@ -1,8 +1,7 @@
 import { Button, IconButton, Menu } from '@affine/component';
-import type { Filter } from '@affine/env/filter';
-import type { PropertiesMeta } from '@affine/env/filter';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { CloseIcon, PlusIcon } from '@blocksuite/icons';
+import type { Filter, PropertiesMeta } from '@affine/env/filter';
+import { useI18n } from '@affine/i18n';
+import { CloseIcon, PlusIcon } from '@blocksuite/icons/rc';
 
 import { Condition } from './condition';
 import * as styles from './index.css';
@@ -17,7 +16,7 @@ export const FilterList = ({
   onChange: (value: Filter[]) => void;
   propertiesMeta: PropertiesMeta;
 }) => {
-  const t = useAFFiNEI18N();
+  const t = useI18n();
   return (
     <div
       style={{
@@ -51,6 +50,7 @@ export const FilterList = ({
         );
       })}
       <Menu
+        key={value.length} // hack to force menu to rerender (disable unmount animation)
         items={
           <CreateFilterMenu
             value={value}
@@ -60,15 +60,11 @@ export const FilterList = ({
         }
       >
         {value.length === 0 ? (
-          <Button
-            icon={<PlusIcon style={{ color: 'var(--affine-icon-color)' }} />}
-            iconPosition="end"
-            style={{ fontSize: 'var(--affine-font-xs)', padding: '0 8px' }}
-          >
+          <Button suffix={<PlusIcon />}>
             {t['com.affine.filterList.button.add']()}
           </Button>
         ) : (
-          <IconButton size="small">
+          <IconButton size="16">
             <PlusIcon />
           </IconButton>
         )}

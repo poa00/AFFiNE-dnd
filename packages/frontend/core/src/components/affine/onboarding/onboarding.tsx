@@ -1,4 +1,5 @@
-import { type CSSProperties, useCallback, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { useCallback, useState } from 'react';
 
 import { AnimateInTooltip } from './animate-in-tooltip';
 import { articles } from './articles';
@@ -42,7 +43,7 @@ export const Onboarding = ({ onOpenApp }: OnboardingProps) => {
   return (
     <div
       className={styles.onboarding}
-      data-is-desktop={environment.isDesktop}
+      data-is-desktop={BUILD_CONFIG.isElectron}
       data-is-window={!!status.activeId || !!status.unfoldingId}
     >
       <div className={styles.offsetOrigin}>

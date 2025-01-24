@@ -1,31 +1,75 @@
-import { RadioButton, RadioButtonGroup } from '@affine/component';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
+import { RadioGroup, type RadioItem } from '@affine/component';
+import type { AllPageFilterOption } from '@affine/core/components/atoms';
+import { allPageFilterSelectAtom } from '@affine/core/components/atoms';
+import { WorkbenchService } from '@affine/core/modules/workbench';
+import { useI18n } from '@affine/i18n';
+import { useService } from '@toeverything/infra';
 import { useAtom } from 'jotai';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { allPageModeSelectAtom } from '../../../atoms';
 import * as styles from './index.css';
 
-export const WorkspaceModeFilterTab = () => {
-  const t = useAFFiNEI18N();
-  const [value, setMode] = useAtom(allPageModeSelectAtom);
-  const handleValueChange = (value: string) => {
-    if (value !== 'all' && value !== 'page' && value !== 'edgeless') {
-      throw new Error('Invalid value for page mode option');
+export const WorkspaceModeFilterTab = ({
+  activeFilter,
+}: {
+  activeFilter: AllPageFilterOption;
+}) => {
+  const t = useI18n();
+  const [value, setValue] = useState(activeFilter);
+  const [filterMode, setFilterMode] = useAtom(allPageFilterSelectAtom);
+  const workbenchService = useService(WorkbenchService);
+  const handleValueChange = useCallback(
+    (value: AllPageFilterOption) => {
+      switch (value) {
+        case 'collections':
+          workbenchService.workbench.openCollections();
+          break;
+        case 'tags':
+          workbenchService.workbench.openTags();
+          break;
+        case 'docs':
+          workbenchService.workbench.openAll();
+          break;
+      }
+    },
+    [workbenchService.workbench]
+  );
+
+  useEffect(() => {
+    if (value !== activeFilter) {
+      setValue(activeFilter);
+      setFilterMode(activeFilter);
     }
-    setMode(value);
-  };
+  }, [activeFilter, filterMode, setFilterMode, value]);
 
   return (
-    <RadioButtonGroup value={value} onValueChange={handleValueChange}>
-      <RadioButton value="all" spanStyle={styles.filterTab}>
-        {t['com.affine.pageMode.all']()}
-      </RadioButton>
-      <RadioButton spanStyle={styles.filterTab} value="page">
-        {t['com.affine.pageMode.page']()}
-      </RadioButton>
-      <RadioButton spanStyle={styles.filterTab} value="edgeless">
-        {t['com.affine.pageMode.edgeless']()}
-      </RadioButton>
-    </RadioButtonGroup>
+    <RadioGroup
+      style={{ maxWidth: '100%', width: 273 }}
+      value={value}
+      onChange={handleValueChange}
+      items={useMemo<RadioItem[]>(
+        () => [
+          {
+            value: 'docs',
+            label: t['com.affine.docs.header'](),
+            testId: 'workspace-docs-button',
+            className: styles.filterTab,
+          },
+          {
+            value: 'collections',
+            label: t['com.affine.collections.header'](),
+            testId: 'workspace-collections-button',
+            className: styles.filterTab,
+          },
+          {
+            value: 'tags',
+            label: t['Tags'](),
+            testId: 'workspace-tags-button',
+            className: styles.filterTab,
+          },
+        ],
+        [t]
+      )}
+    />
   );
 };

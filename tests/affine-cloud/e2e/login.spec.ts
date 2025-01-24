@@ -9,8 +9,8 @@ import { waitForEditorLoad } from '@affine-test/kit/utils/page-logic';
 import { clickUserInfoCard } from '@affine-test/kit/utils/setting';
 import {
   clickSideBarAllPageButton,
-  clickSideBarCurrentWorkspaceBanner,
   clickSideBarSettingButton,
+  clickSideBarUseAvatar,
 } from '@affine-test/kit/utils/sidebar';
 import { createLocalWorkspace } from '@affine-test/kit/utils/workspace';
 import { expect } from '@playwright/test';
@@ -18,8 +18,7 @@ import { expect } from '@playwright/test';
 test('can open login modal in workspace list', async ({ page }) => {
   await openHomePage(page);
   await waitForEditorLoad(page);
-  await clickSideBarCurrentWorkspaceBanner(page);
-  await page.getByTestId('cloud-signin-button').click({
+  await page.getByTestId('sidebar-user-avatar').click({
     delay: 200,
   });
   await expect(page.getByTestId('auth-modal')).toBeVisible();
@@ -35,7 +34,7 @@ test.describe('login first', () => {
 
   test.beforeEach(async ({ page }) => {
     user = await createRandomUser();
-    await loginUser(page, user.email);
+    await loginUser(page, user);
   });
 
   test('exit successfully and re-login', async ({ page }) => {
@@ -69,13 +68,13 @@ test.describe('login first', () => {
     );
     await clickSideBarAllPageButton(page);
     const currentUrl = page.url();
-    await clickSideBarCurrentWorkspaceBanner(page);
-    await page.getByTestId('workspace-modal-account-option').click();
+    await clickSideBarUseAvatar(page);
     await page.getByTestId('workspace-modal-sign-out-option').click();
     await page.getByTestId('confirm-sign-out-button').click();
-    await clickSideBarCurrentWorkspaceBanner(page);
-    const signInButton = page.getByTestId('cloud-signin-button');
-    await expect(signInButton).toBeVisible();
+    await page.reload();
+    await clickSideBarUseAvatar(page);
+    const authModal = page.getByTestId('auth-modal');
+    await expect(authModal).toBeVisible();
     expect(page.url()).toBe(currentUrl);
   });
 

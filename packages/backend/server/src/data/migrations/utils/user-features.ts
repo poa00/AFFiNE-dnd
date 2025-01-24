@@ -1,10 +1,6 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 
-import {
-  CommonFeature,
-  FeatureKind,
-  FeatureType,
-} from '../../../modules/features';
+import { CommonFeature, Features, FeatureType } from '../../../core/features';
 
 // upgrade features from lower version to higher version
 export async function upsertFeature(
@@ -12,7 +8,7 @@ export async function upsertFeature(
   feature: CommonFeature
 ): Promise<void> {
   const hasEqualOrGreaterVersion =
-    (await db.features.count({
+    (await db.feature.count({
       where: {
         feature: feature.feature,
         version: {
@@ -22,7 +18,7 @@ export async function upsertFeature(
     })) > 0;
   // will not update exists version
   if (!hasEqualOrGreaterVersion) {
-    await db.features.create({
+    await db.feature.create({
       data: {
         feature: feature.feature,
         type: feature.type,
@@ -33,67 +29,12 @@ export async function upsertFeature(
   }
 }
 
-export async function migrateNewFeatureTable(prisma: PrismaClient) {
-  const waitingList = await prisma.newFeaturesWaitingList.findMany();
-  for (const oldUser of waitingList) {
-    const user = await prisma.user.findFirst({
-      where: {
-        email: oldUser.email,
-      },
-    });
-    if (user) {
-      const hasEarlyAccess = await prisma.userFeatures.count({
-        where: {
-          userId: user.id,
-          feature: {
-            feature: FeatureType.EarlyAccess,
-          },
-          activated: true,
-        },
-      });
-      if (hasEarlyAccess === 0) {
-        await prisma.$transaction(async tx => {
-          const latestFlag = await tx.userFeatures.findFirst({
-            where: {
-              userId: user.id,
-              feature: {
-                feature: FeatureType.EarlyAccess,
-                type: FeatureKind.Feature,
-              },
-              activated: true,
-            },
-            orderBy: {
-              createdAt: 'desc',
-            },
-          });
-          if (latestFlag) {
-            return latestFlag.id;
-          } else {
-            return tx.userFeatures
-              .create({
-                data: {
-                  reason: 'Early access user',
-                  activated: true,
-                  user: {
-                    connect: {
-                      id: user.id,
-                    },
-                  },
-                  feature: {
-                    connect: {
-                      feature_version: {
-                        feature: FeatureType.EarlyAccess,
-                        version: 1,
-                      },
-                      type: FeatureKind.Feature,
-                    },
-                  },
-                },
-              })
-              .then(r => r.id);
-          }
-        });
-      }
-    }
-  }
+export async function upsertLatestFeatureVersion(
+  db: PrismaClient,
+  type: FeatureType
+) {
+  const feature = Features.filter(f => f.feature === type);
+  feature.sort((a, b) => b.version - a.version);
+  const latestFeature = feature[0];
+  await upsertFeature(db, latestFeature);
 }

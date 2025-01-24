@@ -1,16 +1,19 @@
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { type FC, useCallback, useRef, useState } from 'react';
+import type { PasswordLimitsFragment } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
+import type { FC } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { Button } from '../../ui/button';
 import { Wrapper } from '../../ui/layout';
 import { PasswordInput } from './password-input';
 
 export const SetPassword: FC<{
+  passwordLimits: PasswordLimitsFragment;
   showLater?: boolean;
   onLater?: () => void;
   onSetPassword: (password: string) => void;
-}> = ({ onLater, onSetPassword, showLater = false }) => {
-  const t = useAFFiNEI18N();
+}> = ({ passwordLimits, onLater, onSetPassword, showLater = false }) => {
+  const t = useI18n();
 
   const [passwordPass, setPasswordPass] = useState(false);
   const passwordRef = useRef('');
@@ -19,6 +22,7 @@ export const SetPassword: FC<{
     <>
       <Wrapper marginTop={30} marginBottom={42}>
         <PasswordInput
+          passwordLimits={passwordLimits}
           onPass={useCallback(password => {
             setPasswordPass(true);
             passwordRef.current = password;
@@ -29,7 +33,7 @@ export const SetPassword: FC<{
         />
       </Wrapper>
       <Button
-        type="primary"
+        variant="primary"
         size="large"
         disabled={!passwordPass}
         style={{ marginRight: 20 }}
@@ -40,7 +44,7 @@ export const SetPassword: FC<{
         {t['com.affine.auth.set.password.save']()}
       </Button>
       {showLater ? (
-        <Button type="plain" size="large" onClick={onLater}>
+        <Button variant="plain" size="large" onClick={onLater}>
           {t['com.affine.auth.later']()}
         </Button>
       ) : null}

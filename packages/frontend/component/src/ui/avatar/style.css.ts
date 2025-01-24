@@ -1,6 +1,7 @@
-import { createVar, globalStyle, keyframes, style } from '@vanilla-extract/css';
+import { cssVar } from '@toeverything/theme';
+import { createVar, keyframes, style } from '@vanilla-extract/css';
 export const sizeVar = createVar('sizeVar');
-
+export const blurVar = createVar('blurVar');
 const bottomAnimation = keyframes({
   '0%': {
     top: '-44%',
@@ -75,15 +76,12 @@ const middleAnimation = keyframes({
     transform: 'matrix(-0.48, -0.88, 0.8, -0.6, 0, 0)',
   },
 });
-
 export const DefaultAvatarContainerStyle = style({
   width: '100%',
   height: '100%',
   position: 'relative',
-  borderRadius: '50%',
   overflow: 'hidden',
 });
-
 export const DefaultAvatarMiddleItemStyle = style({
   width: '83%',
   height: '81%',
@@ -92,7 +90,7 @@ export const DefaultAvatarMiddleItemStyle = style({
   top: '-30%',
   transform: 'matrix(-0.48, -0.88, 0.8, -0.6, 0, 0)',
   opacity: '0.8',
-  filter: 'blur(12px)',
+  filter: `blur(${blurVar})`,
   transformOrigin: 'center center',
   animation: `${middleAnimation} 3s ease-in-out forwards infinite`,
   animationPlayState: 'paused',
@@ -108,7 +106,7 @@ export const DefaultAvatarBottomItemStyle = style({
   left: '-11%',
   transform: 'matrix(-0.29, -0.96, 0.94, -0.35, 0, 0)',
   opacity: '0.8',
-  filter: 'blur(12px)',
+  filter: `blur(${blurVar})`,
   transformOrigin: 'center center',
   willChange: 'left, top, transform',
   animation: `${bottomAnimation} 3s ease-in-out forwards infinite`,
@@ -124,11 +122,10 @@ export const DefaultAvatarTopItemStyle = style({
   right: '-30%',
   top: '-30%',
   opacity: '0.8',
-  filter: 'blur(12px)',
+  filter: `blur(${blurVar})`,
   transform: 'matrix(-0.28, -0.96, 0.93, -0.37, 0, 0)',
   transformOrigin: 'center center',
 });
-
 export const avatarRoot = style({
   position: 'relative',
   display: 'inline-flex',
@@ -147,39 +144,35 @@ export const avatarWrapper = style({
   verticalAlign: 'middle',
   userSelect: 'none',
   position: 'relative',
+  overflow: 'hidden',
 });
-
 export const avatarImage = style({
   width: '100%',
   height: '100%',
   objectFit: 'cover',
-  borderRadius: '50%',
 });
-
 export const avatarFallback = style({
   width: '100%',
   height: '100%',
-  borderRadius: '50%',
+  overflow: 'hidden',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  backgroundColor: 'var(--affine-primary-color)',
-  color: 'var(--affine-white)',
+  backgroundColor: cssVar('primaryColor'),
+  color: cssVar('white'),
   lineHeight: '1',
   fontWeight: '500',
 });
-
 export const hoverWrapper = style({
   width: '100%',
   height: '100%',
-  borderRadius: '50%',
   position: 'absolute',
   display: 'flex',
   justifyContent: 'center',
   alignItems: 'center',
   backgroundColor: 'rgba(60, 61, 63, 0.5)',
   zIndex: '1',
-  color: 'var(--affine-white)',
+  color: cssVar('pureWhite'),
   opacity: 0,
   transition: 'opacity .15s',
   cursor: 'pointer',
@@ -189,7 +182,6 @@ export const hoverWrapper = style({
     },
   },
 });
-
 export const removeButton = style({
   position: 'absolute',
   right: '-8px',
@@ -197,14 +189,8 @@ export const removeButton = style({
   visibility: 'hidden',
   zIndex: '1',
   selectors: {
-    '&:hover': {
-      background: '#f6f6f6',
+    [`${avatarRoot}:hover &`]: {
+      visibility: 'visible',
     },
   },
-});
-globalStyle(`${avatarRoot}:hover ${removeButton}`, {
-  visibility: 'visible',
-});
-globalStyle(`${avatarRoot} ${removeButton}:hover`, {
-  background: '#f6f6f6',
 });

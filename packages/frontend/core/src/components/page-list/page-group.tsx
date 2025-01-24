@@ -1,28 +1,45 @@
+import { shallowEqual } from '@affine/component';
+import { DocDisplayMetaService } from '@affine/core/modules/doc-display-meta';
 import type { Tag } from '@affine/env/filter';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { assertExists } from '@blocksuite/global/utils';
-import { EdgelessIcon, PageIcon, ToggleCollapseIcon } from '@blocksuite/icons';
-import type { PageMeta, Workspace } from '@blocksuite/store';
+import { useI18n } from '@affine/i18n';
+import { assertExists } from '@blocksuite/affine/global/utils';
+import type { DocMeta, Workspace } from '@blocksuite/affine/store';
+import { ToggleRightIcon, ViewLayersIcon } from '@blocksuite/icons/rc';
 import * as Collapsible from '@radix-ui/react-collapsible';
+import { useLiveData, useService } from '@toeverything/infra';
 import clsx from 'clsx';
 import { selectAtom } from 'jotai/utils';
-import { type MouseEventHandler, useCallback, useMemo, useState } from 'react';
+import type { MouseEventHandler } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 
+import { CollectionListItem } from './collections/collection-list-item';
+import { PageListItem } from './docs/page-list-item';
 import { PagePreview } from './page-content-preview';
 import * as styles from './page-group.css';
-import { PageListItem } from './page-list-item';
 import {
-  pageGroupCollapseStateAtom,
-  pageListPropsAtom,
+  groupCollapseStateAtom,
+  groupsAtom,
+  listPropsAtom,
   selectionStateAtom,
   useAtom,
   useAtomValue,
 } from './scoped-atoms';
-import type { PageGroupProps, PageListItemProps, PageListProps } from './types';
-import { shallowEqual } from './utils';
+import { TagListItem } from './tags/tag-list-item';
+import type {
+  CollectionListItemProps,
+  CollectionMeta,
+  ItemGroupProps,
+  ListItem,
+  ListProps,
+  PageListItemProps,
+  TagListItemProps,
+  TagMeta,
+} from './types';
 
-export const PageGroupHeader = ({ id, items, label }: PageGroupProps) => {
-  const [collapseState, setCollapseState] = useAtom(pageGroupCollapseStateAtom);
+export const ItemGroupHeader = memo(function ItemGroupHeader<
+  T extends ListItem,
+>({ id, items, label }: ItemGroupProps<T>) {
+  const [collapseState, setCollapseState] = useAtom(groupCollapseStateAtom);
   const collapsed = collapseState[id];
   const onExpandedClicked: MouseEventHandler = useCallback(
     e => {
@@ -35,9 +52,9 @@ export const PageGroupHeader = ({ id, items, label }: PageGroupProps) => {
 
   const [selectionState, setSelectionActive] = useAtom(selectionStateAtom);
   const selectedItems = useMemo(() => {
-    const selectedPageIds = selectionState.selectedPageIds ?? [];
-    return items.filter(item => selectedPageIds.includes(item.id));
-  }, [items, selectionState.selectedPageIds]);
+    const selectedIds = selectionState.selectedIds ?? [];
+    return items.filter(item => selectedIds.includes(item.id));
+  }, [items, selectionState.selectedIds]);
 
   const allSelected = selectedItems.length === items.length;
 
@@ -46,7 +63,7 @@ export const PageGroupHeader = ({ id, items, label }: PageGroupProps) => {
     setSelectionActive(true);
 
     const nonCurrentGroupIds =
-      selectionState.selectedPageIds?.filter(
+      selectionState.selectedIds?.filter(
         id => !items.map(item => item.id).includes(id)
       ) ?? [];
 
@@ -54,10 +71,10 @@ export const PageGroupHeader = ({ id, items, label }: PageGroupProps) => {
       ? nonCurrentGroupIds
       : [...nonCurrentGroupIds, ...items.map(item => item.id)];
 
-    selectionState.onSelectedPageIdsChange?.(newSelectedPageIds);
+    selectionState.onSelectedIdsChange?.(newSelectedPageIds);
   }, [setSelectionActive, selectionState, allSelected, items]);
 
-  const t = useAFFiNEI18N();
+  const t = useI18n();
 
   return label ? (
     <div
@@ -73,7 +90,7 @@ export const PageGroupHeader = ({ id, items, label }: PageGroupProps) => {
         data-testid="page-list-group-header-collapsed-button"
         className={styles.collapsedIconContainer}
       >
-        <ToggleCollapseIcon
+        <ToggleRightIcon
           className={styles.collapsedIcon}
           data-collapsed={!!collapsed}
         />
@@ -94,9 +111,13 @@ export const PageGroupHeader = ({ id, items, label }: PageGroupProps) => {
       </button>
     </div>
   ) : null;
-};
+});
 
-export const PageGroup = ({ id, items, label }: PageGroupProps) => {
+export const ItemGroup = <T extends ListItem>({
+  id,
+  items,
+  label,
+}: ItemGroupProps<T>) => {
   const [collapsed, setCollapsed] = useState(false);
   const onExpandedClicked: MouseEventHandler = useCallback(e => {
     e.stopPropagation();
@@ -105,21 +126,21 @@ export const PageGroup = ({ id, items, label }: PageGroupProps) => {
   }, []);
   const selectionState = useAtomValue(selectionStateAtom);
   const selectedItems = useMemo(() => {
-    const selectedPageIds = selectionState.selectedPageIds ?? [];
-    return items.filter(item => selectedPageIds.includes(item.id));
-  }, [items, selectionState.selectedPageIds]);
+    const selectedIds = selectionState.selectedIds ?? [];
+    return items.filter(item => selectedIds.includes(item.id));
+  }, [items, selectionState.selectedIds]);
   const onSelectAll = useCallback(() => {
     const nonCurrentGroupIds =
-      selectionState.selectedPageIds?.filter(
+      selectionState.selectedIds?.filter(
         id => !items.map(item => item.id).includes(id)
       ) ?? [];
 
-    selectionState.onSelectedPageIdsChange?.([
+    selectionState.onSelectedIdsChange?.([
       ...nonCurrentGroupIds,
       ...items.map(item => item.id),
     ]);
   }, [items, selectionState]);
-  const t = useAFFiNEI18N();
+  const t = useI18n();
   return (
     <Collapsible.Root
       data-testid="page-list-group"
@@ -135,7 +156,7 @@ export const PageGroup = ({ id, items, label }: PageGroupProps) => {
             data-testid="page-list-group-header-collapsed-button"
             className={styles.collapsedIconContainer}
           >
-            <ToggleCollapseIcon
+            <ToggleRightIcon
               className={styles.collapsedIcon}
               data-collapsed={collapsed !== false}
             />
@@ -154,10 +175,13 @@ export const PageGroup = ({ id, items, label }: PageGroupProps) => {
           ) : null}
         </div>
       ) : null}
-      <Collapsible.Content className={styles.collapsibleContent}>
+      <Collapsible.Content
+        className={styles.collapsibleContent}
+        data-state={!collapsed ? 'open' : 'closed'}
+      >
         <div className={styles.collapsibleContentInner}>
           {items.map(item => (
-            <PageMetaListItemRenderer key={item.id} {...item} />
+            <PageListItemRenderer key={item.id} {...item} />
           ))}
         </div>
       </Collapsible.Content>
@@ -165,106 +189,225 @@ export const PageGroup = ({ id, items, label }: PageGroupProps) => {
   );
 };
 
-// todo: optimize how to render page meta list item
+// TODO(@Peng): optimize how to render page meta list item
 const requiredPropNames = [
-  'blockSuiteWorkspace',
+  'docCollection',
   'rowAsLink',
-  'isPreferredEdgeless',
-  'pageOperationsRenderer',
-  'selectedPageIds',
-  'onSelectedPageIdsChange',
+  'operationsRenderer',
+  'selectedIds',
+  'onSelectedIdsChange',
   'draggable',
 ] as const;
 
-type RequiredProps = Pick<PageListProps, (typeof requiredPropNames)[number]> & {
+type RequiredProps<T> = Pick<
+  ListProps<T>,
+  (typeof requiredPropNames)[number]
+> & {
   selectable: boolean;
 };
 
-const listPropsAtom = selectAtom(
-  pageListPropsAtom,
+const listsPropsAtom = selectAtom(
+  listPropsAtom,
   props => {
     return Object.fromEntries(
-      requiredPropNames.map(name => [name, props[name]])
-    ) as RequiredProps;
+      requiredPropNames.map(name => [name, props?.[name]])
+    ) as RequiredProps<ListItem>;
   },
   shallowEqual
 );
 
-export const PageMetaListItemRenderer = (pageMeta: PageMeta) => {
-  const props = useAtomValue(listPropsAtom);
+export const PageListItemRenderer = memo(function PageListItemRenderer(
+  item: ListItem
+) {
+  const props = useAtomValue(listsPropsAtom);
   const { selectionActive } = useAtomValue(selectionStateAtom);
+  const groups = useAtomValue(groupsAtom);
+  const pageItems = groups.flatMap(group => group.items).map(item => item.id);
+
+  const page = item as DocMeta;
   return (
     <PageListItem
-      {...pageMetaToPageItemProp(pageMeta, {
+      {...pageMetaToListItemProp(
+        page,
+        {
+          ...props,
+
+          selectable: !!selectionActive,
+        },
+        pageItems
+      )}
+    />
+  );
+});
+
+export const CollectionListItemRenderer = memo((item: ListItem) => {
+  const props = useAtomValue(listsPropsAtom);
+  const { selectionActive } = useAtomValue(selectionStateAtom);
+  const collection = item as CollectionMeta;
+  return (
+    <CollectionListItem
+      {...collectionMetaToListItemProp(collection, {
         ...props,
         selectable: !!selectionActive,
       })}
     />
   );
-};
+});
+
+CollectionListItemRenderer.displayName = 'CollectionListItemRenderer';
+
+export const TagListItemRenderer = memo(function TagListItemRenderer(
+  item: ListItem
+) {
+  const props = useAtomValue(listsPropsAtom);
+  const { selectionActive } = useAtomValue(selectionStateAtom);
+  const tag = item as TagMeta;
+  return (
+    <TagListItem
+      {...tagMetaToListItemProp(tag, {
+        ...props,
+        selectable: !!selectionActive,
+      })}
+    />
+  );
+});
 
 function tagIdToTagOption(
   tagId: string,
-  blockSuiteWorkspace: Workspace
+  docCollection: Workspace
 ): Tag | undefined {
-  return blockSuiteWorkspace.meta.properties.tags?.options.find(
+  return docCollection.meta.properties.tags?.options.find(
     opt => opt.id === tagId
   );
 }
 
-function pageMetaToPageItemProp(
-  pageMeta: PageMeta,
-  props: RequiredProps
+const PageTitle = ({ id }: { id: string }) => {
+  const i18n = useI18n();
+  const docDisplayMetaService = useService(DocDisplayMetaService);
+  const title = useLiveData(docDisplayMetaService.title$(id));
+  return i18n.t(title);
+};
+
+const UnifiedPageIcon = ({ id }: { id: string }) => {
+  const docDisplayMetaService = useService(DocDisplayMetaService);
+  const Icon = useLiveData(docDisplayMetaService.icon$(id));
+  return <Icon />;
+};
+
+function pageMetaToListItemProp(
+  item: DocMeta,
+  props: RequiredProps<DocMeta>,
+  pageIds?: string[]
 ): PageListItemProps {
-  const toggleSelection = props.onSelectedPageIdsChange
+  const toggleSelection = props.onSelectedIdsChange
     ? () => {
-        assertExists(props.selectedPageIds);
-        const prevSelected = props.selectedPageIds.includes(pageMeta.id);
+        assertExists(props.selectedIds);
+        const prevSelected = props.selectedIds.includes(item.id);
         const shouldAdd = !prevSelected;
         const shouldRemove = prevSelected;
 
         if (shouldAdd) {
-          props.onSelectedPageIdsChange?.([
-            ...props.selectedPageIds,
-            pageMeta.id,
-          ]);
+          props.onSelectedIdsChange?.([...props.selectedIds, item.id]);
         } else if (shouldRemove) {
-          props.onSelectedPageIdsChange?.(
-            props.selectedPageIds.filter(id => id !== pageMeta.id)
+          props.onSelectedIdsChange?.(
+            props.selectedIds.filter(id => id !== item.id)
           );
         }
       }
     : undefined;
   const itemProps: PageListItemProps = {
-    pageId: pageMeta.id,
-    title: pageMeta.title,
-    preview: (
-      <PagePreview workspace={props.blockSuiteWorkspace} pageId={pageMeta.id} />
-    ),
-    createDate: new Date(pageMeta.createDate),
-    updatedDate: pageMeta.updatedDate
-      ? new Date(pageMeta.updatedDate)
-      : undefined,
-    to:
-      props.rowAsLink && !props.selectable
-        ? `/workspace/${props.blockSuiteWorkspace.id}/${pageMeta.id}`
-        : undefined,
-    onClick: props.selectable ? toggleSelection : undefined,
-    icon: props.isPreferredEdgeless?.(pageMeta.id) ? (
-      <EdgelessIcon />
-    ) : (
-      <PageIcon />
-    ),
+    pageId: item.id,
+    pageIds,
+    title: <PageTitle id={item.id} />,
+    preview: <PagePreview pageId={item.id} />,
+    createDate: new Date(item.createDate),
+    updatedDate: item.updatedDate ? new Date(item.updatedDate) : undefined,
+    to: props.rowAsLink && !props.selectable ? `/${item.id}` : undefined,
+    onClick: toggleSelection,
+    icon: <UnifiedPageIcon id={item.id} />,
     tags:
-      pageMeta.tags
-        ?.map(id => tagIdToTagOption(id, props.blockSuiteWorkspace))
+      item.tags
+        ?.map(id => tagIdToTagOption(id, props.docCollection))
         .filter((v): v is Tag => v != null) ?? [],
-    operations: props.pageOperationsRenderer?.(pageMeta),
+    operations: props.operationsRenderer?.(item),
     selectable: props.selectable,
-    selected: props.selectedPageIds?.includes(pageMeta.id),
+    selected: props.selectedIds?.includes(item.id),
     onSelectedChange: toggleSelection,
     draggable: props.draggable,
-    isPublicPage: !!pageMeta.isPublic,
+    isPublicPage: !!item.isPublic,
+  };
+  return itemProps;
+}
+
+function collectionMetaToListItemProp(
+  item: CollectionMeta,
+  props: RequiredProps<CollectionMeta>
+): CollectionListItemProps {
+  const toggleSelection = props.onSelectedIdsChange
+    ? () => {
+        assertExists(props.selectedIds);
+        const prevSelected = props.selectedIds.includes(item.id);
+        const shouldAdd = !prevSelected;
+        const shouldRemove = prevSelected;
+
+        if (shouldAdd) {
+          props.onSelectedIdsChange?.([...props.selectedIds, item.id]);
+        } else if (shouldRemove) {
+          props.onSelectedIdsChange?.(
+            props.selectedIds.filter(id => id !== item.id)
+          );
+        }
+      }
+    : undefined;
+  const itemProps: CollectionListItemProps = {
+    collectionId: item.id,
+    title: item.title,
+    to:
+      props.rowAsLink && !props.selectable
+        ? `/collection/${item.id}`
+        : undefined,
+    onClick: toggleSelection,
+    icon: <ViewLayersIcon />,
+    operations: props.operationsRenderer?.(item),
+    selectable: props.selectable,
+    selected: props.selectedIds?.includes(item.id),
+    onSelectedChange: toggleSelection,
+    draggable: props.draggable,
+  };
+  return itemProps;
+}
+function tagMetaToListItemProp(
+  item: TagMeta,
+  props: RequiredProps<TagMeta>
+): TagListItemProps {
+  const toggleSelection = props.onSelectedIdsChange
+    ? () => {
+        assertExists(props.selectedIds);
+        const prevSelected = props.selectedIds.includes(item.id);
+        const shouldAdd = !prevSelected;
+        const shouldRemove = prevSelected;
+
+        if (shouldAdd) {
+          props.onSelectedIdsChange?.([...props.selectedIds, item.id]);
+        } else if (shouldRemove) {
+          props.onSelectedIdsChange?.(
+            props.selectedIds.filter(id => id !== item.id)
+          );
+        }
+      }
+    : undefined;
+  const itemProps: TagListItemProps = {
+    tagId: item.id,
+    title: item.title,
+    to: props.rowAsLink && !props.selectable ? `/tag/${item.id}` : undefined,
+    onClick: toggleSelection,
+    color: item.color,
+    pageCount: item.pageCount,
+    operations: props.operationsRenderer?.(item),
+    selectable: props.selectable,
+    selected: props.selectedIds?.includes(item.id),
+    onSelectedChange: toggleSelection,
+    draggable: props.draggable,
   };
   return itemProps;
 }

@@ -1,27 +1,24 @@
-import { globalStyle, style } from '@vanilla-extract/css';
-
+import { style } from '@vanilla-extract/css';
 export const editor = style({
   flex: 1,
-  overflow: 'auto',
   selectors: {
     '&.full-screen': {
       vars: {
         '--affine-editor-width': '100%',
-        '--affine-editor-side-padding': '15px',
+        '--affine-editor-side-padding': '72px',
       },
     },
-    '&.is-public-page': {
-      height: '100%',
+  },
+  '@media': {
+    'screen and (max-width: 800px)': {
+      selectors: {
+        '&.is-public': {
+          vars: {
+            '--affine-editor-width': '100%',
+            '--affine-editor-side-padding': '24px',
+          },
+        },
+      },
     },
   },
-});
-
-globalStyle(`${editor} .affine-doc-viewport`, {
-  paddingBottom: '150px',
-  paddingLeft: '20px',
-  scrollbarGutter: 'stable',
-});
-
-globalStyle('.is-public-page page-meta-tags', {
-  display: 'none',
 });

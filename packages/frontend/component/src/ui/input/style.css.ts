@@ -1,20 +1,21 @@
+import { cssVar } from '@toeverything/theme';
+import { cssVarV2 } from '@toeverything/theme/v2';
 import { style } from '@vanilla-extract/css';
-
 export const inputWrapper = style({
   width: '100%',
   height: 28,
   lineHeight: '22px',
-  padding: '0 10px',
-  color: 'var(--affine-text-primary-color)',
+  gap: '10px',
+  color: cssVarV2('text/primary'),
   border: '1px solid',
-  backgroundColor: 'var(--affine-white)',
+  backgroundColor: cssVarV2('input/background'),
   borderRadius: 8,
   display: 'flex',
   justifyContent: 'center',
   alignItems: 'center',
-  fontSize: 'var(--affine-font-base)',
+  fontSize: cssVar('fontBase'),
   boxSizing: 'border-box',
-
+  overflow: 'hidden',
   selectors: {
     '&.no-border': {
       border: 'unset',
@@ -29,45 +30,57 @@ export const inputWrapper = style({
     },
     // color
     '&.disabled': {
-      background: 'var(--affine-hover-color)',
+      background: cssVarV2('layer/background/hoverOverlay'),
     },
     '&.error': {
-      borderColor: 'var(--affine-error-color)',
+      borderColor: cssVarV2('input/border/error'),
     },
     '&.success': {
-      borderColor: 'var(--affine-success-color)',
+      borderColor: cssVarV2('input/border/active'),
     },
     '&.warning': {
-      borderColor: 'var(--affine-warning-color)',
+      borderColor: cssVarV2('input/border/error'),
     },
     '&.default': {
-      borderColor: 'var(--affine-border-color)',
+      borderColor: cssVarV2.layer.insideBorder.blackBorder,
     },
-    '&.default.focus': {
-      borderColor: 'var(--affine-primary-color)',
+    '&.default:is(:focus-within, :focus, :focus-visible)': {
+      borderColor: cssVarV2('button/primary'),
+      outline: 'none',
       boxShadow: '0px 0px 0px 2px rgba(30, 150, 235, 0.30);',
     },
   },
 });
+
+export const mobileInputWrapper = style([
+  inputWrapper,
+  {
+    height: 30,
+    borderRadius: 4,
+  },
+]);
 
 export const input = style({
   height: '100%',
   width: '0',
   flex: 1,
   boxSizing: 'border-box',
+  padding: '0 12px',
   // prevent default style
   WebkitAppearance: 'none',
   WebkitTapHighlightColor: 'transparent',
   outline: 'none',
   border: 'none',
   background: 'transparent',
-
   selectors: {
     '&::placeholder': {
-      color: 'var(--affine-placeholder-color)',
+      color: cssVarV2('text/placeholder'),
     },
     '&:disabled': {
-      color: 'var(--affine-text-disable-color)',
+      color: cssVarV2('text/disable'),
+    },
+    '&:-webkit-autofill': {
+      WebkitBoxShadow: `0 0 0 1000px ${cssVarV2('layer/white')} inset`,
     },
   },
 });

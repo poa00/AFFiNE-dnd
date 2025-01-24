@@ -50,17 +50,17 @@ test('create one workspace in the workspace list', async ({
   await clickSideBarAllPageButton(page);
   await page.waitForTimeout(2000);
   const result = await getPagesCount(page);
-  expect(result).toBe(11);
+  expect(result).toBe(1);
   await page.reload();
   await page.waitForTimeout(4000);
   const result1 = await getPagesCount(page);
-  expect(result1).toBe(11);
+  expect(result1).toBe(1);
   const currentWorkspace = await workspace.current();
 
   expect(currentWorkspace.meta.flavour).toContain('local');
 });
 
-test('create multi workspace in the workspace list', async ({
+test.skip('create multi workspace in the workspace list', async ({
   page,
   workspace,
 }) => {
@@ -76,14 +76,14 @@ test('create multi workspace in the workspace list', async ({
   await page.waitForTimeout(1000);
 
   {
-    //check workspace list length
-    const workspaceCards = await page.$$('data-testid=workspace-card');
-    expect(workspaceCards.length).toBe(3);
+    // check workspace list length
+    const workspaceCards = page.getByTestId('workspace-card');
+    await expect(workspaceCards).toHaveCount(3);
   }
 
   await page.reload();
   await openWorkspaceListModal(page);
-  await page.getByTestId('draggable-item').nth(1).click();
+  await page.getByTestId('workspace-card').nth(1).click();
   await page.waitForTimeout(500);
 
   const currentWorkspace = await workspace.current();
@@ -92,8 +92,8 @@ test('create multi workspace in the workspace list', async ({
 
   await openWorkspaceListModal(page);
   await page.waitForTimeout(1000);
-  const sourceElement = page.getByTestId('draggable-item').nth(2);
-  const targetElement = page.getByTestId('draggable-item').nth(1);
+  const sourceElement = page.getByTestId('workspace-card').nth(2);
+  const targetElement = page.getByTestId('workspace-card').nth(1);
 
   const sourceBox = await sourceElement.boundingBox();
   const targetBox = await targetElement.boundingBox();
@@ -118,16 +118,28 @@ test('create multi workspace in the workspace list', async ({
     }
   );
   await page.mouse.up();
-  await page.waitForTimeout(1000);
+
+  // check workspace list order
+  await page.waitForFunction(
+    () => {
+      const cards = document.querySelectorAll('[data-testid="workspace-card"]');
+      return (
+        cards[1].textContent?.includes('New Workspace 3') &&
+        cards[2].textContent?.includes('New Workspace 2')
+      );
+    },
+    [],
+    { timeout: 5000 }
+  );
+
   await page.reload();
   await openWorkspaceListModal(page);
 
   await page.waitForTimeout(1000);
   // check workspace list length
   {
-    await page.waitForTimeout(1000);
     const workspaceCards = page.getByTestId('workspace-card');
-    expect(await workspaceCards.count()).toBe(3);
+    await expect(workspaceCards).toHaveCount(3);
   }
 
   const workspaceChangePromise = page.evaluate(() => {

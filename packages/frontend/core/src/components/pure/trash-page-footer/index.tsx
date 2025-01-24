@@ -1,50 +1,43 @@
 import { Button } from '@affine/component/ui/button';
 import { ConfirmModal } from '@affine/component/ui/modal';
-import { Tooltip } from '@affine/component/ui/tooltip';
-import { useBlockSuitePageMeta } from '@affine/core/hooks/use-block-suite-page-meta';
-import { waitForCurrentWorkspaceAtom } from '@affine/core/modules/workspace';
-import { WorkspaceSubPath } from '@affine/core/shared';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { assertExists } from '@blocksuite/global/utils';
-import { DeleteIcon, ResetIcon } from '@blocksuite/icons';
-import { useAtomValue } from 'jotai';
+import { DocService } from '@affine/core/modules/doc';
+import { WorkspaceService } from '@affine/core/modules/workspace';
+import { useI18n } from '@affine/i18n';
+import { DeleteIcon, ResetIcon } from '@blocksuite/icons/rc';
+import { useService } from '@toeverything/infra';
 import { useCallback, useState } from 'react';
 
-import { useAppSettingHelper } from '../../../hooks/affine/use-app-setting-helper';
-import { useBlockSuiteMetaHelper } from '../../../hooks/affine/use-block-suite-meta-helper';
-import { useNavigateHelper } from '../../../hooks/use-navigate-helper';
+import { useAppSettingHelper } from '../../../components/hooks/affine/use-app-setting-helper';
+import { useBlockSuiteMetaHelper } from '../../../components/hooks/affine/use-block-suite-meta-helper';
+import { useNavigateHelper } from '../../../components/hooks/use-navigate-helper';
 import { toast } from '../../../utils';
 import * as styles from './styles.css';
 
-export const TrashPageFooter = ({ pageId }: { pageId: string }) => {
-  const workspace = useAtomValue(waitForCurrentWorkspaceAtom);
-  assertExists(workspace);
-  const blockSuiteWorkspace = workspace.blockSuiteWorkspace;
-  const pageMeta = useBlockSuitePageMeta(blockSuiteWorkspace).find(
-    meta => meta.id === pageId
-  );
-  assertExists(pageMeta);
-  const t = useAFFiNEI18N();
+export const TrashPageFooter = () => {
+  const workspace = useService(WorkspaceService).workspace;
+  const docCollection = workspace.docCollection;
+  const doc = useService(DocService).doc;
+  const t = useI18n();
   const { appSettings } = useAppSettingHelper();
-  const { jumpToSubPath } = useNavigateHelper();
-  const { restoreFromTrash } = useBlockSuiteMetaHelper(blockSuiteWorkspace);
+  const { jumpToPage } = useNavigateHelper();
+  const { restoreFromTrash } = useBlockSuiteMetaHelper();
   const [open, setOpen] = useState(false);
   const hintText = t['com.affine.cmdk.affine.editor.trash-footer-hint']();
 
   const onRestore = useCallback(() => {
-    restoreFromTrash(pageId);
+    restoreFromTrash(doc.id);
     toast(
       t['com.affine.toastMessage.restored']({
-        title: pageMeta.title || 'Untitled',
+        title: doc.meta$.value.title || 'Untitled',
       })
     );
-  }, [pageId, pageMeta.title, restoreFromTrash, t]);
+  }, [doc.id, doc.meta$.value.title, restoreFromTrash, t]);
 
   const onConfirmDelete = useCallback(() => {
-    jumpToSubPath(workspace.id, WorkspaceSubPath.ALL);
-    blockSuiteWorkspace.removePage(pageId);
+    jumpToPage(workspace.id, 'all');
+    docCollection.removeDoc(doc.id);
     toast(t['com.affine.toastMessage.permanentlyDeleted']());
-  }, [blockSuiteWorkspace, jumpToSubPath, pageId, workspace.id, t]);
+  }, [jumpToPage, workspace.id, docCollection, doc.id, t]);
 
   const onDelete = useCallback(() => {
     setOpen(true);
@@ -57,38 +50,31 @@ export const TrashPageFooter = ({ pageId }: { pageId: string }) => {
     >
       <div className={styles.deleteHintText}>{hintText}</div>
       <div className={styles.group}>
-        <Tooltip content={t['com.affine.trashOperation.restoreIt']()}>
-          <Button
-            data-testid="page-restore-button"
-            type="primary"
-            onClick={onRestore}
-            className={styles.buttonContainer}
-          >
-            <div className={styles.icon}>
-              <ResetIcon />
-            </div>
-          </Button>
-        </Tooltip>
-        <Tooltip content={t['com.affine.trashOperation.deletePermanently']()}>
-          <Button
-            type="error"
-            onClick={onDelete}
-            style={{ color: 'var(--affine-pure-white)' }}
-            className={styles.buttonContainer}
-          >
-            <div className={styles.icon}>
-              <DeleteIcon />
-            </div>
-          </Button>
-        </Tooltip>
+        <Button
+          tooltip={t['com.affine.trashOperation.restoreIt']()}
+          data-testid="page-restore-button"
+          variant="primary"
+          onClick={onRestore}
+          className={styles.buttonContainer}
+          prefix={<ResetIcon />}
+          prefixClassName={styles.icon}
+        />
+        <Button
+          tooltip={t['com.affine.trashOperation.deletePermanently']()}
+          variant="error"
+          onClick={onDelete}
+          className={styles.buttonContainer}
+          prefix={<DeleteIcon />}
+          prefixClassName={styles.icon}
+        />
       </div>
       <ConfirmModal
         title={t['com.affine.trashOperation.delete.title']()}
         cancelText={t['com.affine.confirmModal.button.cancel']()}
         description={t['com.affine.trashOperation.delete.description']()}
+        confirmText={t['com.affine.trashOperation.delete']()}
         confirmButtonOptions={{
-          type: 'error',
-          children: t['com.affine.trashOperation.delete'](),
+          variant: 'error',
         }}
         open={open}
         onConfirm={onConfirmDelete}

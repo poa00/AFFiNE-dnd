@@ -1,6 +1,6 @@
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { Logger } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
@@ -23,9 +23,11 @@ export async function collectMigrations(): Promise<Migration[]> {
     )
     .map(desc => join(folder, desc));
 
+  migrationFiles.sort((a, b) => a.localeCompare(b));
+
   const migrations: Migration[] = await Promise.all(
     migrationFiles.map(async file => {
-      return import(file).then(mod => {
+      return import(pathToFileURL(file).href).then(mod => {
         const migration = mod[Object.keys(mod)[0]];
 
         return {

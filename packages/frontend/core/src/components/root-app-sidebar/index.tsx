@@ -1,55 +1,52 @@
-import { AnimatedDeleteIcon } from '@affine/component';
+// Import is already correct, no changes needed
 import {
   AddPageButton,
   AppDownloadButton,
   AppSidebar,
-  appSidebarOpenAtom,
-  CategoryDivider,
   MenuItem,
   MenuLinkItem,
   QuickSearchInput,
   SidebarContainer,
   SidebarScrollableContainer,
-} from '@affine/component/app-sidebar';
-import { Menu } from '@affine/component/ui/menu';
-import { collectionsCRUDAtom } from '@affine/core/atoms/collections';
-import { useAsyncCallback } from '@affine/core/hooks/affine-async-hooks';
-import { WorkspaceSubPath } from '@affine/core/shared';
-import { apis, events } from '@affine/electron-api';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import type { Workspace } from '@affine/workspace';
-import { FolderIcon, SettingsIcon } from '@blocksuite/icons';
-import { type Page } from '@blocksuite/store';
-import { useDroppable } from '@dnd-kit/core';
-import { useAtom, useAtomValue } from 'jotai';
-import { nanoid } from 'nanoid';
-import type { HTMLAttributes, ReactElement } from 'react';
-import { forwardRef, Suspense, useCallback, useEffect, useMemo } from 'react';
-
-import { openWorkspaceListModalAtom } from '../../atoms';
-import { useHistoryAtom } from '../../atoms/history';
-import { useAppSettingHelper } from '../../hooks/affine/use-app-setting-helper';
-import { useDeleteCollectionInfo } from '../../hooks/affine/use-delete-collection-info';
-import { useGeneralShortcuts } from '../../hooks/affine/use-shortcuts';
-import { getDropItemId } from '../../hooks/affine/use-sidebar-drag';
-import { useTrashModalHelper } from '../../hooks/affine/use-trash-modal-helper';
-import { useRegisterBrowserHistoryCommands } from '../../hooks/use-browser-history-commands';
-import { useNavigateHelper } from '../../hooks/use-navigate-helper';
+} from '@affine/core/modules/app-sidebar/views';
+import { ExternalMenuLinkItem } from '@affine/core/modules/app-sidebar/views/menu-item/external-menu-link-item';
+import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
 import {
-  createEmptyCollection,
-  MoveToTrash,
-  useCollectionManager,
-  useEditCollectionName,
-} from '../page-list';
-import { CollectionsList } from '../pure/workspace-slider-bar/collections';
-import { AddCollectionButton } from '../pure/workspace-slider-bar/collections/add-collection-button';
-import { AddFavouriteButton } from '../pure/workspace-slider-bar/favorite/add-favourite-button';
-import FavoriteList from '../pure/workspace-slider-bar/favorite/favorite-list';
-import { UserWithWorkspaceList } from '../pure/workspace-slider-bar/user-with-workspace-list';
-import { WorkspaceCard } from '../pure/workspace-slider-bar/workspace-card';
-import ImportPage from './import-page';
+  CollapsibleSection,
+  ExplorerCollections,
+  ExplorerFavorites,
+  ExplorerMigrationFavorites,
+  ExplorerOrganize,
+} from '@affine/core/modules/explorer';
+import { ExplorerTags } from '@affine/core/modules/explorer/views/sections/tags';
+import { CMDKQuickSearchService } from '@affine/core/modules/quicksearch/services/cmdk';
+import type { Workspace } from '@affine/core/modules/workspace';
+import { useI18n } from '@affine/i18n';
+import { track } from '@affine/track';
+import type { Store } from '@blocksuite/affine/store';
+import {
+  AllDocsIcon,
+  ImportIcon,
+  JournalIcon,
+  SettingsIcon,
+} from '@blocksuite/icons/rc';
+import { useLiveData, useService, useServices } from '@toeverything/infra';
+import type { ReactElement } from 'react';
+import { memo, useCallback } from 'react';
+
+import { WorkbenchService } from '../../modules/workbench';
+import { WorkspaceNavigator } from '../workspace-selector';
+import {
+  quickSearch,
+  quickSearchAndNewPage,
+  workspaceAndUserWrapper,
+  workspaceWrapper,
+} from './index.css';
 import { AppSidebarJournalButton } from './journal-button';
+import { TemplateDocEntrance } from './template-doc-entrance';
+import { TrashButton } from './trash-button';
 import { UpdaterButton } from './updater-button';
+import { UserInfo } from './user-info';
 
 export type RootAppSidebarProps = {
   isPublicWorkspace: boolean;
@@ -57,8 +54,7 @@ export type RootAppSidebarProps = {
   onOpenSettingModal: () => void;
   currentWorkspace: Workspace;
   openPage: (pageId: string) => void;
-  createPage: () => Page;
-  currentPath: string;
+  createPage: () => Store;
   paths: {
     all: (workspaceId: string) => string;
     trash: (workspaceId: string) => string;
@@ -66,247 +62,145 @@ export type RootAppSidebarProps = {
   };
 };
 
-const RouteMenuLinkItem = forwardRef<
-  HTMLDivElement,
-  {
-    currentPath: string; // todo: pass through useRouter?
-    path: string;
-    icon: ReactElement;
-    children?: ReactElement;
-    isDraggedOver?: boolean;
-  } & HTMLAttributes<HTMLDivElement>
->(({ currentPath, path, icon, children, isDraggedOver, ...props }, ref) => {
-  // Force active style when a page is dragged over
-  const active = isDraggedOver || currentPath === path;
+const AllDocsButton = () => {
+  const t = useI18n();
+  const { workbenchService } = useServices({
+    WorkbenchService,
+  });
+  const workbench = workbenchService.workbench;
+  const allPageActive = useLiveData(
+    workbench.location$.selector(location => location.pathname === '/all')
+  );
+
   return (
-    <MenuLinkItem
-      ref={ref}
-      {...props}
-      active={active}
-      to={path ?? ''}
-      icon={icon}
-    >
-      {children}
+    <MenuLinkItem icon={<AllDocsIcon />} active={allPageActive} to={'/all'}>
+      <span data-testid="all-pages">
+        {t['com.affine.workspaceSubPath.all']()}
+      </span>
     </MenuLinkItem>
   );
-});
-RouteMenuLinkItem.displayName = 'RouteMenuLinkItem';
+};
 
 /**
  * This is for the whole affine app sidebar.
  * This component wraps the app sidebar in `@affine/component` with logic and data.
  *
- * @todo(himself65): rewrite all styled component into @vanilla-extract/css
  */
-export const RootAppSidebar = ({
-  currentWorkspace,
-  openPage,
-  createPage,
-  currentPath,
-  paths,
-  onOpenQuickSearchModal,
-  onOpenSettingModal,
-}: RootAppSidebarProps): ReactElement => {
-  const currentWorkspaceId = currentWorkspace.id;
-  const { appSettings } = useAppSettingHelper();
-  const blockSuiteWorkspace = currentWorkspace.blockSuiteWorkspace;
-  const t = useAFFiNEI18N();
-  const [openUserWorkspaceList, setOpenUserWorkspaceList] = useAtom(
-    openWorkspaceListModalAtom
-  );
-  const generalShortcutsInfo = useGeneralShortcuts();
+export const RootAppSidebar = memo((): ReactElement => {
+  const { workbenchService, cMDKQuickSearchService } = useServices({
+    WorkbenchService,
+    CMDKQuickSearchService,
+  });
+  const t = useI18n();
+  const workspaceDialogService = useService(WorkspaceDialogService);
+  const workbench = workbenchService.workbench;
+  const onOpenQuickSearchModal = useCallback(() => {
+    cMDKQuickSearchService.toggle();
+  }, [cMDKQuickSearchService]);
 
-  const onClickNewPage = useAsyncCallback(async () => {
-    const page = createPage();
-    await page.waitForLoaded();
-    openPage(page.id);
-  }, [createPage, openPage]);
+  const onOpenSettingModal = useCallback(() => {
+    workspaceDialogService.open('setting', {
+      activeTab: 'appearance',
+    });
+    track.$.navigationPanel.$.openSettings();
+  }, [workspaceDialogService]);
 
-  const { trashModal, setTrashModal, handleOnConfirm } =
-    useTrashModalHelper(blockSuiteWorkspace);
-  const deletePageTitles = trashModal.pageTitles;
-  const trashConfirmOpen = trashModal.open;
-  const onTrashConfirmOpenChange = useCallback(
-    (open: boolean) => {
-      setTrashModal({
-        ...trashModal,
-        open,
-      });
+  const handleOpenDocs = useCallback(
+    (result: {
+      docIds: string[];
+      entryId?: string;
+      isWorkspaceFile?: boolean;
+    }) => {
+      const { docIds, entryId, isWorkspaceFile } = result;
+      // If the imported file is a workspace file, open the entry page.
+      if (isWorkspaceFile && entryId) {
+        workbench.openDoc(entryId);
+      } else if (!docIds.length) {
+        return;
+      }
+      // Open all the docs when there are multiple docs imported.
+      if (docIds.length > 1) {
+        workbench.openAll();
+      } else {
+        // Otherwise, open the only doc.
+        workbench.openDoc(docIds[0]);
+      }
     },
-    [trashModal, setTrashModal]
+    [workbench]
   );
 
-  const navigateHelper = useNavigateHelper();
-  const backToAll = useCallback(() => {
-    navigateHelper.jumpToSubPath(currentWorkspace.id, WorkspaceSubPath.ALL);
-  }, [currentWorkspace.id, navigateHelper]);
-  // Listen to the "New Page" action from the menu
-  useEffect(() => {
-    if (environment.isDesktop) {
-      return events?.applicationMenu.onNewPageAction(onClickNewPage);
-    }
-    return;
-  }, [onClickNewPage]);
-
-  const sidebarOpen = useAtomValue(appSidebarOpenAtom);
-  useEffect(() => {
-    if (environment.isDesktop) {
-      apis?.ui.handleSidebarVisibilityChange(sidebarOpen).catch(err => {
-        console.error(err);
-      });
-    }
-  }, [sidebarOpen]);
-
-  const [history, setHistory] = useHistoryAtom();
-  const router = useMemo(() => {
-    return {
-      forward: () => {
-        setHistory(true);
-      },
-      back: () => {
-        setHistory(false);
-      },
-      history,
-    };
-  }, [history, setHistory]);
-
-  const dropItemId = getDropItemId('trash');
-  const trashDroppable = useDroppable({
-    id: dropItemId,
-  });
-  const closeUserWorkspaceList = useCallback(() => {
-    setOpenUserWorkspaceList(false);
-  }, [setOpenUserWorkspaceList]);
-  useRegisterBrowserHistoryCommands(router.back, router.forward);
-  const userInfo = useDeleteCollectionInfo();
-
-  const setting = useCollectionManager(collectionsCRUDAtom);
-  const { node, open } = useEditCollectionName({
-    title: t['com.affine.editCollection.createCollection'](),
-    showTips: true,
-  });
-  const handleCreateCollection = useCallback(() => {
-    open('')
-      .then(name => {
-        const id = nanoid();
-        setting.createCollection(createEmptyCollection(id, { name }));
-        navigateHelper.jumpToCollection(blockSuiteWorkspace.id, id);
-      })
-      .catch(err => {
-        console.error(err);
-      });
-  }, [blockSuiteWorkspace.id, navigateHelper, open, setting]);
+  const onOpenImportModal = useCallback(() => {
+    track.$.navigationPanel.importModal.open();
+    workspaceDialogService.open('import', undefined, payload => {
+      if (!payload) {
+        return;
+      }
+      handleOpenDocs(payload);
+    });
+  }, [workspaceDialogService, handleOpenDocs]);
 
   return (
-    <AppSidebar
-      router={router}
-      hasBackground={
-        !(
-          appSettings.enableBlurBackground &&
-          environment.isDesktop &&
-          environment.isMacOs
-        )
-      }
-      generalShortcutsInfo={generalShortcutsInfo}
-    >
-      <MoveToTrash.ConfirmModal
-        open={trashConfirmOpen}
-        onConfirm={handleOnConfirm}
-        onOpenChange={onTrashConfirmOpenChange}
-        titles={deletePageTitles}
-      />
+    <AppSidebar>
       <SidebarContainer>
-        <Menu
-          rootOptions={{
-            open: openUserWorkspaceList,
-          }}
-          items={
-            <Suspense>
-              <UserWithWorkspaceList onEventEnd={closeUserWorkspaceList} />
-            </Suspense>
-          }
-          contentOptions={{
-            // hide trigger
-            sideOffset: -58,
-            onInteractOutside: closeUserWorkspaceList,
-            onEscapeKeyDown: closeUserWorkspaceList,
-            style: {
-              width: '300px',
-            },
-          }}
-        >
-          <WorkspaceCard
-            onClick={useCallback(() => {
-              setOpenUserWorkspaceList(true);
-            }, [setOpenUserWorkspaceList])}
+        <div className={workspaceAndUserWrapper}>
+          <div className={workspaceWrapper}>
+            <WorkspaceNavigator showEnableCloudButton showSyncStatus />
+          </div>
+          <UserInfo />
+        </div>
+        <div className={quickSearchAndNewPage}>
+          <QuickSearchInput
+            className={quickSearch}
+            data-testid="slider-bar-quick-search-button"
+            data-event-props="$.navigationPanel.$.quickSearch"
+            onClick={onOpenQuickSearchModal}
           />
-        </Menu>
-        <QuickSearchInput
-          data-testid="slider-bar-quick-search-button"
-          onClick={onOpenQuickSearchModal}
-        />
-        <RouteMenuLinkItem
-          icon={<FolderIcon />}
-          currentPath={currentPath}
-          path={paths.all(currentWorkspaceId)}
-          onClick={backToAll}
+          <AddPageButton />
+        </div>
+        <AllDocsButton />
+        <AppSidebarJournalButton />
+        <MenuItem
+          data-testid="slider-bar-workspace-setting-button"
+          icon={<SettingsIcon />}
+          onClick={onOpenSettingModal}
         >
-          <span data-testid="all-pages">
-            {t['com.affine.workspaceSubPath.all']()}
+          <span data-testid="settings-modal-trigger">
+            {t['com.affine.settingSidebar.title']()}
           </span>
-        </RouteMenuLinkItem>
-        {runtimeConfig.enableJournal ? (
-          <AppSidebarJournalButton
-            workspace={currentWorkspace.blockSuiteWorkspace}
-          />
-        ) : null}
-        {runtimeConfig.enableNewSettingModal ? (
-          <MenuItem
-            data-testid="slider-bar-workspace-setting-button"
-            icon={<SettingsIcon />}
-            onClick={onOpenSettingModal}
-          >
-            <span data-testid="settings-modal-trigger">
-              {t['com.affine.settingSidebar.title']()}
-            </span>
-          </MenuItem>
-        ) : null}
+        </MenuItem>
       </SidebarContainer>
-
       <SidebarScrollableContainer>
-        <CategoryDivider label={t['com.affine.rootAppSidebar.favorites']()}>
-          <AddFavouriteButton workspace={blockSuiteWorkspace} />
-        </CategoryDivider>
-        <FavoriteList workspace={blockSuiteWorkspace} />
-        <CategoryDivider label={t['com.affine.rootAppSidebar.collections']()}>
-          <AddCollectionButton node={node} onClick={handleCreateCollection} />
-        </CategoryDivider>
-        <CollectionsList
-          workspace={blockSuiteWorkspace}
-          info={userInfo}
-          onCreate={handleCreateCollection}
-        />
-        <CategoryDivider label={t['com.affine.rootAppSidebar.others']()} />
-        {/* fixme: remove the following spacer */}
-        <div style={{ height: '4px' }} />
-        <RouteMenuLinkItem
-          ref={trashDroppable.setNodeRef}
-          isDraggedOver={trashDroppable.isOver}
-          icon={<AnimatedDeleteIcon closed={trashDroppable.isOver} />}
-          currentPath={currentPath}
-          path={paths.trash(currentWorkspaceId)}
+        <ExplorerFavorites />
+        <ExplorerOrganize />
+        <ExplorerMigrationFavorites />
+        <ExplorerCollections />
+        <ExplorerTags />
+        <CollapsibleSection
+          name="others"
+          title={t['com.affine.rootAppSidebar.others']()}
+          contentStyle={{ padding: '6px 8px 0 8px' }}
         >
-          <span data-testid="trash-page">
-            {t['com.affine.workspaceSubPath.trash']()}
-          </span>
-        </RouteMenuLinkItem>
-        <ImportPage blocksuiteWorkspace={blockSuiteWorkspace} />
+          <TrashButton />
+          <MenuItem
+            data-testid="slider-bar-import-button"
+            icon={<ImportIcon />}
+            onClick={onOpenImportModal}
+          >
+            <span data-testid="import-modal-trigger">{t['Import']()}</span>
+          </MenuItem>
+          <TemplateDocEntrance />
+          <ExternalMenuLinkItem
+            href="https://affine.pro/blog?tag=Release+Note"
+            icon={<JournalIcon />}
+            label={t['com.affine.app-sidebar.learn-more']()}
+          />
+        </CollapsibleSection>
       </SidebarScrollableContainer>
       <SidebarContainer>
-        {environment.isDesktop ? <UpdaterButton /> : <AppDownloadButton />}
-        <div style={{ height: '4px' }} />
-        <AddPageButton onClick={onClickNewPage} />
+        {BUILD_CONFIG.isElectron ? <UpdaterButton /> : <AppDownloadButton />}
       </SidebarContainer>
     </AppSidebar>
   );
-};
+});
+
+RootAppSidebar.displayName = 'memo(RootAppSidebar)';

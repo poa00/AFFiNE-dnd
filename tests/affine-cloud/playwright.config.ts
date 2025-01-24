@@ -1,3 +1,4 @@
+import { testResultDir } from '@affine-test/kit/playwright';
 import type {
   PlaywrightTestConfig,
   PlaywrightWorkerOptions,
@@ -7,8 +8,9 @@ const config: PlaywrightTestConfig = {
   testDir: './e2e',
   fullyParallel: !process.env.CI,
   timeout: 120_000,
+  outputDir: testResultDir,
   use: {
-    baseURL: 'http://localhost:8081/',
+    baseURL: 'http://localhost:8080/',
     browserName:
       (process.env.BROWSER as PlaywrightWorkerOptions['browserName']) ??
       'chromium',
@@ -20,13 +22,16 @@ const config: PlaywrightTestConfig = {
     video: 'on',
   },
   forbidOnly: !!process.env.CI,
-  workers: process.env.CI ? 1 : 4,
-  retries: 1,
+  workers: process.env.CI && !process.env.COPILOT ? 1 : 4,
+  retries: process.env.COPILOT ? 1 : 3,
   reporter: process.env.CI ? 'github' : 'list',
   webServer: [
-    // Intentionally not building the web, reminds you to run it by yourself.
     {
-      command: 'yarn -T run start:web-static',
+      // TODO(@forehalo):
+      //   in ci, all the target will be built,
+      //   we could download the builds from archives
+      //   and then run the web with simple http serve, it's will be faster
+      command: 'yarn run -T affine dev -p @affine/web',
       port: 8080,
       timeout: 120 * 1000,
       reuseExistingServer: !process.env.CI,
@@ -35,26 +40,24 @@ const config: PlaywrightTestConfig = {
       },
     },
     {
-      command: 'yarn workspace @affine/server start',
+      command: 'yarn run -T affine dev -p @affine/server',
       port: 3010,
       timeout: 120 * 1000,
       reuseExistingServer: !process.env.CI,
-      stdout: 'pipe',
-      stderr: 'pipe',
       env: {
         DATABASE_URL:
           process.env.DATABASE_URL ??
           'postgresql://affine:affine@localhost:5432/affine',
-        NODE_ENV: 'development',
+        NODE_ENV: 'test',
         AFFINE_ENV: process.env.AFFINE_ENV ?? 'dev',
         DEBUG: 'affine:*',
         FORCE_COLOR: 'true',
         DEBUG_COLORS: 'true',
-        ENABLE_LOCAL_EMAIL: process.env.ENABLE_LOCAL_EMAIL ?? 'true',
-        NEXTAUTH_URL: 'http://localhost:8080',
-        OAUTH_EMAIL_SENDER: 'noreply@toeverything.info',
-        OAUTH_EMAIL_LOGIN: 'noreply@toeverything.info',
-        OAUTH_EMAIL_PASSWORD: 'affine',
+        MAILER_HOST: '0.0.0.0',
+        MAILER_PORT: '1025',
+        MAILER_SENDER: 'noreply@toeverything.info',
+        MAILER_USER: 'noreply@toeverything.info',
+        MAILER_PASSWORD: 'affine',
       },
     },
   ],

@@ -1,84 +1,186 @@
+import { cssVar } from '@toeverything/theme';
+import { cssVarV2 } from '@toeverything/theme/v2';
 import { globalStyle, style } from '@vanilla-extract/css';
-
 export const headerStyle = style({
   display: 'flex',
   alignItems: 'center',
-  fontSize: 'var(--affine-font-sm)',
+  fontSize: cssVar('fontSm'),
   fontWeight: 600,
   lineHeight: '22px',
   padding: '0 4px',
   gap: '4px',
 });
-
+export const content = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '8px',
+});
 export const menuStyle = style({
-  width: '410px',
+  width: '390px',
   height: 'auto',
   padding: '12px',
-  transform: 'translateX(-10px)',
+});
+export const menuTriggerStyle = style({
+  width: '150px',
+  padding: '4px 10px',
+  justifyContent: 'space-between',
+});
+export const publicItemRowStyle = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+});
+export const DoneIconStyle = style({
+  color: cssVarV2('button/primary'),
+  fontSize: cssVar('fontH5'),
+  marginLeft: '8px',
+});
+export const exportItemStyle = style({
+  padding: '4px',
+  transition: 'all 0.3s',
+  gap: '0px',
+});
+globalStyle(`${exportItemStyle} > div:first-child`, {
+  alignItems: 'center',
+});
+globalStyle(`${exportItemStyle} svg`, {
+  width: '16px',
+  height: '16px',
 });
 
-export const menuItemStyle = style({
+export const copyLinkContainerStyle = style({
+  padding: '4px',
+  display: 'flex',
+  alignItems: 'center',
+  width: '100%',
+  position: 'relative',
+  selectors: {
+    '&.secondary': {
+      padding: 0,
+      marginTop: '12px',
+    },
+  },
+});
+export const copyLinkButtonStyle = style({
+  flex: 1,
+  padding: '4px 12px',
+  paddingRight: '6px',
+  borderRight: 'none',
+  borderTopRightRadius: '0',
+  borderBottomRightRadius: '0',
+  color: 'transparent',
+  position: 'initial',
+  selectors: {
+    '&.dark': {
+      backgroundColor: cssVarV2('layer/pureBlack'),
+    },
+    '&.dark::hover': {
+      backgroundColor: cssVarV2('layer/pureBlack'),
+    },
+  },
+});
+export const copyLinkLabelContainerStyle = style({
+  width: '100%',
+  borderRight: 'none',
+  borderTopRightRadius: '0',
+  borderBottomRightRadius: '0',
+  position: 'relative',
+});
+export const copyLinkLabelStyle = style({
+  position: 'absolute',
+  textAlign: 'end',
+  top: '50%',
+  left: '50%',
+  transform: 'translateX(-50%) translateY(-50%)',
+  lineHeight: '20px',
+  color: cssVarV2('text/pureWhite'),
+  selectors: {
+    '&.secondary': {
+      color: cssVarV2('text/primary'),
+    },
+  },
+});
+export const copyLinkShortcutStyle = style({
+  position: 'absolute',
+  textAlign: 'end',
+  top: '50%',
+  right: '52px',
+  transform: 'translateY(-50%)',
+  opacity: 0.5,
+  lineHeight: '20px',
+  color: cssVarV2('text/pureWhite'),
+  selectors: {
+    '&.secondary': {
+      color: cssVarV2('text/secondary'),
+    },
+  },
+});
+export const copyLinkTriggerStyle = style({
+  padding: '4px 12px 4px 8px',
+  borderLeft: 'none',
+  borderTopLeftRadius: '0',
+  borderBottomLeftRadius: '0',
+  ':hover': {
+    backgroundColor: cssVarV2('button/primary'),
+    color: cssVarV2('button/pureWhiteText'),
+  },
+  '::after': {
+    content: '""',
+    position: 'absolute',
+    left: '0',
+    top: '0',
+    height: '100%',
+    width: '1px',
+    backgroundColor: cssVarV2('button/innerBlackBorder'),
+  },
+  selectors: {
+    '&.secondary': {
+      backgroundColor: cssVarV2('button/secondary'),
+      color: cssVarV2('text/secondary'),
+    },
+    '&.secondary:hover': {
+      backgroundColor: cssVarV2('button/secondary'),
+      color: cssVarV2('text/secondary'),
+    },
+  },
+});
+globalStyle(`${copyLinkTriggerStyle} svg`, {
+  color: cssVarV2('button/pureWhiteText'),
+  transform: 'translateX(2px)',
+});
+globalStyle(`${copyLinkTriggerStyle}.secondary svg`, {
+  color: cssVarV2('text/secondary'),
+  transform: 'translateX(2px)',
+});
+export const copyLinkMenuItemStyle = style({
   padding: '4px',
   transition: 'all 0.3s',
 });
-
 export const descriptionStyle = style({
   wordWrap: 'break-word',
-  // wordBreak: 'break-all',
-  fontSize: 'var(--affine-font-xs)',
+  fontSize: cssVar('fontXs'),
   lineHeight: '20px',
-  color: 'var(--affine-text-secondary-color)',
+  color: cssVarV2('text/secondary'),
   textAlign: 'left',
   padding: '0 6px',
 });
-
-export const buttonStyle = style({
-  marginTop: '18px',
-  // todo: new color scheme should be used
-});
-
-export const actionsStyle = style({
-  display: 'flex',
-  gap: '9px',
-  flexDirection: 'column',
-  justifyContent: 'center',
-  alignItems: 'flex-start',
-});
-
 export const containerStyle = style({
   display: 'flex',
   width: '100%',
   flexDirection: 'column',
   gap: '8px',
 });
-
 export const indicatorContainerStyle = style({
   position: 'relative',
 });
-
-export const inputButtonRowStyle = style({
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  marginTop: '16px',
-});
-
 export const titleContainerStyle = style({
   display: 'flex',
   alignItems: 'center',
-  gap: '4px',
-  fontSize: 'var(--affine-font-sm)',
-  fontWeight: 500,
-  lineHeight: '22px',
-  padding: '0 4px',
+  fontSize: cssVar('fontXs'),
+  color: cssVarV2('text/secondary'),
+  fontWeight: 400,
+  padding: '8px 4px 0 4px',
 });
-
-export const subTitleStyle = style({
-  fontSize: 'var(--affine-font-sm)',
-  fontWeight: 500,
-  lineHeight: '22px',
-});
-
 export const columnContainerStyle = style({
   display: 'flex',
   flexDirection: 'column',
@@ -86,47 +188,34 @@ export const columnContainerStyle = style({
   width: '100%',
   gap: '8px',
 });
-
 export const rowContainerStyle = style({
   display: 'flex',
   flexDirection: 'row',
   justifyContent: 'space-between',
   alignItems: 'center',
-  gap: '12px',
   padding: '4px',
 });
-
-export const radioButtonGroup = style({
+export const exportContainerStyle = style({
   display: 'flex',
-  justifyContent: 'flex-end',
-  padding: '2px',
-  minWidth: '154px',
-  maxWidth: '250px',
+  flexDirection: 'column',
+  gap: '8px',
 });
-
-export const radioButton = style({
-  color: 'var(--affine-text-secondary-color)',
-  selectors: {
-    '&[data-state="checked"]': {
-      color: 'var(--affine-text-primary-color)',
-    },
-  },
+export const labelStyle = style({
+  fontSize: cssVar('fontSm'),
+  fontWeight: 500,
 });
-
 export const disableSharePage = style({
-  color: 'var(--affine-error-color)',
+  color: cssVarV2('button/error'),
 });
-
 export const localSharePage = style({
   padding: '12px 8px',
   display: 'flex',
   alignItems: 'center',
   borderRadius: '8px',
-  backgroundColor: 'var(--affine-background-secondary-color)',
+  backgroundColor: cssVarV2('layer/background/secondary'),
   minHeight: '84px',
   position: 'relative',
 });
-
 export const cloudSvgContainer = style({
   width: '146px',
   display: 'flex',
@@ -136,29 +225,47 @@ export const cloudSvgContainer = style({
   bottom: '0',
   right: '0',
 });
-export const shareIconStyle = style({
-  fontSize: '16px',
-  color: 'var(--affine-icon-color)',
-  display: 'flex',
-  alignItems: 'center',
-});
-
 export const shareLinkStyle = style({
   padding: '4px',
-  fontSize: 'var(--affine-font-xs)',
+  fontSize: cssVar('fontXs'),
   fontWeight: 500,
   lineHeight: '20px',
   transform: 'translateX(-4px)',
   gap: '4px',
 });
 globalStyle(`${shareLinkStyle} > span`, {
-  color: 'var(--affine-link-color)',
+  color: cssVarV2('text/link'),
 });
 globalStyle(`${shareLinkStyle} > div > svg`, {
-  color: 'var(--affine-link-color)',
+  color: cssVarV2('text/link'),
 });
-
-export const journalShareButton = style({
+export const buttonContainer = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '4px',
+  fontWeight: 500,
+});
+export const button = style({
+  padding: '6px 8px',
   height: 32,
-  padding: '0px 8px',
+});
+export const shortcutStyle = style({
+  fontSize: cssVar('fontXs'),
+  color: cssVarV2('text/secondary'),
+  fontWeight: 400,
+});
+export const openWorkspaceSettingsStyle = style({
+  color: cssVarV2('text/link'),
+  fontSize: cssVar('fontXs'),
+  fontWeight: 500,
+  display: 'flex',
+  gap: '8px',
+  alignItems: 'center',
+  justifyContent: 'flex-start',
+  width: '100%',
+  padding: '4px',
+  cursor: 'pointer',
+});
+globalStyle(`${openWorkspaceSettingsStyle} svg`, {
+  color: cssVarV2('text/link'),
 });

@@ -1,13 +1,8 @@
 import { Button } from '@affine/component';
 import clsx from 'clsx';
 import { debounce } from 'lodash-es';
-import {
-  type CSSProperties,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import type { CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import Logo from '../assets/logo';
 import { OnboardingBlock } from '../switch-widgets/block';
@@ -48,7 +43,9 @@ export const EdgelessSwitch = ({
   const prevStateRef = useRef<EdgelessSwitchState | null>(
     article.initState ?? null
   );
-  const enableScrollTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const enableScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
   const turnOffScalingRef = useRef<() => void>(() => {});
 
   const [scrollable, setScrollable] = useState(false);
@@ -118,7 +115,6 @@ export const EdgelessSwitch = ({
       turnOffScalingRef.current?.();
     };
 
-    // TODO: mobile support
     const onMouseDown = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (target.closest('[data-no-drag]')) return;
@@ -216,6 +212,7 @@ export const EdgelessSwitch = ({
               {
                 /* render blocks */
                 article.blocks.map((block, key) => {
+                  // eslint-disable-next-line react/no-array-index-key
                   return <OnboardingBlock key={key} mode={mode} {...block} />;
                 })
               }
@@ -240,7 +237,7 @@ export const EdgelessSwitch = ({
                 onSwitchToPageMode={onSwitchToPageMode}
                 onSwitchToEdgelessMode={onSwitchToEdgelessMode}
               />
-              <Button size="extraLarge" type="primary" onClick={onNextClick}>
+              <Button size="extraLarge" variant="primary" onClick={onNextClick}>
                 Next
               </Button>
             </header>
@@ -268,11 +265,11 @@ export const EdgelessSwitch = ({
           <Button
             className={styles.wellDoneEnterAnim}
             onClick={onNextClick}
-            type="primary"
+            variant="primary"
             size="extraLarge"
             style={{ marginTop: 40 }}
           >
-            Get Start
+            Get Started
           </Button>
         </div>
       </div>

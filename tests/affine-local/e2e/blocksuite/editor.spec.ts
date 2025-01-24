@@ -1,27 +1,18 @@
 import { test } from '@affine-test/kit/playwright';
 import { openHomePage } from '@affine-test/kit/utils/load-page';
 import {
+  addDatabase,
   clickNewPageButton,
   getBlockSuiteEditorTitle,
   waitForEditorLoad,
 } from '@affine-test/kit/utils/page-logic';
-import type { Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
-const addDatabase = async (page: Page) => {
-  await page.keyboard.press('/', { delay: 500 });
-  await page.keyboard.press('d', { delay: 500 });
-  await page.keyboard.press('a', { delay: 500 });
-  await page.keyboard.press('t', { delay: 500 });
-  await page.keyboard.press('a', { delay: 500 });
-  await page.getByTestId('Table View').click();
-};
-
 test('database is useable', async ({ page }) => {
+  test.slow();
   await openHomePage(page);
   await waitForEditorLoad(page);
   await clickNewPageButton(page);
-  await waitForEditorLoad(page);
   const title = getBlockSuiteEditorTitle(page);
   await title.pressSequentially('test title');
   await page.keyboard.press('Enter');
@@ -32,7 +23,6 @@ test('database is useable', async ({ page }) => {
   await page.reload();
   await waitForEditorLoad(page);
   await clickNewPageButton(page);
-  await waitForEditorLoad(page);
   const title2 = getBlockSuiteEditorTitle(page);
   await title2.pressSequentially('test title2');
   await page.waitForTimeout(500);
@@ -64,11 +54,35 @@ test('link page is useable', async ({ page }) => {
   await page.keyboard.press('g');
   await page.keyboard.press('e');
   await page.keyboard.press('1');
-  await page.keyboard.press('Enter');
+  await page.locator('icon-button:has-text("page1")').first().click();
   const link = page.locator('.affine-reference');
-  await page.waitForTimeout(500);
   await expect(link).toBeVisible();
   await page.click('.affine-reference');
   await page.waitForTimeout(500);
-  expect(await title.innerText()).toBe('page1');
+
+  await expect(
+    page.locator('.doc-title-container:has-text("page1")')
+  ).toBeVisible();
+});
+
+test('append paragraph when click editor gap', async ({ page }) => {
+  await openHomePage(page);
+  await waitForEditorLoad(page);
+  await clickNewPageButton(page);
+  await waitForEditorLoad(page);
+
+  const title = getBlockSuiteEditorTitle(page);
+  await title.pressSequentially('test title');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.insertText('test content');
+
+  const paragraph = page.locator('affine-paragraph');
+  const numParagraphs = await paragraph.count();
+
+  await page.locator('[data-testid=page-editor-blank]').click();
+  expect(await paragraph.count()).toBe(numParagraphs + 1);
+
+  // click the gap again, should not append another paragraph
+  await page.locator('[data-testid=page-editor-blank]').click();
+  expect(await paragraph.count()).toBe(numParagraphs + 1);
 });

@@ -1,26 +1,51 @@
-import type { PageMode } from '../../../atoms';
-import { useCurrentLoginStatus } from '../../../hooks/affine/use-current-login-status';
-import { AuthenticatedItem } from './authenticated-item';
+import { AuthService } from '@affine/core/modules/cloud';
+import type { DocMode } from '@blocksuite/affine/blocks';
+import { useLiveData, useService } from '@toeverything/infra';
+
+import { ImportTemplateButton } from './import-template';
 import { PresentButton } from './present';
+import { SignIn } from './sign-in';
 import * as styles from './styles.css';
+import { PublishPageUserAvatar } from './user-avatar';
 
 export type ShareHeaderRightItemProps = {
-  workspaceId: string;
-  pageId: string;
-  publishMode: PageMode;
+  publishMode: DocMode;
+  isTemplate?: boolean;
+  templateName?: string;
+  snapshotUrl?: string;
 };
 
-const ShareHeaderRightItem = ({ ...props }: ShareHeaderRightItemProps) => {
-  const loginStatus = useCurrentLoginStatus();
-  const { publishMode } = props;
-
-  // TODO: Add TOC
+const ShareHeaderRightItem = ({
+  publishMode,
+  isTemplate,
+  templateName,
+  snapshotUrl,
+}: ShareHeaderRightItemProps) => {
+  const loginStatus = useLiveData(useService(AuthService).session.status$);
+  const authenticated = loginStatus === 'authenticated';
   return (
     <div className={styles.rightItemContainer}>
-      {loginStatus === 'authenticated' ? (
-        <AuthenticatedItem {...props} />
-      ) : null}
-      {publishMode === 'edgeless' ? <PresentButton /> : null}
+      {isTemplate ? (
+        <ImportTemplateButton
+          name={templateName ?? ''}
+          snapshotUrl={snapshotUrl ?? ''}
+        />
+      ) : (
+        <>
+          {authenticated ? null : <SignIn />}
+          {publishMode === 'edgeless' ? <PresentButton /> : null}
+          {authenticated ? (
+            <>
+              <div
+                className={styles.headerDivider}
+                data-authenticated={true}
+                data-is-edgeless={publishMode === 'edgeless'}
+              />
+              <PublishPageUserAvatar />
+            </>
+          ) : null}
+        </>
+      )}
     </div>
   );
 };

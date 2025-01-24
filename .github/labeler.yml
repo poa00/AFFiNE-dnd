@@ -29,16 +29,6 @@ mod:plugin-cli:
       - any-glob-to-any-file:
           - 'tools/plugin-cli/**/*'
 
-mod:workspace:
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'packages/common/workspace/**/*'
-
-mod:workspace-impl:
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'packages/frontend/workspace-impl/**/*'
-
 mod:i18n:
   - changed-files:
       - any-glob-to-any-file:
@@ -54,10 +44,10 @@ mod:component:
       - any-glob-to-any-file:
           - 'packages/frontend/component/**/*'
 
-mod:storage:
+mod:server-native:
   - changed-files:
       - any-glob-to-any-file:
-          - 'packages/backend/storage/**/*'
+          - 'packages/backend/native/**/*'
 
 mod:native:
   - changed-files:
@@ -79,11 +69,6 @@ rust:
           - '**/rust-toolchain.toml'
           - '**/rustfmt.toml'
 
-package:y-indexeddb:
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'packages/common/y-indexeddb/**/*'
-
 app:core:
   - changed-files:
       - any-glob-to-any-file:
@@ -92,7 +77,7 @@ app:core:
 app:electron:
   - changed-files:
       - any-glob-to-any-file:
-          - 'packages/frontend/electron/**/*'
+          - 'packages/frontend/apps/electron/**/*'
 
 app:server:
   - changed-files:

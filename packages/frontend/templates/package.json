@@ -2,12 +2,19 @@
   "name": "@affine/templates",
   "private": true,
   "sideEffect": false,
-  "version": "0.11.0",
+  "version": "0.19.0",
   "scripts": {
-    "postinstall": "node ./build.mjs"
+    "build": "node ./build-edgeless.mjs && node ./build-stickers.mjs",
+    "postinstall": "yarn build"
   },
   "type": "module",
   "exports": {
-    ".": "./templates.gen.ts"
+    "./onboarding.zip": "./onboarding/onboarding.zip",
+    "./edgeless": "./edgeless-templates.gen.ts",
+    "./stickers": "./stickers-templates.gen.ts",
+    "./build-edgeless": "./build-edgeless.mjs"
+  },
+  "devDependencies": {
+    "jszip": "^3.10.1"
   }
 }

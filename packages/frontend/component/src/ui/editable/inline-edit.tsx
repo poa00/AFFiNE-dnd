@@ -1,12 +1,16 @@
 import clsx from 'clsx';
+import type {
+  CSSProperties,
+  ForwardedRef,
+  HTMLAttributes,
+  KeyboardEvent,
+  PropsWithChildren,
+} from 'react';
 import {
-  type CSSProperties,
-  type ForwardedRef,
-  type HTMLAttributes,
-  type PropsWithChildren,
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -28,6 +32,10 @@ export interface InlineEditProps
    * Whether the content is editable
    */
   editable?: boolean;
+  /**
+   * Whether to exit when pressing `Escape`
+   */
+  exitible?: boolean;
 
   onInput?: (v: string) => void;
   onChange?: (v: string) => void;
@@ -37,11 +45,6 @@ export interface InlineEditProps
    * @default `'doubleClick'`
    */
   trigger?: 'click' | 'doubleClick';
-
-  /**
-   * whether to auto select all text when trigger edit
-   */
-  autoSelect?: boolean;
 
   /**
    * Placeholder when value is empty
@@ -67,10 +70,10 @@ export interface InlineEditProps
 export const InlineEdit = ({
   value,
   editable,
+  exitible,
   className,
   style,
   trigger = 'doubleClick',
-  autoSelect,
 
   onInput,
   onChange,
@@ -95,11 +98,7 @@ export const InlineEdit = ({
   const triggerEdit = useCallback(() => {
     if (!editable) return;
     setEditing(true);
-    setTimeout(() => {
-      inputRef.current?.focus();
-      autoSelect && inputRef.current?.select();
-    }, 0);
-  }, [autoSelect, editable]);
+  }, [editable]);
 
   const onDoubleClick = useCallback(() => {
     if (trigger !== 'doubleClick') return;
@@ -126,6 +125,16 @@ export const InlineEdit = ({
     inputRef.current?.scrollTo(0, 0);
   }, [submit]);
 
+  const onKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLInputElement>) => {
+      e.stopPropagation();
+      if (!exitible) return;
+      if (e.key !== 'Escape') return;
+      inputRef.current?.blur();
+    },
+    [exitible]
+  );
+
   const inputHandler = useCallback(
     (v: string) => {
       setEditingValue(v);
@@ -138,6 +147,11 @@ export const InlineEdit = ({
   useEffect(() => {
     setEditingValue(value);
   }, [value]);
+
+  // to make sure text is not wrapped, and multi-space is shown normally
+  const displayValue = useMemo(() => {
+    return editingValue ? editingValue.replace(/\n/g, '') : '';
+  }, [editingValue]);
 
   // to make sure input's style is the same as displayed text
   const inputWrapperInheritsStyles = {
@@ -155,8 +169,8 @@ export const InlineEdit = ({
   } as CSSProperties;
   const inputInheritsStyles = {
     ...inputWrapperInheritsStyles,
-    padding: undefined,
-    margin: undefined,
+    padding: 0,
+    margin: 0,
   };
 
   return (
@@ -172,9 +186,9 @@ export const InlineEdit = ({
         onDoubleClick={onDoubleClick}
         className={clsx(styles.inlineEdit)}
       >
-        {editingValue}
+        {displayValue}
 
-        {!editingValue && (
+        {!displayValue && (
           <Placeholder
             className={placeholderClassName}
             label={placeholder}
@@ -184,20 +198,23 @@ export const InlineEdit = ({
       </div>
 
       {/* actual input */}
-      {
+      {editing && (
         <Input
           ref={inputRef}
           className={styles.inlineEditInput}
           value={editingValue}
           placeholder={placeholder}
-          onBlur={onBlur}
           onEnter={onEnter}
+          onKeyDown={onKeyDown}
           onChange={inputHandler}
           style={inputWrapperInheritsStyles}
           inputStyle={inputInheritsStyles}
+          onBlur={onBlur}
+          autoFocus
+          autoSelect
           {...inputAttrs}
         />
-      }
+      )}
     </div>
   );
 };

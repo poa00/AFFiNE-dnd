@@ -1,39 +1,40 @@
-import { waitForCurrentWorkspaceAtom } from '@affine/core/modules/workspace';
-import { useAtomValue } from 'jotai';
-import { Suspense, useEffect } from 'react';
+import { WorkspaceService } from '@affine/core/modules/workspace';
+import { useLiveData, useService } from '@toeverything/infra';
+import { useEffect } from 'react';
 
-import { useCurrentLoginStatus } from '../../../hooks/affine/use-current-login-status';
-import { useCurrentUser } from '../../../hooks/affine/use-current-user';
+import { AuthService } from '../../../modules/cloud';
 
 const SyncAwarenessInnerLoggedIn = () => {
-  const currentUser = useCurrentUser();
-  const currentWorkspace = useAtomValue(waitForCurrentWorkspaceAtom);
+  const authService = useService(AuthService);
+  const account = useLiveData(authService.session.account$);
+  const currentWorkspace = useService(WorkspaceService).workspace;
 
   useEffect(() => {
-    if (currentUser && currentWorkspace) {
-      currentWorkspace.blockSuiteWorkspace.awarenessStore.awareness.setLocalStateField(
+    if (account && currentWorkspace) {
+      currentWorkspace.docCollection.awarenessStore.awareness.setLocalStateField(
         'user',
         {
-          name: currentUser.name,
-          // todo: add avatar?
+          name: account.label,
+          // TODO(@eyhn): add avatar?
         }
       );
 
       return () => {
-        currentWorkspace.blockSuiteWorkspace.awarenessStore.awareness.setLocalStateField(
+        currentWorkspace.docCollection.awarenessStore.awareness.setLocalStateField(
           'user',
           null
         );
       };
     }
     return;
-  }, [currentUser, currentWorkspace]);
+  }, [currentWorkspace, account]);
 
   return null;
 };
 
 const SyncAwarenessInner = () => {
-  const loginStatus = useCurrentLoginStatus();
+  const session = useService(AuthService).session;
+  const loginStatus = useLiveData(session.status$);
 
   if (loginStatus === 'authenticated') {
     return <SyncAwarenessInnerLoggedIn />;
@@ -42,11 +43,7 @@ const SyncAwarenessInner = () => {
   return null;
 };
 
-// todo: we could do something more interesting here, e.g., show where the current user is
+// TODO(@eyhn): we could do something more interesting here, e.g., show where the current user is
 export const SyncAwareness = () => {
-  return (
-    <Suspense>
-      <SyncAwarenessInner />
-    </Suspense>
-  );
+  return <SyncAwarenessInner />;
 };

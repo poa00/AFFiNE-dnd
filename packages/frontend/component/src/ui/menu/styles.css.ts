@@ -1,64 +1,95 @@
+import { cssVar } from '@toeverything/theme';
+import { cssVarV2 } from '@toeverything/theme/v2';
 import { createVar, style } from '@vanilla-extract/css';
-export const triggerWidthVar = createVar('triggerWidthVar');
+
+export const iconColor = createVar('iconColor');
+export const labelColor = createVar('labelColor');
+export const bgColor = createVar('bgColor');
 
 export const menuContent = style({
   minWidth: '180px',
-  color: 'var(--affine-text-primary-color)',
   borderRadius: '8px',
   padding: '8px',
-  fontSize: 'var(--affine-font-sm)',
+  fontSize: cssVar('fontSm'),
   fontWeight: '400',
-  backgroundColor: 'var(--affine-background-overlay-panel-color)',
-  boxShadow: 'var(--affine-menu-shadow)',
+  backgroundColor: cssVarV2('layer/background/overlayPanel'),
+  boxShadow: cssVar('menuShadow'),
   userSelect: 'none',
+  ['WebkitAppRegion' as string]: 'no-drag',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+  selectors: {
+    '&.mobile': {
+      padding: 0,
+      boxShadow: 'none',
+    },
+  },
 });
 
 export const menuItem = style({
-  maxWidth: '296px',
+  vars: {
+    [iconColor]: cssVarV2('icon/primary'),
+    [labelColor]: cssVarV2('text/primary'),
+    [bgColor]: 'transparent',
+  },
+  color: labelColor,
+  backgroundColor: bgColor,
+
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  padding: '4px 12px',
-  borderRadius: '4px',
+  gap: 8,
+  padding: '4px',
+  borderRadius: 4,
   lineHeight: '22px',
   border: 'none',
   outline: 'none',
   cursor: 'pointer',
   boxSizing: 'border-box',
   selectors: {
-    '&:not(:last-of-type)': {
-      marginBottom: '4px',
+    '&.block': {
+      maxWidth: '100%',
     },
-    '&.block': { maxWidth: '100%' },
     '&[data-disabled]': {
-      color: 'var(--affine-text-disable-color)',
+      vars: {
+        [iconColor]: cssVarV2('icon/disable'),
+        [labelColor]: cssVarV2('text/secondary'),
+      },
       pointerEvents: 'none',
-      cursor: 'not-allowed',
+      cursor: 'default',
     },
-    '&[data-highlighted]': {
-      backgroundColor: 'var(--affine-hover-color)',
-    },
-
     '&:hover': {
-      backgroundColor: 'var(--affine-hover-color)',
+      vars: {
+        [bgColor]: cssVar('hoverColor'),
+      },
+      outline: 'none !important',
+    },
+    '&:focus-visible': {
+      outline: '1px solid ' + cssVarV2('layer/insideBorder/primaryBorder'),
     },
     '&.danger:hover': {
-      color: 'var(--affine-error-color)',
-      backgroundColor: 'var(--affine-background-error-color)',
+      vars: {
+        [iconColor]: cssVar('errorColor'),
+        [labelColor]: cssVar('errorColor'),
+        [bgColor]: cssVar('backgroundErrorColor'),
+      },
     },
-
     '&.warning:hover': {
-      color: 'var(--affine-warning-color)',
-      backgroundColor: 'var(--affine-background-warning-color)',
+      vars: {
+        [iconColor]: cssVar('warningColor'),
+        [labelColor]: cssVar('warningColor'),
+        [bgColor]: cssVar('backgroundWarningColor'),
+      },
     },
-
-    '&.selected, &.checked': {
-      backgroundColor: 'var(--affine-hover-color)',
-      color: 'var(--affine-primary-color)',
+    '&.checked, &.selected': {
+      vars: {
+        [iconColor]: cssVar('primaryColor'),
+        [labelColor]: cssVar('primaryColor'),
+      },
     },
   },
 });
-
 export const menuSpan = style({
   flex: 1,
   overflow: 'hidden',
@@ -69,89 +100,25 @@ export const menuSpan = style({
 export const menuItemIcon = style({
   display: 'flex',
   flexShrink: 0,
-  fontSize: 'var(--affine-font-h-5)',
-  color: 'var(--affine-icon-color)',
-  selectors: {
-    '&.start': { marginRight: '8px' },
-    '&.end': { marginLeft: '8px' },
-    '&.selected, &.checked': {
-      color: 'var(--affine-primary-color)',
-    },
-
-    [`${menuItem}.danger:hover &`]: {
-      color: 'var(--affine-error-color)',
-    },
-    [`${menuItem}.warning:hover &`]: {
-      color: 'var(--affine-warning-color)',
-    },
-  },
+  fontSize: cssVar('fontH5'),
+  color: iconColor,
+  width: 20,
+  height: 20,
 });
 
 export const menuSeparator = style({
-  height: '1px',
-  backgroundColor: 'var(--affine-border-color)',
-  marginTop: '12px',
-  marginBottom: '8px',
-});
-
-export const menuTrigger = style({
-  vars: {
-    [triggerWidthVar]: 'auto',
-  },
-  width: triggerWidthVar,
-  height: 28,
-  lineHeight: '22px',
-  padding: '0 10px',
-  color: 'var(--affine-text-primary-color)',
-  border: '1px solid',
-  backgroundColor: 'var(--affine-white)',
-  borderRadius: 8,
-  display: 'inline-flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  fontSize: 'var(--affine-font-xs)',
-  cursor: 'pointer',
-  ['WebkitAppRegion' as string]: 'no-drag',
-  borderColor: 'var(--affine-border-color)',
-  outline: 'none',
-
-  selectors: {
-    '&:hover': {
-      background: 'var(--affine-hover-color)',
-    },
-    '&.no-border': {
-      border: 'unset',
-    },
-    '&.block': {
-      display: 'flex',
-      width: '100%',
-    },
-    // size
-    '&.large': {
-      height: 32,
-    },
-    '&.extra-large': {
-      height: 40,
-      fontWeight: 600,
-    },
-    // color
-    '&.disabled': {
-      cursor: 'default',
-      color: 'var(--affine-disable-color)',
-      pointerEvents: 'none',
-    },
-    // TODO: wait for design
-    '&.error': {
-      // borderColor: 'var(--affine-error-color)',
-    },
-    '&.success': {
-      // borderColor: 'var(--affine-success-color)',
-    },
-    '&.warning': {
-      // borderColor: 'var(--affine-warning-color)',
-    },
-    '&.default': {
-      // borderColor: 'var(--affine-border-color)',
-    },
+  width: '100%',
+  height: '8px',
+  position: 'relative',
+  ':after': {
+    content: '""',
+    display: 'block',
+    height: '1px',
+    width: '100%',
+    backgroundColor: cssVarV2('layer/insideBorder/border'),
+    position: 'absolute',
+    top: '50%',
+    left: 0,
+    transform: 'translateY(-50%) scaleY(0.5)',
   },
 });

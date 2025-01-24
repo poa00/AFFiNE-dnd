@@ -3,44 +3,44 @@
  */
 import 'fake-indexeddb/auto';
 
-import { __unstableSchemas, AffineSchemas } from '@blocksuite/blocks/models';
-import { assertExists } from '@blocksuite/global/utils';
-import type { Page } from '@blocksuite/store';
-import { Schema, Workspace as BlockSuiteWorkspace } from '@blocksuite/store';
+import { AffineSchemas } from '@blocksuite/affine/blocks/schemas';
+import { assertExists } from '@blocksuite/affine/global/utils';
+import { Schema, type Store, Text } from '@blocksuite/affine/store';
+import { TestWorkspace } from '@blocksuite/affine/store/test';
 import { renderHook } from '@testing-library/react';
 import { useAtomValue } from 'jotai';
-import { describe, expect, test, vi } from 'vitest';
-import { beforeEach } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { useBlockSuitePagePreview } from '../use-block-suite-page-preview';
-let blockSuiteWorkspace: BlockSuiteWorkspace;
+let docCollection: TestWorkspace;
 
 const schema = new Schema();
-schema.register(AffineSchemas).register(__unstableSchemas);
+schema.register(AffineSchemas);
 
 beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['requestIdleCallback'] });
-  blockSuiteWorkspace = new BlockSuiteWorkspace({ id: 'test', schema });
-  const initPage = async (page: Page) => {
-    await page.waitForLoaded();
+  docCollection = new TestWorkspace({ id: 'test', schema });
+  docCollection.meta.initialize();
+  const initPage = async (page: Store) => {
+    page.load();
     expect(page).not.toBeNull();
     assertExists(page);
     const pageBlockId = page.addBlock('affine:page', {
-      title: new page.Text(''),
+      title: new Text(''),
     });
     const frameId = page.addBlock('affine:note', {}, pageBlockId);
     page.addBlock('affine:paragraph', {}, frameId);
   };
-  await initPage(blockSuiteWorkspace.createPage({ id: 'page0' }));
+  await initPage(docCollection.createDoc({ id: 'page0' }));
 });
 
 describe('useBlockSuitePagePreview', () => {
   test('basic', async () => {
-    const page = blockSuiteWorkspace.getPage('page0') as Page;
+    const page = docCollection.getDoc('page0') as Store;
     const id = page.addBlock(
       'affine:paragraph',
       {
-        text: new page.Text('Hello, world!'),
+        text: new Text('Hello, world!'),
       },
       page.getBlockByFlavour('affine:note')[0].id
     );
@@ -57,7 +57,7 @@ describe('useBlockSuitePagePreview', () => {
     page.addBlock(
       'affine:paragraph',
       {
-        text: new page.Text('First block!'),
+        text: new Text('First block!'),
       },
       page.getBlockByFlavour('affine:note')[0].id,
       0

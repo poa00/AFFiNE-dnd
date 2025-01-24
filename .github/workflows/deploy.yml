@@ -12,245 +12,67 @@ on:
           - beta
           - stable
           - internal
-env:
-  APP_NAME: affine
-  NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+
+permissions:
+  contents: 'write'
+  id-token: 'write'
+  packages: 'write'
 
 jobs:
-  build-server:
-    name: Build Server
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Version
-        id: version
-        uses: ./.github/actions/setup-version
-      - name: Setup Node.js
-        uses: ./.github/actions/setup-node
-        with:
-          electron-install: false
-          extra-flags: workspaces focus @affine/server
-      - name: Build Server
-        run: yarn workspace @affine/server build
-      - name: Upload server dist
-        uses: actions/upload-artifact@v4
-        with:
-          name: server-dist
-          path: ./packages/backend/server/dist
-          if-no-files-found: error
-  build-core:
-    name: Build @affine/core
+  output-prev-version:
+    name: Output previous version
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.flavor }}
+    outputs:
+      prev: ${{ steps.print.outputs.version }}
+      namespace: ${{ steps.print.outputs.namespace }}
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Version
-        id: version
-        uses: ./.github/actions/setup-version
-      - name: Setup Node.js
-        uses: ./.github/actions/setup-node
-      - name: Build Core
-        run: yarn nx build @affine/core --skip-nx-cache
-        env:
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          BUILD_TYPE: ${{ github.event.inputs.flavor }}
-          SHOULD_REPORT_TRACE: true
-          TRACE_REPORT_ENDPOINT: ${{ secrets.TRACE_REPORT_ENDPOINT }}
-          CAPTCHA_SITE_KEY: ${{ secrets.CAPTCHA_SITE_KEY }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-          PERFSEE_TOKEN: ${{ secrets.PERFSEE_TOKEN }}
-      - name: Upload core artifact
-        uses: actions/upload-artifact@v4
+      - name: Auth to Cluster
+        uses: './.github/actions/cluster-auth'
         with:
-          name: core
-          path: ./packages/frontend/core/dist
-          if-no-files-found: error
-
-  build-core-selfhost:
-    name: Build @affine/core
-    runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.flavor }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Version
-        id: version
-        uses: ./.github/actions/setup-version
-      - name: Setup Node.js
-        uses: ./.github/actions/setup-node
-      - name: Build Core
-        run: yarn nx build @affine/core --skip-nx-cache
-        env:
-          BUILD_TYPE: ${{ github.event.inputs.flavor }}
-          SHOULD_REPORT_TRACE: false
-          PUBLIC_PATH: '/'
-      - name: Download selfhost fonts
-        run: node ./scripts/download-blocksuite-fonts.mjs
-      - name: Upload core artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: selfhost-core
-          path: ./packages/frontend/core/dist
-          if-no-files-found: error
-
-  build-storage:
-    name: Build Storage - ${{ matrix.targets.name }}
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        targets:
-          - name: x86_64-unknown-linux-gnu
-            file: storage.node
-          - name: aarch64-unknown-linux-gnu
-            file: storage.arm64.node
-          - name: armv7-unknown-linux-gnueabihf
-            file: storage.armv7.node
-
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Version
-        id: version
-        uses: ./.github/actions/setup-version
-      - name: Setup Node.js
-        uses: ./.github/actions/setup-node
-        with:
-          electron-install: false
-          extra-flags: workspaces focus @affine/storage
-      - name: Build Rust
-        uses: ./.github/actions/build-rust
-        with:
-          target: ${{ matrix.targets.name }}
-          package: '@affine/storage'
-          nx_token: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
-      - name: Upload ${{ matrix.targets.file }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.targets.file }}
-          path: ./packages/backend/storage/storage.node
-          if-no-files-found: error
-
-  build-docker:
-    name: Build Docker
-    runs-on: ubuntu-latest
-    needs:
-      - build-server
-      - build-core
-      - build-core-selfhost
-      - build-storage
-    steps:
-      - uses: actions/checkout@v4
-      - name: Download core artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: core
-          path: ./packages/frontend/core/dist
-      - name: Download server dist
-        uses: actions/download-artifact@v4
-        with:
-          name: server-dist
-          path: ./packages/backend/server/dist
-      - name: Download storage.node
-        uses: actions/download-artifact@v4
-        with:
-          name: storage.node
-          path: ./packages/backend/server
-      - name: Download storage.node arm64
-        uses: actions/download-artifact@v4
-        with:
-          name: storage.arm64.node
-          path: ./packages/backend/storage
-      - name: Download storage.node arm64
-        uses: actions/download-artifact@v4
-        with:
-          name: storage.armv7.node
-          path: .
-      - name: move storage files
+          gcp-project-number: ${{ secrets.GCP_PROJECT_NUMBER }}
+          gcp-project-id: ${{ secrets.GCP_PROJECT_ID }}
+          service-account: ${{ secrets.GCP_HELM_DEPLOY_SERVICE_ACCOUNT }}
+          cluster-name: ${{ secrets.GCP_CLUSTER_NAME }}
+          cluster-location: ${{ secrets.GCP_CLUSTER_LOCATION }}
+      - name: Output previous version
+        id: print
         run: |
-          mv ./packages/backend/storage/storage.node ./packages/backend/server/storage.arm64.node
-          mv storage.node ./packages/backend/server/storage.armv7.node
-      - name: Setup env
-        run: |
-          echo "GIT_SHORT_HASH=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
-          if [ -z "${{ inputs.flavor }}" ]
-          then
-            echo "RELEASE_FLAVOR=canary" >> "$GITHUB_ENV"
+          namespace=""
+          if [ "${{ github.event.inputs.flavor }}" = "canary" ]; then
+            namespace="dev"
+          elif [ "${{ github.event.inputs.flavor }}" = "beta" ]; then
+            namespace="beta"
+          elif [ "${{ github.event.inputs.flavor }}" = "stable" ]; then
+            namespace="production"
           else
-            echo "RELEASE_FLAVOR=${{ inputs.flavor }}" >> "$GITHUB_ENV"
+            echo "Invalid flavor: ${{ github.event.inputs.flavor }}"
+            exit 1
           fi
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          logout: false
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Build front Dockerfile
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          pull: true
-          platforms: linux/amd64,linux/arm64
-          provenance: true
-          file: .github/deployment/front/Dockerfile
-          tags: ghcr.io/toeverything/affine-front:${{env.RELEASE_FLAVOR}}-${{ env.GIT_SHORT_HASH }},ghcr.io/toeverything/affine-front:${{env.RELEASE_FLAVOR}}
+          echo "Namespace set to: $namespace"
 
-      # setup node without cache configuration
-      # Prisma cache is not compatible with docker build cache
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: '.nvmrc'
-          registry-url: https://npm.pkg.github.com
-          scope: '@toeverything'
+          # Get the previous version from the deployment
+          prev_version=$(kubectl get deployment -n $namespace affine-graphql -o=jsonpath='{.spec.template.spec.containers[0].image}' | awk -F '-' '{print $3}')
 
-      - name: Remove core dist
-        run: rm -rf ./packages/frontend/core/dist
+          echo "Previous version: $prev_version"
+          echo "version=$prev_version" >> $GITHUB_OUTPUT
+          echo "namesapce=$namespace" >> $GITHUB_OUTPUT
 
-      - name: Download selfhost core artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: selfhost-core
-          path: ./packages/frontend/core/dist
-
-      - name: Install Node.js dependencies
-        run: |
-          yarn config set --json supportedArchitectures.cpu '["x64", "arm64", "arm"]'
-          yarn config set --json supportedArchitectures.libc '["glibc"]'
-          yarn workspaces focus @affine/server --production
-
-      - name: Generate Prisma client
-        run: yarn workspace @affine/server prisma generate
-
-      - name: Build graphql Dockerfile
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          pull: true
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
-          provenance: true
-          file: .github/deployment/node/Dockerfile
-          tags: ghcr.io/toeverything/affine-graphql:${{env.RELEASE_FLAVOR}}-${{ env.GIT_SHORT_HASH }},ghcr.io/toeverything/affine-graphql:${{env.RELEASE_FLAVOR}}
+  build-images:
+    name: Build Images
+    uses: ./.github/workflows/build-images.yml
+    secrets: inherit
+    with:
+      flavor: ${{ github.event.inputs.flavor }}
 
   deploy:
     name: Deploy to cluster
     if: ${{ github.event_name == 'workflow_dispatch' }}
     environment: ${{ github.event.inputs.flavor }}
-    permissions:
-      contents: 'write'
-      id-token: 'write'
     needs:
-      - build-docker
+      - build-images
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -273,11 +95,15 @@ jobs:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          ENABLE_CAPTCHA: true
           CAPTCHA_TURNSTILE_SECRET: ${{ secrets.CAPTCHA_TURNSTILE_SECRET }}
-          OAUTH_EMAIL_SENDER: ${{ secrets.OAUTH_EMAIL_SENDER }}
-          OAUTH_EMAIL_LOGIN: ${{ secrets.OAUTH_EMAIL_LOGIN }}
-          OAUTH_EMAIL_PASSWORD: ${{ secrets.OAUTH_EMAIL_PASSWORD }}
+          COPILOT_OPENAI_API_KEY: ${{ secrets.COPILOT_OPENAI_API_KEY }}
+          COPILOT_FAL_API_KEY: ${{ secrets.COPILOT_FAL_API_KEY }}
+          COPILOT_PERPLEXITY_API_KEY: ${{ secrets.COPILOT_PERPLEXITY_API_KEY }}
+          COPILOT_UNSPLASH_API_KEY: ${{ secrets.COPILOT_UNSPLASH_API_KEY }}
+          METRICS_CUSTOMER_IO_TOKEN: ${{ secrets.METRICS_CUSTOMER_IO_TOKEN }}
+          MAILER_SENDER: ${{ secrets.OAUTH_EMAIL_SENDER }}
+          MAILER_USER: ${{ secrets.OAUTH_EMAIL_LOGIN }}
+          MAILER_PASSWORD: ${{ secrets.OAUTH_EMAIL_PASSWORD }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AFFINE_GOOGLE_CLIENT_ID: ${{ secrets.AFFINE_GOOGLE_CLIENT_ID }}
           AFFINE_GOOGLE_CLIENT_SECRET: ${{ secrets.AFFINE_GOOGLE_CLIENT_SECRET }}
@@ -293,3 +119,84 @@ jobs:
           STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
           STRIPE_WEBHOOK_KEY: ${{ secrets.STRIPE_WEBHOOK_KEY }}
           STATIC_IP_NAME: ${{ secrets.STATIC_IP_NAME }}
+
+  deploy-done:
+    needs:
+      - output-prev-version
+      - build-images
+      - deploy
+    if: always()
+    runs-on: ubuntu-latest
+    name: Post deploy message
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: toeverything/blocksuite
+          path: blocksuite
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Setup Node.js
+        uses: ./.github/actions/setup-node
+        with:
+          extra-flags: 'workspaces focus @affine/changelog'
+          electron-install: false
+      - name: Output deployed info
+        if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+        id: set_info
+        run: |
+          if [ "${{ github.event.inputs.flavor }}" = "canary" ]; then
+            echo "deployed_url=https://affine.fail" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.inputs.flavor }}" = "beta" ]; then
+            echo "deployed_url=https://insider.affine.pro" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.inputs.flavor }}" = "stable" ]; then
+            echo "deployed_url=https://app.affine.pro" >> $GITHUB_OUTPUT
+          else
+            exit 1
+          fi
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+      - name: Post Success event to a Slack channel
+        if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+        run: node ./tools/changelog/index.js
+        env:
+          CHANNEL_ID: ${{ secrets.RELEASE_SLACK_CHNNEL_ID }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          DEPLOYED_URL: ${{ steps.set_info.outputs.deployed_url }}
+          PREV_VERSION: ${{ needs.output-prev-version.outputs.prev }}
+          NAMESPACE: ${{ needs.output-prev-version.outputs.namespace }}
+          DEPLOYMENT: 'SERVER'
+          FLAVOR: ${{ github.event.inputs.flavor }}
+          BLOCKSUITE_REPO_PATH: ${{ github.workspace }}/blocksuite
+      - name: Post Failed event to a Slack channel
+        id: failed-slack
+        uses: slackapi/slack-github-action@v2.0.0
+        if: ${{ always() && contains(needs.*.result, 'failure') }}
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            channel: ${{ secrets.RELEASE_SLACK_CHNNEL_ID }}
+            text: "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Backend deploy failed `${{ github.event.inputs.flavor }}`>"
+            blocks:
+              - type: section
+                text:
+                  type: mrkdwn
+                  text: "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Backend deploy failed `${{ github.event.inputs.flavor }}`>"
+      - name: Post Cancel event to a Slack channel
+        id: cancel-slack
+        uses: slackapi/slack-github-action@v2.0.0
+        if: ${{ always() && contains(needs.*.result, 'cancelled') && !contains(needs.*.result, 'failure') }}
+        with:
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          method: chat.postMessage
+          payload: |
+            channel: ${{ secrets.RELEASE_SLACK_CHNNEL_ID }}
+            text: "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Backend deploy cancelled `${{ github.event.inputs.flavor }}`>"
+            blocks:
+              - type: section
+                text:
+                  type: mrkdwn
+                  text: "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Backend deploy cancelled `${{ github.event.inputs.flavor }}`>"

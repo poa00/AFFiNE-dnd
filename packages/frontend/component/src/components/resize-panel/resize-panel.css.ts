@@ -1,10 +1,11 @@
+import { cssVar } from '@toeverything/theme';
 import { createVar, style } from '@vanilla-extract/css';
-
 export const panelWidthVar = createVar('panel-width');
 export const resizeHandleOffsetVar = createVar('resize-handle-offset');
 export const resizeHandleVerticalPadding = createVar(
   'resize-handle-vertical-padding'
 );
+export const animationTimeout = createVar();
 
 export const root = style({
   vars: {
@@ -13,30 +14,42 @@ export const root = style({
   },
   position: 'relative',
   width: panelWidthVar,
-  minWidth: 0,
+  minWidth: panelWidthVar,
   height: '100%',
+  zIndex: 4,
+  transform: 'translateX(0)',
+  maxWidth: '50%',
   selectors: {
-    '&[data-is-floating="true"]': {
-      position: 'absolute',
-      width: `calc(${panelWidthVar})`,
-      zIndex: 4,
-    },
-    '&[data-open="true"]': {
-      maxWidth: '50%',
-    },
-    '&[data-open="false"][data-handle-position="right"]': {
-      marginLeft: `calc(${panelWidthVar} * -1)`,
-    },
-    '&[data-open="false"][data-handle-position="left"]': {
-      marginRight: `calc(${panelWidthVar} * -1)`,
-    },
+    '&[data-open="false"][data-handle-position="right"],&[data-is-floating="true"][data-handle-position="right"]':
+      {
+        marginLeft: `calc(${panelWidthVar} * -1)`,
+      },
+    '&[data-open="false"][data-handle-position="left"],&[data-is-floating="true"][data-handle-position="left"]':
+      {
+        marginRight: `calc(${panelWidthVar} * -1)`,
+      },
+    '&[data-open="true"][data-handle-position="right"][data-is-floating="true"]':
+      {
+        transform: `translateX(calc(${panelWidthVar} + 4px))`,
+      },
+    '&[data-open="true"][data-handle-position="left"][data-is-floating="true"]':
+      {
+        transform: `translateX(calc(${panelWidthVar} * -1))`,
+      },
     '&[data-enable-animation="true"]': {
-      transition: 'margin-left .3s .05s, margin-right .3s .05s, width .3s .05s',
+      transition: `margin-left ${animationTimeout}, margin-right ${animationTimeout}, transform ${animationTimeout}, background ${animationTimeout}`,
     },
-    '&[data-is-floating="false"][data-transparent=true]': {
-      backgroundColor: 'transparent',
+    '&[data-transition-state="exited"]': {
+      // avoid focus on hidden panel
+      visibility: 'hidden',
     },
   },
+});
+
+export const content = style({
+  contain: 'strict',
+  width: '100%',
+  height: '100%',
 });
 
 export const panelContent = style({
@@ -44,20 +57,19 @@ export const panelContent = style({
   height: '100%',
   overflow: 'auto',
 });
-
 export const resizeHandleContainer = style({
   position: 'absolute',
   right: resizeHandleOffsetVar,
   top: resizeHandleVerticalPadding,
   bottom: resizeHandleVerticalPadding,
-  width: 16,
+  width: 8,
   zIndex: '1',
   transform: 'translateX(50%)',
   backgroundColor: 'transparent',
   opacity: 0,
   display: 'flex',
   justifyContent: 'center',
-  cursor: 'ew-resize',
+  cursor: 'col-resize',
   '@media': {
     '(max-width: 600px)': {
       // do not allow resizing on small screen
@@ -82,13 +94,12 @@ export const resizeHandleContainer = style({
     },
   },
 });
-
 export const resizerInner = style({
   position: 'absolute',
   height: '100%',
   width: '2px',
   borderRadius: '2px',
-  backgroundColor: 'var(--affine-primary-color)',
+  backgroundColor: cssVar('primaryColor'),
   transition: 'all 0.2s ease-in-out',
   transform: 'translateX(0.5px)',
   selectors: {

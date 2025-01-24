@@ -1,29 +1,29 @@
 import { DebugLogger } from '@affine/debug';
-import { DisposableGroup } from '@blocksuite/global/utils';
-import type { Page, Workspace } from '@blocksuite/store';
+import { DisposableGroup } from '@blocksuite/affine/global/utils';
+import type { Store, Workspace } from '@blocksuite/affine/store';
 import { useEffect, useState } from 'react';
 
-const logger = new DebugLogger('use-block-suite-workspace-page');
+const logger = new DebugLogger('useBlockSuiteWorkspacePage');
 
-export function useBlockSuiteWorkspacePage(
-  blockSuiteWorkspace: Workspace,
+export function useDocCollectionPage(
+  docCollection: Workspace,
   pageId: string | null
-): Page | null {
+): Store | null {
   const [page, setPage] = useState(
-    pageId ? blockSuiteWorkspace.getPage(pageId) : null
+    pageId ? docCollection.getDoc(pageId) : null
   );
 
   useEffect(() => {
     const group = new DisposableGroup();
     group.add(
-      blockSuiteWorkspace.slots.pageAdded.on(id => {
+      docCollection.slots.docCreated.on(id => {
         if (pageId === id) {
-          setPage(blockSuiteWorkspace.getPage(id));
+          setPage(docCollection.getDoc(id));
         }
       })
     );
     group.add(
-      blockSuiteWorkspace.slots.pageRemoved.on(id => {
+      docCollection.slots.docRemoved.on(id => {
         if (pageId === id) {
           setPage(null);
         }
@@ -32,15 +32,23 @@ export function useBlockSuiteWorkspacePage(
     return () => {
       group.dispose();
     };
-  }, [blockSuiteWorkspace, pageId]);
+  }, [docCollection, pageId]);
 
   useEffect(() => {
     if (page && !page.loaded) {
-      page.load().catch(err => {
+      try {
+        page.load();
+      } catch (err) {
         logger.error('Failed to load page', err);
-      });
+      }
     }
   }, [page]);
+
+  useEffect(() => {
+    if (page?.id !== pageId) {
+      setPage(pageId ? docCollection.getDoc(pageId) : null);
+    }
+  }, [docCollection, page?.id, pageId]);
 
   return page;
 }

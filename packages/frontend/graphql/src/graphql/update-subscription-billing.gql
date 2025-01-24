@@ -1,10 +1,12 @@
 mutation updateSubscription(
+  $plan: SubscriptionPlan = Pro
   $recurring: SubscriptionRecurring!
-  $idempotencyKey: String!
+  $workspaceId: String
 ) {
   updateSubscriptionRecurring(
+    plan: $plan
     recurring: $recurring
-    idempotencyKey: $idempotencyKey
+    workspaceId: $workspaceId
   ) {
     id
     plan

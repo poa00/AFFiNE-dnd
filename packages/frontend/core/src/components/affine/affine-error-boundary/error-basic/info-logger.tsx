@@ -1,32 +1,26 @@
-import {
-  currentWorkspaceAtom,
-  workspaceListAtom,
-} from '@affine/core/modules/workspace';
-import { useAtomValue } from 'jotai/react';
+import { GlobalContextService } from '@affine/core/modules/global-context';
+import { useLiveData, useServices } from '@toeverything/infra';
 import { useEffect } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
-
-import { currentPageIdAtom } from '../../../../atoms/mode';
 
 export interface DumpInfoProps {
   error: any;
 }
 
 export const DumpInfo = (_props: DumpInfoProps) => {
+  const { globalContextService } = useServices({ GlobalContextService });
   const location = useLocation();
-  const workspaceList = useAtomValue(workspaceListAtom);
-  const currentWorkspace = useAtomValue(currentWorkspaceAtom);
-  const currentPageId = useAtomValue(currentPageIdAtom);
+  const currentWorkspaceId = useLiveData(
+    globalContextService.globalContext.workspaceId.$
+  );
   const path = location.pathname;
   const query = useParams();
   useEffect(() => {
     console.info('DumpInfo', {
       path,
       query,
-      currentWorkspaceId: currentWorkspace?.id,
-      currentPageId,
-      workspaceList,
+      currentWorkspaceId: currentWorkspaceId,
     });
-  }, [path, query, currentWorkspace, currentPageId, workspaceList]);
+  }, [path, query, currentWorkspaceId]);
   return null;
 };

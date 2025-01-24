@@ -1,6 +1,18 @@
-import { style } from '@vanilla-extract/css';
+import { cssVar } from '@toeverything/theme';
+import { createVar, style } from '@vanilla-extract/css';
+
+export const switchHeightVar = createVar('switchSize');
+export const switchPaddingVar = createVar('switchPadding');
+const switchWidthVar = createVar('switchWidth');
+const dotSizeVar = createVar('dotSize');
 
 export const labelStyle = style({
+  vars: {
+    [switchHeightVar]: '26px',
+    [switchPaddingVar]: '3px',
+    [switchWidthVar]: `calc((${switchHeightVar} - ${switchPaddingVar}) * 2)`,
+    [dotSizeVar]: `calc(${switchHeightVar} - ${switchPaddingVar} * 2)`,
+  },
   display: 'flex',
   alignItems: 'center',
   gap: '10px',
@@ -12,34 +24,35 @@ export const inputStyle = style({
 });
 export const switchStyle = style({
   position: 'relative',
-  width: '46px',
-  height: '26px',
-  background: 'var(--affine-icon-color)',
+  height: switchHeightVar,
+  width: switchWidthVar,
+  background: cssVar('toggleDisableBackgroundColor'),
   borderRadius: '37px',
   transition: '200ms all',
-  border: '1px solid var(--affine-black-10)',
-  boxShadow: 'var(--affine-toggle-circle-shadow)',
   selectors: {
     '&:before': {
       transition: 'all .2s cubic-bezier(0.27, 0.2, 0.25, 1.51)',
       content: '""',
       position: 'absolute',
-      width: '20px',
-      height: '20px',
+      width: dotSizeVar,
+      height: dotSizeVar,
       borderRadius: '50%',
       top: '50%',
-      border: '1px solid var(--affine-black-10)',
-      background: 'var(--affine-white)',
-      transform: 'translate(1px, -50%)',
+      background: cssVar('toggleCircleBackgroundColor'),
+      transform: `translate(${switchPaddingVar}, -50%)`,
     },
   },
 });
 export const switchCheckedStyle = style({
-  background: 'var(--affine-primary-color)',
+  background: cssVar('primaryColor'),
   selectors: {
     '&:before': {
-      background: 'var(--affine-toggle-circle-background-color)',
-      transform: 'translate(21px,-50%)',
+      borderColor: cssVar('pureBlack10'),
+      transform: `translate(calc(${switchHeightVar} - ${switchPaddingVar}), -50%)`,
     },
   },
+});
+export const switchDisabledStyle = style({
+  cursor: 'not-allowed',
+  opacity: 0.5,
 });

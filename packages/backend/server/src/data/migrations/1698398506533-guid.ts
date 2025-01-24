@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs';
 
-import { DocID } from '../../modules/utils/doc';
+import { DocID } from '../../core/utils/doc';
 
 export class Guid1698398506533 {
   // do the migration
@@ -78,7 +78,7 @@ export class Guid1698398506533 {
               }),
               db.snapshot.update({
                 where: {
-                  id_workspaceId: {
+                  workspaceId_id: {
                     id: docId.guid,
                     workspaceId: doc.workspaceId,
                   },
@@ -93,7 +93,7 @@ export class Guid1698398506533 {
             // just modify the id the required one
             await db.snapshot.update({
               where: {
-                id_workspaceId: {
+                workspaceId_id: {
                   id: doc.id,
                   workspaceId: doc.workspaceId,
                 },

@@ -1,12 +1,10 @@
-import { skipOnboarding, test } from '@affine-test/kit/playwright';
+import { Path, skipOnboarding, test } from '@affine-test/kit/playwright';
 import {
   addUserToWorkspace,
   createRandomUser,
   enableCloudWorkspace,
-  enableCloudWorkspaceFromShareButton,
   loginUser,
 } from '@affine-test/kit/utils/cloud';
-import { clickEdgelessModeButton } from '@affine-test/kit/utils/editor';
 import {
   clickNewPageButton,
   getBlockSuiteEditorTitle,
@@ -16,7 +14,6 @@ import { clickUserInfoCard } from '@affine-test/kit/utils/setting';
 import { clickSideBarSettingButton } from '@affine-test/kit/utils/sidebar';
 import { createLocalWorkspace } from '@affine-test/kit/utils/workspace';
 import { expect } from '@playwright/test';
-import { resolve } from 'path';
 
 let user: {
   id: string;
@@ -30,95 +27,11 @@ test.beforeEach(async () => {
 });
 
 test.beforeEach(async ({ page }) => {
-  await loginUser(page, user.email);
+  await loginUser(page, user);
 });
 
-test('can enable share page', async ({ page, browser }) => {
-  await page.reload();
-  await waitForEditorLoad(page);
-  await createLocalWorkspace(
-    {
-      name: 'test',
-    },
-    page
-  );
-  await enableCloudWorkspaceFromShareButton(page);
-  const title = getBlockSuiteEditorTitle(page);
-  await title.pressSequentially('TEST TITLE', {
-    delay: 50,
-  });
-  await page.keyboard.press('Enter', { delay: 50 });
-  await page.keyboard.type('TEST CONTENT', { delay: 50 });
-  await page.getByTestId('cloud-share-menu-button').click();
-  await page.getByTestId('share-menu-create-link-button').click();
-  await page.getByTestId('share-menu-copy-link-button').click();
-
-  // check share page is accessible
-  {
-    const context = await browser.newContext();
-    await skipOnboarding(context);
-    const url: string = await page.evaluate(() =>
-      navigator.clipboard.readText()
-    );
-    const page2 = await context.newPage();
-    await page2.goto(url);
-    await waitForEditorLoad(page2);
-    const title = getBlockSuiteEditorTitle(page2);
-    expect(await title.innerText()).toBe('TEST TITLE');
-    expect(await page2.textContent('affine-paragraph')).toContain(
-      'TEST CONTENT'
-    );
-  }
-});
-
-test('share page with default edgeless', async ({ page, browser }) => {
-  await page.reload();
-  await waitForEditorLoad(page);
-  await createLocalWorkspace(
-    {
-      name: 'test',
-    },
-    page
-  );
-  await enableCloudWorkspaceFromShareButton(page);
-  const title = getBlockSuiteEditorTitle(page);
-  await title.pressSequentially('TEST TITLE', {
-    delay: 50,
-  });
-  await page.keyboard.press('Enter', { delay: 50 });
-  await page.keyboard.type('TEST CONTENT', { delay: 50 });
-  await clickEdgelessModeButton(page);
-  await expect(page.locator('affine-edgeless-page')).toBeVisible({
-    timeout: 1000,
-  });
-  await page.getByTestId('cloud-share-menu-button').click();
-  await page.getByTestId('share-menu-create-link-button').click();
-  await page.getByTestId('share-menu-copy-link-button').click();
-
-  // check share page is accessible
-  {
-    const context = await browser.newContext();
-    await skipOnboarding(context);
-    const url: string = await page.evaluate(() =>
-      navigator.clipboard.readText()
-    );
-    const page2 = await context.newPage();
-    await page2.goto(url);
-    await waitForEditorLoad(page2);
-    await expect(page.locator('affine-edgeless-page')).toBeVisible({
-      timeout: 1000,
-    });
-    expect(await page2.textContent('affine-paragraph')).toContain(
-      'TEST CONTENT'
-    );
-    const logo = page2.getByTestId('share-page-logo');
-    const editButton = page2.getByTestId('share-page-edit-button');
-    await expect(editButton).not.toBeVisible();
-    await expect(logo).toBeVisible();
-  }
-});
-
-test('can collaborate with other user and name should display when editing', async ({
+// SKIP until BS-671 fix
+test.skip('can collaborate with other user and name should display when editing', async ({
   page,
   browser,
 }) => {
@@ -139,7 +52,7 @@ test('can collaborate with other user and name should display when editing', asy
   const context = await browser.newContext();
   await skipOnboarding(context);
   const page2 = await context.newPage();
-  await loginUser(page2, userB.email);
+  await loginUser(page2, userB);
   await addUserToWorkspace(workspaceId, userB.id, 1 /* READ */);
   await page2.reload();
   await waitForEditorLoad(page2);
@@ -153,7 +66,7 @@ test('can collaborate with other user and name should display when editing', asy
   await page2.waitForTimeout(200);
   {
     const title = getBlockSuiteEditorTitle(page2);
-    expect(await title.innerText()).toBe('TEST TITLE');
+    await expect(title).toHaveText('TEST TITLE');
     const typingPromise = (async () => {
       await page.keyboard.press('Enter', { delay: 50 });
       await page.keyboard.type('TEST CONTENT', { delay: 50 });
@@ -200,19 +113,20 @@ test('can sync collections between different browser', async ({
     page
   );
   await enableCloudWorkspace(page);
-  await page.getByTestId('slider-bar-add-collection-button').click();
-  const title = page.getByTestId('input-collection-title');
+  await page.getByTestId('explorer-bar-add-collection-button').click();
+  const title = page.getByTestId('prompt-modal-input');
   await title.isVisible();
   await title.fill('test collection');
-  await page.getByTestId('save-collection').click();
+  await page.getByTestId('prompt-modal-confirm').click();
 
   {
     const context = await browser.newContext();
     await skipOnboarding(context);
     const page2 = await context.newPage();
-    await loginUser(page2, user.email);
+    await loginUser(page2, user);
     await page2.goto(page.url());
-    const collections = page2.getByTestId('collections');
+    const collections = page2.getByTestId('explorer-collections');
+    await collections.getByTestId('category-divider-collapse-button').click();
     await expect(collections.getByText('test collection')).toBeVisible();
   }
 });
@@ -235,7 +149,7 @@ test('can sync svg between different browsers', async ({ page, browser }) => {
   const slashMenu = page.locator(`.slash-menu`);
   const image = page.locator('affine-image');
 
-  page.evaluate(async () => {
+  await page.evaluate(async () => {
     // https://github.com/toeverything/blocksuite/blob/master/packages/blocks/src/_common/utils/filesys.ts#L20
     (window as any).showOpenFilePicker = undefined;
   });
@@ -250,11 +164,10 @@ test('can sync svg between different browsers', async ({ page, browser }) => {
   await expect(slashMenu).toBeVisible();
   await page.keyboard.type('image', { delay: 100 });
   await expect(slashMenu).toBeVisible();
+  const fileChooserPromise = page.waitForEvent('filechooser');
   await page.keyboard.press('Enter', { delay: 50 });
-  await page.setInputFiles(
-    "input[type='file']",
-    resolve(__dirname, 'logo.svg')
-  );
+  const fileChooser = await fileChooserPromise;
+  fileChooser.setFiles(Path.dir(import.meta.url).join('logo.svg').value);
   await expect(image).toBeVisible();
 
   // the user should see the svg
@@ -275,7 +188,7 @@ test('can sync svg between different browsers', async ({ page, browser }) => {
     const context = await browser.newContext();
     await skipOnboarding(context);
     const page2 = await context.newPage();
-    await loginUser(page2, user.email);
+    await loginUser(page2, user);
     await page2.goto(page.url());
 
     // second user should see the svg

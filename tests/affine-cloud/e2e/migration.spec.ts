@@ -1,7 +1,6 @@
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 
-import { test } from '@affine-test/kit/playwright';
+import { Path, test } from '@affine-test/kit/playwright';
 import {
   createRandomUser,
   deleteUser,
@@ -30,7 +29,7 @@ test.beforeEach(async () => {
 });
 
 test.beforeEach(async ({ page, context }) => {
-  await loginUser(page, user.email, {
+  await loginUser(page, user, {
     beforeLogin: async () => {
       expect(await getLoginCookie(context)).toBeUndefined();
     },
@@ -49,14 +48,14 @@ test.afterEach(async () => {
   await deleteUser(user.email);
 });
 
-// TODO: @joooye34 mock migration from server data after page level upgrade implemented.
+// TODO(@eyhn) mock migration from server data after page level upgrade implemented.
 test.skip('migration', async ({ page, browser }) => {
   let workspaceId: string;
   {
     // create the old cloud workspace in another browser
     const context = await browser.newContext();
     const page = await context.newPage();
-    await loginUser(page, user.email);
+    await loginUser(page, user);
     await page.reload();
     await createLocalWorkspace(
       {
@@ -72,7 +71,10 @@ test.skip('migration', async ({ page, browser }) => {
     await runPrisma(async client => {
       const sqls = (
         await readFile(
-          resolve(__dirname, 'fixtures', '0.9.0-canary.9-snapshots.sql'),
+          Path.dir(import.meta.url).join(
+            'fixtures',
+            '0.9.0-canary.9-snapshots.sql'
+          ).value,
           'utf-8'
         )
       )
@@ -104,10 +106,4 @@ test.skip('migration', async ({ page, browser }) => {
   await page.waitForTimeout(5000);
   await page.reload();
   await waitForEditorLoad(page);
-
-  // click edgeless switch button is flaky in e2e
-  // await clickEdgelessModeButton(page);
-  // await expect(page.locator('affine-edgeless-page')).toBeVisible({
-  //   timeout: 1000,
-  // });
 });

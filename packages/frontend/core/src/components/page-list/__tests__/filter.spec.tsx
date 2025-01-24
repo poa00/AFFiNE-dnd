@@ -10,8 +10,8 @@ import type {
   Ref,
   VariableMap,
 } from '@affine/env/filter';
-import { createI18n, I18nextProvider } from '@affine/i18n';
-import { assertExists } from '@blocksuite/global/utils';
+import { getOrCreateI18n, I18nextProvider } from '@affine/i18n';
+import { assertExists } from '@blocksuite/affine/global/utils';
 import { render } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { useState } from 'react';
@@ -34,6 +34,7 @@ const mockVariableMap = (vars: Partial<VariableMap>): VariableMap => {
     Created: 0,
     Updated: 0,
     'Is Favourited': false,
+    'Is Public': false,
     Tags: [],
     ...vars,
   };
@@ -127,8 +128,8 @@ describe('eval filter', () => {
 
 describe('render filter', () => {
   test('boolean condition value change', async () => {
-    const i18n = createI18n();
     const is = filterMatcher.match(tBoolean.create());
+    const i18n = getOrCreateI18n();
     assertExists(is);
     const Wrapper = () => {
       const [value, onChange] = useState(

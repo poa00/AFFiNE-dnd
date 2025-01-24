@@ -1,31 +1,26 @@
-import { WorkspaceSubPath } from '@affine/core/shared';
-import type { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { ArrowRightBigIcon } from '@blocksuite/icons';
-import type { Workspace } from '@blocksuite/store';
-import { registerAffineCommand } from '@toeverything/infra/command';
+import type { useI18n } from '@affine/i18n';
+import { track } from '@affine/track';
+import type { Workspace } from '@blocksuite/affine/store';
+import { ArrowRightBigIcon } from '@blocksuite/icons/rc';
 import type { createStore } from 'jotai';
 
-import {
-  openSettingModalAtom,
-  openWorkspaceListModalAtom,
-  type PageModeOption,
-} from '../atoms';
-import type { useNavigateHelper } from '../hooks/use-navigate-helper';
+import { openWorkspaceListModalAtom } from '../components/atoms';
+import type { useNavigateHelper } from '../components/hooks/use-navigate-helper';
+import type { WorkspaceDialogService } from '../modules/dialogs';
+import { registerAffineCommand } from './registry';
 
 export function registerAffineNavigationCommands({
   t,
   store,
-  workspace,
+  docCollection,
   navigationHelper,
-  pageListMode,
-  setPageListMode,
+  workspaceDialogService,
 }: {
-  t: ReturnType<typeof useAFFiNEI18N>;
+  t: ReturnType<typeof useI18n>;
   store: ReturnType<typeof createStore>;
   navigationHelper: ReturnType<typeof useNavigateHelper>;
-  pageListMode: PageModeOption;
-  setPageListMode: React.Dispatch<React.SetStateAction<PageModeOption>>;
-  workspace: Workspace;
+  docCollection: Workspace;
+  workspaceDialogService: WorkspaceDialogService;
 }) {
   const unsubs: Array<() => void> = [];
   unsubs.push(
@@ -35,40 +30,43 @@ export function registerAffineNavigationCommands({
       icon: <ArrowRightBigIcon />,
       label: t['com.affine.cmdk.affine.navigation.goto-all-pages'](),
       run() {
-        navigationHelper.jumpToSubPath(workspace.id, WorkspaceSubPath.ALL);
-        setPageListMode('all');
+        track.$.cmdk.navigation.navigate({
+          to: 'allDocs',
+        });
+
+        navigationHelper.jumpToPage(docCollection.id, 'all');
       },
     })
   );
 
   unsubs.push(
     registerAffineCommand({
-      id: 'affine:goto-page-list',
+      id: 'affine:goto-collection-list',
       category: 'affine:navigation',
       icon: <ArrowRightBigIcon />,
-      preconditionStrategy: () => {
-        return pageListMode !== 'page';
-      },
-      label: t['com.affine.cmdk.affine.navigation.goto-page-list'](),
+      label: 'Go to Collection List',
       run() {
-        navigationHelper.jumpToSubPath(workspace.id, WorkspaceSubPath.ALL);
-        setPageListMode('page');
+        track.$.cmdk.navigation.navigate({
+          to: 'collectionList',
+        });
+
+        navigationHelper.jumpToCollections(docCollection.id);
       },
     })
   );
 
   unsubs.push(
     registerAffineCommand({
-      id: 'affine:goto-edgeless-list',
+      id: 'affine:goto-tag-list',
       category: 'affine:navigation',
       icon: <ArrowRightBigIcon />,
-      preconditionStrategy: () => {
-        return pageListMode !== 'edgeless';
-      },
-      label: t['com.affine.cmdk.affine.navigation.goto-edgeless-list'](),
+      label: 'Go to Tag List',
       run() {
-        navigationHelper.jumpToSubPath(workspace.id, WorkspaceSubPath.ALL);
-        setPageListMode('edgeless');
+        track.$.cmdk.navigation.navigate({
+          to: 'tagList',
+        });
+
+        navigationHelper.jumpToTags(docCollection.id);
       },
     })
   );
@@ -80,6 +78,10 @@ export function registerAffineNavigationCommands({
       icon: <ArrowRightBigIcon />,
       label: t['com.affine.cmdk.affine.navigation.goto-workspace'](),
       run() {
+        track.$.cmdk.navigation.navigate({
+          to: 'workspace',
+        });
+
         store.set(openWorkspaceListModalAtom, true);
       },
     })
@@ -91,10 +93,26 @@ export function registerAffineNavigationCommands({
       category: 'affine:navigation',
       icon: <ArrowRightBigIcon />,
       label: t['com.affine.cmdk.affine.navigation.open-settings'](),
+      keyBinding: '$mod+,',
       run() {
-        store.set(openSettingModalAtom, {
+        track.$.cmdk.settings.openSettings();
+        workspaceDialogService.open('setting', {
           activeTab: 'appearance',
-          open: true,
+        });
+      },
+    })
+  );
+
+  unsubs.push(
+    registerAffineCommand({
+      id: 'affine:open-account',
+      category: 'affine:navigation',
+      icon: <ArrowRightBigIcon />,
+      label: t['com.affine.cmdk.affine.navigation.open-account-settings'](),
+      run() {
+        track.$.cmdk.settings.openSettings({ to: 'account' });
+        workspaceDialogService.open('setting', {
+          activeTab: 'account',
         });
       },
     })
@@ -107,8 +125,11 @@ export function registerAffineNavigationCommands({
       icon: <ArrowRightBigIcon />,
       label: t['com.affine.cmdk.affine.navigation.goto-trash'](),
       run() {
-        navigationHelper.jumpToSubPath(workspace.id, WorkspaceSubPath.TRASH);
-        setPageListMode('all');
+        track.$.cmdk.navigation.navigate({
+          to: 'trash',
+        });
+
+        navigationHelper.jumpToPage(docCollection.id, 'trash');
       },
     })
   );

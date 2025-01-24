@@ -1,42 +1,101 @@
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { SignOutIcon } from '@blocksuite/icons';
+import { useI18n } from '@affine/i18n';
+import { SignOutIcon } from '@blocksuite/icons/rc';
+import type { JSX } from 'react';
 
 import { Avatar } from '../../ui/avatar';
 import { Button, IconButton } from '../../ui/button';
-import { Tooltip } from '../../ui/tooltip';
-import { NotFoundPattern } from './not-found-pattern';
+import { ThemedImg } from '../../ui/themed-img';
+import { AffineOtherPageLayout } from '../affine-other-page-layout';
+import illustrationDark from '../affine-other-page-layout/assets/other-page.dark.png';
+import illustrationLight from '../affine-other-page-layout/assets/other-page.light.png';
+import type { User } from '../auth-components';
 import {
+  illustration,
   largeButtonEffect,
   notFoundPageContainer,
   wrapper,
 } from './styles.css';
 
 export interface NotFoundPageProps {
-  user: {
-    name: string;
-    email: string;
-    avatar: string;
-  } | null;
+  user?: User | null;
+  signInComponent?: JSX.Element;
   onBack: () => void;
   onSignOut: () => void;
 }
+export const NoPermissionOrNotFound = ({
+  user,
+  onBack,
+  onSignOut,
+  signInComponent,
+}: NotFoundPageProps) => {
+  const t = useI18n();
+
+  return (
+    <AffineOtherPageLayout>
+      <div className={notFoundPageContainer} data-testid="not-found">
+        {user ? (
+          <>
+            <div className={wrapper}>
+              <ThemedImg
+                draggable={false}
+                className={illustration}
+                lightSrc={illustrationLight}
+                darkSrc={illustrationDark}
+              />
+            </div>
+            <p className={wrapper}>{t['404.hint']()}</p>
+            <div className={wrapper}>
+              <Button
+                variant="primary"
+                size="extraLarge"
+                onClick={onBack}
+                className={largeButtonEffect}
+              >
+                {t['404.back']()}
+              </Button>
+            </div>
+            <div className={wrapper}>
+              <Avatar url={user.avatar ?? user.image} name={user.label} />
+              <span style={{ margin: '0 12px' }}>{user.email}</span>
+              <IconButton
+                onClick={onSignOut}
+                size="20"
+                tooltip={t['404.signOut']()}
+              >
+                <SignOutIcon />
+              </IconButton>
+            </div>
+          </>
+        ) : (
+          signInComponent
+        )}
+      </div>
+    </AffineOtherPageLayout>
+  );
+};
+
 export const NotFoundPage = ({
   user,
   onBack,
   onSignOut,
 }: NotFoundPageProps) => {
-  const t = useAFFiNEI18N();
+  const t = useI18n();
 
   return (
-    <div className={notFoundPageContainer} data-testid="not-found">
-      <div>
+    <AffineOtherPageLayout>
+      <div className={notFoundPageContainer} data-testid="not-found">
         <div className={wrapper}>
-          <NotFoundPattern />
+          <ThemedImg
+            draggable={false}
+            className={illustration}
+            lightSrc={illustrationLight}
+            darkSrc={illustrationDark}
+          />
         </div>
         <p className={wrapper}>{t['404.hint']()}</p>
         <div className={wrapper}>
           <Button
-            type="primary"
+            variant="primary"
             size="extraLarge"
             onClick={onBack}
             className={largeButtonEffect}
@@ -47,16 +106,18 @@ export const NotFoundPage = ({
 
         {user ? (
           <div className={wrapper}>
-            <Avatar url={user.avatar} name={user.name} />
+            <Avatar url={user.avatar ?? user.image} name={user.label} />
             <span style={{ margin: '0 12px' }}>{user.email}</span>
-            <Tooltip content={t['404.signOut']()}>
-              <IconButton onClick={onSignOut}>
-                <SignOutIcon />
-              </IconButton>
-            </Tooltip>
+            <IconButton
+              onClick={onSignOut}
+              size="20"
+              tooltip={t['404.signOut']()}
+            >
+              <SignOutIcon />
+            </IconButton>
           </div>
         ) : null}
       </div>
-    </div>
+    </AffineOtherPageLayout>
   );
 };

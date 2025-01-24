@@ -19,30 +19,17 @@ app:
   https: true
   doc:
     mergeInterval: "3000"
-  jwt:
-    secretName: jwt-private-key
-    # base64 encoded ecdsa private key
-    privateKey: ''
   captcha:
-    enable: false
+    enabled: false
     secretName: captcha
     turnstile:
       secret: ''
-  objectStorage:
-    r2:
-      enabled: false
-      secretName: r2
-      accountId: ''
-      accessKeyId: ''
-      secretAccessKey: ''
+  copilot:
+    enabled: false
+    secretName: copilot
+    openai:
+      key: ''
   oauth:
-    email:
-      secretName: 'oauth-email'
-      sender: 'noreply@toeverything.info'
-      login: ''
-      password: ''
-      server: 'smtp.gmail.com'
-      port: '465'
     google:
       enabled: false
       secretName: oauth-google
@@ -53,6 +40,18 @@ app:
       secretName: oauth-github
       clientId: ''
       clientSecret: ''
+  mailer:
+    secretName: 'mailer'
+    host: 'smtp.gmail.com'
+    port: '465'
+    user: ''
+    password: ''
+    sender: 'noreply@toeverything.info'
+  metrics:
+    enabled: false
+    secretName: 'metrics'
+    customerIo:
+      token: ''
   payment:
     stripe:
       secretName: 'stripe'
@@ -60,6 +59,7 @@ app:
       webhookKey: ''
   features:
     earlyAccessPreview: false
+    syncClientVersionCheck: false
 
 serviceAccount:
   create: true

@@ -1,216 +1,414 @@
+import { notify, useConfirmModal } from '@affine/component';
 import {
   Menu,
-  MenuIcon,
   MenuItem,
   MenuSeparator,
+  MenuSub,
 } from '@affine/component/ui/menu';
-import { currentModeAtom } from '@affine/core/atoms/mode';
 import { PageHistoryModal } from '@affine/core/components/affine/page-history-modal';
+import { ShareMenuContent } from '@affine/core/components/affine/share-page-modal/share-menu';
+import { useBlockSuiteMetaHelper } from '@affine/core/components/hooks/affine/use-block-suite-meta-helper';
+import { useEnableCloud } from '@affine/core/components/hooks/affine/use-enable-cloud';
+import { useExportPage } from '@affine/core/components/hooks/affine/use-export-page';
+import { useDocMetaHelper } from '@affine/core/components/hooks/use-block-suite-page-meta';
 import { Export, MoveToTrash } from '@affine/core/components/page-list';
-import { useBlockSuiteMetaHelper } from '@affine/core/hooks/affine/use-block-suite-meta-helper';
-import { useExportPage } from '@affine/core/hooks/affine/use-export-page';
-import { useTrashModalHelper } from '@affine/core/hooks/affine/use-trash-modal-helper';
-import { useBlockSuitePageMeta } from '@affine/core/hooks/use-block-suite-page-meta';
-import { waitForCurrentWorkspaceAtom } from '@affine/core/modules/workspace';
-import { toast } from '@affine/core/utils';
-import { WorkspaceFlavour } from '@affine/env/workspace';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { assertExists } from '@blocksuite/global/utils';
+import { IsFavoriteIcon } from '@affine/core/components/pure/icons';
+import { useDetailPageHeaderResponsive } from '@affine/core/desktop/pages/workspace/detail-page/use-header-responsive';
+import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
+import { EditorService } from '@affine/core/modules/editor';
+import { OpenInAppService } from '@affine/core/modules/open-in-app/services';
+import { WorkbenchService } from '@affine/core/modules/workbench';
+import { ViewService } from '@affine/core/modules/workbench/services/view';
+import { WorkspaceService } from '@affine/core/modules/workspace';
+import { useI18n } from '@affine/i18n';
+import { track } from '@affine/track';
+import type { Store } from '@blocksuite/affine/store';
 import {
   DuplicateIcon,
   EdgelessIcon,
   EditIcon,
-  FavoritedIcon,
-  FavoriteIcon,
+  FrameIcon,
   HistoryIcon,
   ImportIcon,
+  InformationIcon,
+  LocalWorkspaceIcon,
+  OpenInNewIcon,
   PageIcon,
-} from '@blocksuite/icons';
-import { useAtomValue } from 'jotai';
+  SaveIcon,
+  ShareIcon,
+  SplitViewIcon,
+  TocIcon,
+} from '@blocksuite/icons/rc';
+import {
+  useLiveData,
+  useService,
+  useServiceOptional,
+} from '@toeverything/infra';
 import { useCallback, useState } from 'react';
 
 import { HeaderDropDownButton } from '../../../pure/header-drop-down-button';
-import { usePageHelper } from '../../block-suite-page-list/utils';
 import { useFavorite } from '../favorite';
+import { HistoryTipsModal } from './history-tips-modal';
 
 type PageMenuProps = {
   rename?: () => void;
-  pageId: string;
+  page: Store;
   isJournal?: boolean;
+  containerWidth: number;
 };
 // fixme: refactor this file
 export const PageHeaderMenuButton = ({
   rename,
-  pageId,
+  page,
   isJournal,
+  containerWidth,
 }: PageMenuProps) => {
-  const t = useAFFiNEI18N();
+  const pageId = page?.id;
+  const t = useI18n();
+  const { hideShare } = useDetailPageHeaderResponsive(containerWidth);
+  const confirmEnableCloud = useEnableCloud();
 
-  // fixme(himself65): remove these hooks ASAP
-  const workspace = useAtomValue(waitForCurrentWorkspaceAtom);
-  const blockSuiteWorkspace = workspace.blockSuiteWorkspace;
-  const currentPage = blockSuiteWorkspace.getPage(pageId);
-  assertExists(currentPage);
+  const workspace = useService(WorkspaceService).workspace;
 
-  const pageMeta = useBlockSuitePageMeta(blockSuiteWorkspace).find(
-    meta => meta.id === pageId
+  const editorService = useService(EditorService);
+  const isInTrash = useLiveData(
+    editorService.editor.doc.meta$.map(meta => meta.trash)
   );
-  const currentMode = useAtomValue(currentModeAtom);
+  const currentMode = useLiveData(editorService.editor.mode$);
+  const primaryMode = useLiveData(editorService.editor.doc.primaryMode$);
+
+  const workbench = useService(WorkbenchService).workbench;
+  const openInAppService = useServiceOptional(OpenInAppService);
 
   const { favorite, toggleFavorite } = useFavorite(pageId);
 
-  const { togglePageMode, duplicate } =
-    useBlockSuiteMetaHelper(blockSuiteWorkspace);
-  const { importFile } = usePageHelper(blockSuiteWorkspace);
-  const { setTrashModal } = useTrashModalHelper(blockSuiteWorkspace);
+  const { duplicate } = useBlockSuiteMetaHelper();
+
+  const [isEditing, setEditing] = useState(!page.readonly);
+  const { setDocReadonly } = useDocMetaHelper();
+
+  const view = useService(ViewService).view;
+
+  const openSidePanel = useCallback(
+    (id: string) => {
+      workbench.openSidebar();
+      view.activeSidebarTab(id);
+    },
+    [workbench, view]
+  );
+
+  const openAllFrames = useCallback(() => {
+    openSidePanel('frame');
+  }, [openSidePanel]);
+
+  const openOutlinePanel = useCallback(() => {
+    openSidePanel('outline');
+  }, [openSidePanel]);
 
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [openHistoryTipsModal, setOpenHistoryTipsModal] = useState(false);
 
   const openHistoryModal = useCallback(() => {
-    setHistoryModalOpen(true);
-  }, []);
+    track.$.header.history.open();
+    if (workspace.flavour === 'affine-cloud') {
+      return setHistoryModalOpen(true);
+    }
+    return setOpenHistoryTipsModal(true);
+  }, [setOpenHistoryTipsModal, workspace.flavour]);
+
+  const workspaceDialogService = useService(WorkspaceDialogService);
+  const openInfoModal = useCallback(() => {
+    track.$.header.pageInfo.open();
+    workspaceDialogService.open('doc-info', { docId: pageId });
+  }, [workspaceDialogService, pageId]);
+
+  const handleOpenInNewTab = useCallback(() => {
+    workbench.openDoc(pageId, {
+      at: 'new-tab',
+    });
+  }, [pageId, workbench]);
+
+  const handleOpenInSplitView = useCallback(() => {
+    workbench.openDoc(pageId, {
+      at: 'tail',
+    });
+  }, [pageId, workbench]);
+
+  const { openConfirmModal } = useConfirmModal();
 
   const handleOpenTrashModal = useCallback(() => {
-    if (!pageMeta) {
-      return;
-    }
-    setTrashModal({
-      open: true,
-      pageIds: [pageId],
-      pageTitles: [pageMeta.title],
+    track.$.header.docOptions.deleteDoc();
+    openConfirmModal({
+      title: t['com.affine.moveToTrash.confirmModal.title'](),
+      description: t['com.affine.moveToTrash.confirmModal.description']({
+        title: editorService.editor.doc.title$.value || t['Untitled'](),
+      }),
+      cancelText: t['com.affine.confirmModal.button.cancel'](),
+      confirmText: t.Delete(),
+      confirmButtonOptions: {
+        variant: 'error',
+      },
+      onConfirm: () => {
+        editorService.editor.doc.moveToTrash();
+      },
     });
-  }, [pageId, pageMeta, setTrashModal]);
+  }, [editorService.editor.doc, openConfirmModal, t]);
+
+  const handleRename = useCallback(() => {
+    rename?.();
+    track.$.header.docOptions.renameDoc();
+  }, [rename]);
 
   const handleSwitchMode = useCallback(() => {
-    togglePageMode(pageId);
-    toast(
-      currentMode === 'page'
-        ? t['com.affine.toastMessage.edgelessMode']()
-        : t['com.affine.toastMessage.pageMode']()
-    );
-  }, [currentMode, pageId, t, togglePageMode]);
-  const menuItemStyle = {
-    padding: '4px 12px',
-    transition: 'all 0.3s',
-  };
+    const mode = primaryMode === 'page' ? 'edgeless' : 'page';
+    editorService.editor.setMode(mode);
+    editorService.editor.doc.setPrimaryMode(mode);
+    track.$.header.docOptions.switchPageMode({
+      mode,
+    });
+    notify.success({
+      title:
+        primaryMode === 'page'
+          ? t['com.affine.toastMessage.defaultMode.edgeless.title']()
+          : t['com.affine.toastMessage.defaultMode.page.title'](),
+      message:
+        primaryMode === 'page'
+          ? t['com.affine.toastMessage.defaultMode.edgeless.message']()
+          : t['com.affine.toastMessage.defaultMode.page.message'](),
+    });
+  }, [primaryMode, editorService, t]);
 
-  const exportHandler = useExportPage(currentPage);
+  const handleMenuOpenChange = useCallback((open: boolean) => {
+    if (open) {
+      track.$.header.docOptions.open();
+    }
+  }, []);
+
+  const exportHandler = useExportPage();
 
   const handleDuplicate = useCallback(() => {
     duplicate(pageId);
+    track.$.header.docOptions.createDoc({
+      control: 'duplicate',
+    });
   }, [duplicate, pageId]);
+
+  const handleOpenDocs = useCallback(
+    (result: {
+      docIds: string[];
+      entryId?: string;
+      isWorkspaceFile?: boolean;
+    }) => {
+      const { docIds, entryId, isWorkspaceFile } = result;
+      // If the imported file is a workspace file, open the entry page.
+      if (isWorkspaceFile && entryId) {
+        workbench.openDoc(entryId);
+      } else if (!docIds.length) {
+        return;
+      }
+      // Open all the docs when there are multiple docs imported.
+      if (docIds.length > 1) {
+        workbench.openAll();
+      } else {
+        // Otherwise, open the only doc.
+        workbench.openDoc(docIds[0]);
+      }
+    },
+    [workbench]
+  );
+
+  const handleOpenImportModal = useCallback(() => {
+    track.$.header.importModal.open();
+    workspaceDialogService.open('import', undefined, payload => {
+      if (!payload) {
+        return;
+      }
+      handleOpenDocs(payload);
+    });
+  }, [workspaceDialogService, handleOpenDocs]);
+
+  const handleShareMenuOpenChange = useCallback((open: boolean) => {
+    if (open) {
+      track.$.sharePanel.$.open();
+    }
+  }, []);
+
+  const handleToggleFavorite = useCallback(() => {
+    track.$.header.docOptions.toggleFavorite();
+    toggleFavorite();
+  }, [toggleFavorite]);
+
+  const handleToggleEdit = useCallback(() => {
+    setDocReadonly(page.id, !page.readonly);
+    setEditing(!isEditing);
+  }, [isEditing, page.id, page.readonly, setDocReadonly]);
+
+  const isMobile = environment.isMobile;
+  const mobileEditMenuItem = (
+    <MenuItem
+      prefixIcon={isEditing ? <SaveIcon /> : <EditIcon />}
+      onSelect={handleToggleEdit}
+    >
+      {t[isEditing ? 'Save' : 'Edit']()}
+    </MenuItem>
+  );
+
+  const showResponsiveMenu = hideShare;
+  const ResponsiveMenuItems = (
+    <>
+      {hideShare ? (
+        <MenuSub
+          subContentOptions={{
+            sideOffset: 12,
+            alignOffset: -8,
+          }}
+          items={
+            <div style={{ padding: 4 }}>
+              <ShareMenuContent
+                workspaceMetadata={workspace.meta}
+                currentPage={page}
+                onEnableAffineCloud={() =>
+                  confirmEnableCloud(workspace, {
+                    openPageId: page.id,
+                  })
+                }
+              />
+            </div>
+          }
+          triggerOptions={{
+            prefixIcon: <ShareIcon />,
+          }}
+          subOptions={{
+            onOpenChange: handleShareMenuOpenChange,
+          }}
+        >
+          {t['com.affine.share-menu.shareButton']()}
+        </MenuSub>
+      ) : null}
+      <MenuSeparator />
+    </>
+  );
+
+  const onOpenInDesktop = useCallback(() => {
+    openInAppService?.showOpenInAppPage();
+  }, [openInAppService]);
 
   const EditMenu = (
     <>
+      {showResponsiveMenu ? ResponsiveMenuItems : null}
+      {isMobile && mobileEditMenuItem}
       {!isJournal && (
         <MenuItem
-          preFix={
-            <MenuIcon>
-              <EditIcon />
-            </MenuIcon>
-          }
+          prefixIcon={<EditIcon />}
           data-testid="editor-option-menu-rename"
-          onSelect={rename}
-          style={menuItemStyle}
+          onSelect={handleRename}
         >
           {t['Rename']()}
         </MenuItem>
       )}
       <MenuItem
-        preFix={
-          <MenuIcon>
-            {currentMode === 'page' ? <EdgelessIcon /> : <PageIcon />}
-          </MenuIcon>
-        }
+        prefixIcon={primaryMode === 'page' ? <EdgelessIcon /> : <PageIcon />}
         data-testid="editor-option-menu-edgeless"
         onSelect={handleSwitchMode}
-        style={menuItemStyle}
       >
-        {t['Convert to ']()}
-        {currentMode === 'page'
-          ? t['com.affine.pageMode.edgeless']()
-          : t['com.affine.pageMode.page']()}
+        {primaryMode === 'page'
+          ? t['com.affine.editorDefaultMode.edgeless']()
+          : t['com.affine.editorDefaultMode.page']()}
       </MenuItem>
       <MenuItem
         data-testid="editor-option-menu-favorite"
-        onSelect={toggleFavorite}
-        style={menuItemStyle}
-        preFix={
-          <MenuIcon>
-            {favorite ? (
-              <FavoritedIcon style={{ color: 'var(--affine-primary-color)' }} />
-            ) : (
-              <FavoriteIcon />
-            )}
-          </MenuIcon>
-        }
+        onSelect={handleToggleFavorite}
+        prefixIcon={<IsFavoriteIcon favorite={favorite} />}
       >
         {favorite
           ? t['com.affine.favoritePageOperation.remove']()
           : t['com.affine.favoritePageOperation.add']()}
       </MenuItem>
-      {/* {TODO: add tag function support} */}
-      {/* <MenuItem
-        icon={<TagsIcon />}
-        data-testid="editor-option-menu-add-tag"
-        onClick={() => {}}
-        style={menuItemStyle}
+      <MenuSeparator />
+      <MenuItem
+        prefixIcon={<OpenInNewIcon />}
+        data-testid="editor-option-menu-open-in-new-tab"
+        onSelect={handleOpenInNewTab}
       >
-        {t['com.affine.header.option.add-tag']()}
-      </MenuItem> */}
+        {t['com.affine.workbench.tab.page-menu-open']()}
+      </MenuItem>
+      {BUILD_CONFIG.isElectron && (
+        <MenuItem
+          prefixIcon={<SplitViewIcon />}
+          data-testid="editor-option-menu-open-in-split-new"
+          onSelect={handleOpenInSplitView}
+        >
+          {t['com.affine.workbench.split-view.page-menu-open']()}
+        </MenuItem>
+      )}
+
+      <MenuSeparator />
+      <MenuItem
+        prefixIcon={<InformationIcon />}
+        data-testid="editor-option-menu-info"
+        onSelect={openInfoModal}
+      >
+        {t['com.affine.page-properties.page-info.view']()}
+      </MenuItem>
+      {currentMode === 'page' ? (
+        <MenuItem
+          prefixIcon={<TocIcon />}
+          data-testid="editor-option-toc"
+          onSelect={openOutlinePanel}
+        >
+          {t['com.affine.header.option.view-toc']()}
+        </MenuItem>
+      ) : (
+        <MenuItem
+          prefixIcon={<FrameIcon />}
+          data-testid="editor-option-frame"
+          onSelect={openAllFrames}
+        >
+          {t['com.affine.header.option.view-frame']()}
+        </MenuItem>
+      )}
+      <MenuItem
+        prefixIcon={<HistoryIcon />}
+        data-testid="editor-option-menu-history"
+        onSelect={openHistoryModal}
+      >
+        {t['com.affine.history.view-history-version']()}
+      </MenuItem>
       <MenuSeparator />
       {!isJournal && (
         <MenuItem
-          preFix={
-            <MenuIcon>
-              <DuplicateIcon />
-            </MenuIcon>
-          }
+          prefixIcon={<DuplicateIcon />}
           data-testid="editor-option-menu-duplicate"
           onSelect={handleDuplicate}
-          style={menuItemStyle}
         >
           {t['com.affine.header.option.duplicate']()}
         </MenuItem>
       )}
       <MenuItem
-        preFix={
-          <MenuIcon>
-            <ImportIcon />
-          </MenuIcon>
-        }
+        prefixIcon={<ImportIcon />}
         data-testid="editor-option-menu-import"
-        onSelect={importFile}
-        style={menuItemStyle}
+        onSelect={handleOpenImportModal}
       >
         {t['Import']()}
       </MenuItem>
       <Export exportHandler={exportHandler} pageMode={currentMode} />
-
-      {workspace.flavour === WorkspaceFlavour.AFFINE_CLOUD &&
-      runtimeConfig.enablePageHistory ? (
-        <MenuItem
-          preFix={
-            <MenuIcon>
-              <HistoryIcon />
-            </MenuIcon>
-          }
-          data-testid="editor-option-menu-history"
-          onSelect={openHistoryModal}
-          style={menuItemStyle}
-        >
-          {t['com.affine.history.view-history-version']()}
-        </MenuItem>
-      ) : null}
-
       <MenuSeparator />
       <MoveToTrash
         data-testid="editor-option-menu-delete"
         onSelect={handleOpenTrashModal}
       />
+      {BUILD_CONFIG.isWeb && workspace.flavour === 'affine-cloud' ? (
+        <MenuItem
+          prefixIcon={<LocalWorkspaceIcon />}
+          data-testid="editor-option-menu-link"
+          onSelect={onOpenInDesktop}
+        >
+          {t['com.affine.header.option.open-in-desktop']()}
+        </MenuItem>
+      ) : null}
     </>
   );
-  if (pageMeta?.trash) {
+  if (isInTrash) {
     return null;
   }
   return (
@@ -220,17 +418,24 @@ export const PageHeaderMenuButton = ({
         contentOptions={{
           align: 'center',
         }}
+        rootOptions={{
+          onOpenChange: handleMenuOpenChange,
+        }}
       >
         <HeaderDropDownButton />
       </Menu>
-      {workspace.flavour === WorkspaceFlavour.AFFINE_CLOUD ? (
+      {workspace.flavour !== 'local' ? (
         <PageHistoryModal
-          workspace={workspace.blockSuiteWorkspace}
+          docCollection={workspace.docCollection}
           open={historyModalOpen}
           pageId={pageId}
           onOpenChange={setHistoryModalOpen}
         />
       ) : null}
+      <HistoryTipsModal
+        open={openHistoryTipsModal}
+        setOpen={setOpenHistoryTipsModal}
+      />
     </>
   );
 };

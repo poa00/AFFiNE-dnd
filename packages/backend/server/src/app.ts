@@ -3,9 +3,15 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import graphqlUploadExpress from 'graphql-upload/graphqlUploadExpress.mjs';
 
-import { CacheRedis } from './fundamentals/cache/redis';
-import { RedisIoAdapter } from './fundamentals/websocket';
-import { ExceptionLogger } from './middleware/exception-logger';
+import {
+  AFFiNELogger,
+  CacheInterceptor,
+  CloudThrottlerGuard,
+  GlobalExceptionFilter,
+} from './base';
+import { SocketIoAdapter } from './base/websocket';
+import { AuthGuard } from './core/auth';
+import { ENABLED_FEATURES } from './core/config/server-feature';
 import { serverTimingAndCache } from './middleware/timing';
 
 export async function createApp() {
@@ -15,27 +21,43 @@ export async function createApp() {
     cors: true,
     rawBody: true,
     bodyParser: true,
-    logger: AFFiNE.affine.stable ? ['log'] : ['verbose'],
+    bufferLogs: true,
   });
+
+  app.useLogger(app.get(AFFiNELogger));
+
+  if (AFFiNE.server.path) {
+    app.setGlobalPrefix(AFFiNE.server.path);
+  }
 
   app.use(serverTimingAndCache);
 
   app.use(
     graphqlUploadExpress({
-      // TODO: dynamic limit by quota
+      // TODO(@darkskygit): dynamic limit by quota maybe?
       maxFileSize: 100 * 1024 * 1024,
-      maxFiles: 5,
+      maxFiles: 32,
     })
   );
 
-  app.useGlobalFilters(new ExceptionLogger());
+  app.useGlobalGuards(app.get(AuthGuard), app.get(CloudThrottlerGuard));
+  app.useGlobalInterceptors(app.get(CacheInterceptor));
+  app.useGlobalFilters(new GlobalExceptionFilter(app.getHttpAdapter()));
   app.use(cookieParser());
 
-  if (AFFiNE.redis.enabled) {
-    const redis = app.get(CacheRedis, { strict: false });
-    const redisIoAdapter = new RedisIoAdapter(app);
-    await redisIoAdapter.connectToRedis(redis);
-    app.useWebSocketAdapter(redisIoAdapter);
+  if (AFFiNE.flavor.sync) {
+    const adapter = new SocketIoAdapter(app);
+    app.useWebSocketAdapter(adapter);
+  }
+
+  if (AFFiNE.isSelfhosted && AFFiNE.metrics.telemetry.enabled) {
+    const mixpanel = await import('mixpanel');
+    mixpanel
+      .init(AFFiNE.metrics.telemetry.token)
+      .track('selfhost-server-started', {
+        version: AFFiNE.version,
+        features: Array.from(ENABLED_FEATURES),
+      });
   }
 
   return app;

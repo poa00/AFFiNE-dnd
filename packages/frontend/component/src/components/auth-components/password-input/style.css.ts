@@ -1,28 +1,31 @@
+import { cssVar } from '@toeverything/theme';
 import { style } from '@vanilla-extract/css';
-
+export const statusWrapper = style({
+  marginLeft: 8,
+  marginRight: 10,
+});
 export const tag = style({
-  padding: '0 15px',
+  padding: '2px 15px',
   height: 20,
   lineHeight: '20px',
   borderRadius: 10,
-  fontSize: 'var(--affine-font-xs)',
-
+  fontSize: cssVar('fontXs'),
   selectors: {
     '&.weak': {
-      backgroundColor: 'var(--affine-tag-red)',
-      color: 'var(--affine-error-color)',
+      backgroundColor: cssVar('tagRed'),
+      color: cssVar('errorColor'),
     },
     '&.medium': {
-      backgroundColor: 'var(--affine-tag-orange)',
-      color: 'var(--affine-warning-color)',
+      backgroundColor: cssVar('tagOrange'),
+      color: cssVar('warningColor'),
     },
     '&.strong': {
-      backgroundColor: 'var(--affine-tag-green)',
-      color: 'var(--affine-success-color)',
+      backgroundColor: cssVar('tagGreen'),
+      color: cssVar('successColor'),
     },
-    '&.maximum': {
-      backgroundColor: 'var(--affine-tag-red)',
-      color: 'var(--affine-error-color)',
+    '&.minimum, &.maximum': {
+      backgroundColor: cssVar('tagRed'),
+      color: cssVar('errorColor'),
     },
   },
 });

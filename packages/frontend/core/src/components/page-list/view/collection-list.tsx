@@ -1,107 +1,41 @@
-import { Button } from '@affine/component';
-import { FlexWrapper } from '@affine/component';
-import { Menu } from '@affine/component';
-import type {
-  Collection,
-  DeleteCollectionInfo,
-  Filter,
-} from '@affine/env/filter';
-import type { PropertiesMeta } from '@affine/env/filter';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { FilterIcon } from '@blocksuite/icons';
-import { useCallback, useState } from 'react';
+import { Button, FlexWrapper, Menu } from '@affine/component';
+import type { Filter, PropertiesMeta } from '@affine/env/filter';
+import { useI18n } from '@affine/i18n';
+import { FilterIcon } from '@blocksuite/icons/rc';
 
 import { CreateFilterMenu } from '../filter/vars';
-import type { useCollectionManager } from '../use-collection-manager';
 import * as styles from './collection-list.css';
-import { CollectionOperations } from './collection-operations';
-import {
-  type AllPageListConfig,
-  EditCollectionModal,
-} from './edit-collection/edit-collection';
 
-export const CollectionList = ({
-  setting,
+export const AllPageListOperationsMenu = ({
   propertiesMeta,
-  allPageListConfig,
-  userInfo,
+  filterList,
+  onChangeFilterList,
 }: {
-  setting: ReturnType<typeof useCollectionManager>;
   propertiesMeta: PropertiesMeta;
-  allPageListConfig: AllPageListConfig;
-  userInfo: DeleteCollectionInfo;
+  filterList: Filter[];
+  onChangeFilterList: (filterList: Filter[]) => void;
 }) => {
-  const t = useAFFiNEI18N();
-  const [collection, setCollection] = useState<Collection>();
-  const onChange = useCallback(
-    (filterList: Filter[]) => {
-      setting.updateCollection({
-        ...setting.currentCollection,
-        filterList,
-      });
-    },
-    [setting]
-  );
-  const closeUpdateCollectionModal = useCallback((open: boolean) => {
-    if (!open) {
-      setCollection(undefined);
-    }
-  }, []);
+  const t = useI18n();
 
-  const onConfirm = useCallback(
-    (view: Collection) => {
-      setting.updateCollection(view);
-      closeUpdateCollectionModal(false);
-    },
-    [closeUpdateCollectionModal, setting]
-  );
   return (
     <FlexWrapper alignItems="center">
-      {setting.isDefault ? (
-        <>
-          <Menu
-            items={
-              <CreateFilterMenu
-                propertiesMeta={propertiesMeta}
-                value={setting.currentCollection.filterList}
-                onChange={onChange}
-              />
-            }
-          >
-            <Button
-              className={styles.filterMenuTrigger}
-              type="default"
-              icon={<FilterIcon />}
-              data-testid="create-first-filter"
-            >
-              {t['com.affine.filter']()}
-            </Button>
-          </Menu>
-          <EditCollectionModal
-            allPageListConfig={allPageListConfig}
-            init={collection}
-            open={!!collection}
-            onOpenChange={closeUpdateCollectionModal}
-            onConfirm={onConfirm}
+      <Menu
+        items={
+          <CreateFilterMenu
+            propertiesMeta={propertiesMeta}
+            value={filterList}
+            onChange={onChangeFilterList}
           />
-        </>
-      ) : (
-        <CollectionOperations
-          info={userInfo}
-          collection={setting.currentCollection}
-          config={allPageListConfig}
-          setting={setting}
+        }
+      >
+        <Button
+          className={styles.filterMenuTrigger}
+          prefix={<FilterIcon />}
+          data-testid="create-first-filter"
         >
-          <Button
-            className={styles.filterMenuTrigger}
-            type="default"
-            icon={<FilterIcon />}
-            data-testid="create-first-filter"
-          >
-            {t['com.affine.filter']()}
-          </Button>
-        </CollectionOperations>
-      )}
+          {t['com.affine.filter']()}
+        </Button>
+      </Menu>
     </FlexWrapper>
   );
 };

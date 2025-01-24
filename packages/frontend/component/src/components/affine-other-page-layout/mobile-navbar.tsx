@@ -1,6 +1,6 @@
 import { IconButton } from '@affine/component/ui/button';
 import { Menu, MenuItem } from '@affine/component/ui/menu';
-import { CloseIcon, PropertyIcon } from '@blocksuite/icons';
+import { CloseIcon, PropertyIcon } from '@blocksuite/icons/rc';
 import { useState } from 'react';
 
 import * as styles from './index.css';
@@ -29,7 +29,7 @@ export const MobileNavbar = () => {
   );
 
   return (
-    <div>
+    <div className={styles.hideInWideScreen}>
       <Menu
         items={menuItems}
         contentOptions={{
@@ -41,7 +41,7 @@ export const MobileNavbar = () => {
           onOpenChange: setOpenMenu,
         }}
       >
-        <IconButton type="plain" className={styles.iconButton}>
+        <IconButton variant="plain" size="24" className={styles.iconButton}>
           {openMenu ? <CloseIcon /> : <PropertyIcon />}
         </IconButton>
       </Menu>

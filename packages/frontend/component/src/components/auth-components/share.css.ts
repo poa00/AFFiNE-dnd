@@ -1,17 +1,15 @@
+import { cssVar } from '@toeverything/theme';
 import { globalStyle, keyframes, style } from '@vanilla-extract/css';
-
 export const modalHeaderWrapper = style({});
-
 globalStyle(`${modalHeaderWrapper} .logo`, {
-  fontSize: 'var(--affine-font-h-3)',
+  fontSize: cssVar('fontH3'),
   fontWeight: 600,
-  color: 'var(--affine-blue)',
+  color: cssVar('black'),
   marginRight: '6px',
   verticalAlign: 'middle',
 });
-
 globalStyle(`${modalHeaderWrapper} > p:first-of-type`, {
-  fontSize: 'var(--affine-font-h-5)',
+  fontSize: cssVar('fontH5'),
   fontWeight: 600,
   marginBottom: '4px',
   lineHeight: '28px',
@@ -19,11 +17,10 @@ globalStyle(`${modalHeaderWrapper} > p:first-of-type`, {
   alignItems: 'center',
 });
 globalStyle(`${modalHeaderWrapper} > p:last-of-type`, {
-  fontSize: 'var(--affine-font-h-4)',
+  fontSize: cssVar('fontH4'),
   fontWeight: 600,
   lineHeight: '28px',
 });
-
 export const authInputWrapper = style({
   paddingBottom: '30px',
   position: 'relative',
@@ -33,34 +30,40 @@ export const authInputWrapper = style({
     },
   },
 });
-
 globalStyle(`${authInputWrapper} label`, {
   display: 'block',
-  color: 'var(--light-text-color-text-secondary-color, #8E8D91)',
+  color: cssVar('textSecondaryColor'),
   marginBottom: '4px',
-  fontSize: 'var(--affine-font-sm)',
+  fontSize: cssVar('fontSm'),
   fontWeight: 600,
   lineHeight: '22px',
 });
 export const formHint = style({
-  fontSize: 'var(--affine-font-sm)',
+  fontSize: cssVar('fontSm'),
   position: 'absolute',
   bottom: '4px',
+  height: '22px',
   left: 0,
   lineHeight: '22px',
   selectors: {
     '&.error': {
-      color: 'var(--affine-error-color)',
+      color: cssVar('errorColor'),
     },
     '&.warning': {
-      color: 'var(--affine-warning-color)',
+      color: cssVar('warningColor'),
     },
   },
 });
 const rotate = keyframes({
-  '0%': { transform: 'rotate(0deg)' },
-  '50%': { transform: 'rotate(180deg)' },
-  '100%': { transform: 'rotate(360deg)' },
+  '0%': {
+    transform: 'rotate(0deg)',
+  },
+  '50%': {
+    transform: 'rotate(180deg)',
+  },
+  '100%': {
+    transform: 'rotate(360deg)',
+  },
 });
 export const loading = style({
   width: '15px',
@@ -68,7 +71,7 @@ export const loading = style({
   position: 'relative',
   borderRadius: '50%',
   overflow: 'hidden',
-  backgroundColor: 'var(--affine-border-color)',
+  backgroundColor: cssVar('borderColor'),
   selectors: {
     '&::after': {
       content: '""',
@@ -88,7 +91,7 @@ export const loading = style({
       content: '""',
       width: '20px',
       height: '20px',
-      backgroundColor: 'var(--affine-blue)',
+      backgroundColor: cssVar('blue'),
       position: 'absolute',
       left: '50%',
       bottom: '50%',
@@ -98,16 +101,14 @@ export const loading = style({
     },
   },
 });
-
 export const authContent = style({
-  fontSize: 'var(--affine-font-base)',
-  lineHeight: 'var(--affine-font-h-3)',
+  fontSize: cssVar('fontBase'),
+  lineHeight: cssVar('fontH3'),
   marginTop: '30px',
 });
 globalStyle(`${authContent} a`, {
-  color: 'var(--affine-link-color)',
+  color: cssVar('linkColor'),
 });
-
 export const authCodeContainer = style({
   paddingBottom: '40px',
   position: 'relative',
@@ -117,10 +118,9 @@ export const authCodeWrapper = style({
   justifyContent: 'space-between',
   alignItems: 'center',
 });
-
 export const authCodeErrorMessage = style({
-  color: 'var(--affine-error-color)',
-  fontSize: 'var(--affine-font-sm)',
+  color: cssVar('errorColor'),
+  fontSize: cssVar('fontSm'),
   textAlign: 'center',
   lineHeight: '1.5',
   position: 'absolute',
@@ -129,7 +129,6 @@ export const authCodeErrorMessage = style({
   bottom: 5,
   margin: 'auto',
 });
-
 export const resendButtonWrapper = style({
   height: 32,
   display: 'flex',
@@ -137,20 +136,18 @@ export const resendButtonWrapper = style({
   alignItems: 'center',
   marginTop: 30,
 });
-
 globalStyle(`${resendButtonWrapper} .resend-code-hint`, {
   fontWeight: 600,
-  fontSize: 'var(--affine-font-sm)',
+  fontSize: cssVar('fontSm'),
   marginRight: 8,
 });
-
 export const authPageContainer = style({
   height: '100vh',
   width: '100vw',
   display: 'flex',
   justifyContent: 'center',
   alignItems: 'center',
-  fontSize: 'var(--affine-font-base)',
+  fontSize: cssVar('fontBase'),
   '@media': {
     'screen and (max-width: 1024px)': {
       flexDirection: 'column',
@@ -162,34 +159,53 @@ export const authPageContainer = style({
 globalStyle(`${authPageContainer} .wrapper`, {
   display: 'flex',
   alignItems: 'center',
+  width: '100%',
+  justifyContent: 'center',
+  overflow: 'hidden',
   '@media': {
     'screen and (max-width: 1024px)': {
       flexDirection: 'column',
+      justifyContent: 'flex-start',
     },
   },
 });
 globalStyle(`${authPageContainer} .content`, {
-  maxWidth: '700px',
+  maxWidth: '810px',
+  '@media': {
+    'screen and (min-width: 1024px)': {
+      marginLeft: '200px',
+      minWidth: '500px',
+      marginRight: '60px',
+      flexGrow: 1,
+      flexShrink: 0,
+      flexBasis: 0,
+    },
+    'screen and (max-width: 1024px)': {
+      maxWidth: '600px',
+      width: '100%',
+      margin: 'auto',
+    },
+  },
 });
-
 globalStyle(`${authPageContainer} .title`, {
-  fontSize: 'var(--affine-font-title)',
+  fontSize: cssVar('fontTitle'),
   fontWeight: 600,
   marginBottom: '28px',
 });
-
 globalStyle(`${authPageContainer} .subtitle`, {
   marginBottom: '28px',
 });
 globalStyle(`${authPageContainer} a`, {
-  color: 'var(--affine-link-color)',
+  color: cssVar('linkColor'),
 });
-
 export const signInPageContainer = style({
-  width: '400px',
-  margin: '205px auto 0',
+  height: '100vh',
+  width: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  justifyContent: 'center',
+  alignItems: 'center',
 });
-
 export const input = style({
   width: '330px',
   '@media': {
@@ -197,4 +213,17 @@ export const input = style({
       width: '100%',
     },
   },
+});
+
+export const hideInSmallScreen = style({
+  '@media': {
+    'screen and (max-width: 1024px)': {
+      display: 'none',
+    },
+  },
+});
+
+export const illustration = style({
+  flexShrink: 0,
+  width: '670px',
 });

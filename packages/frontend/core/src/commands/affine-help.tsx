@@ -1,16 +1,19 @@
-import type { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { ContactWithUsIcon, NewIcon, UserGuideIcon } from '@blocksuite/icons';
-import { registerAffineCommand } from '@toeverything/infra/command';
-import type { createStore } from 'jotai';
+import type { useI18n } from '@affine/i18n';
+import { track } from '@affine/track';
+import { ContactWithUsIcon, NewIcon } from '@blocksuite/icons/rc';
 
-import { openOnboardingModalAtom, openSettingModalAtom } from '../atoms';
+import type { WorkspaceDialogService } from '../modules/dialogs';
+import type { UrlService } from '../modules/url';
+import { registerAffineCommand } from './registry';
 
 export function registerAffineHelpCommands({
   t,
-  store,
+  urlService,
+  workspaceDialogService,
 }: {
-  t: ReturnType<typeof useAFFiNEI18N>;
-  store: ReturnType<typeof createStore>;
+  t: ReturnType<typeof useI18n>;
+  urlService: UrlService;
+  workspaceDialogService: WorkspaceDialogService;
 }) {
   const unsubs: Array<() => void> = [];
   unsubs.push(
@@ -20,7 +23,8 @@ export function registerAffineHelpCommands({
       icon: <NewIcon />,
       label: t['com.affine.cmdk.affine.whats-new'](),
       run() {
-        window.open(runtimeConfig.changelogUrl, '_blank');
+        track.$.cmdk.help.openChangelog();
+        urlService.openPopupWindow(BUILD_CONFIG.changelogUrl);
       },
     })
   );
@@ -31,23 +35,10 @@ export function registerAffineHelpCommands({
       icon: <ContactWithUsIcon />,
       label: t['com.affine.cmdk.affine.contact-us'](),
       run() {
-        store.set(openSettingModalAtom, {
-          open: true,
+        track.$.cmdk.help.contactUs();
+        workspaceDialogService.open('setting', {
           activeTab: 'about',
-          workspaceMetadata: null,
         });
-      },
-    })
-  );
-  unsubs.push(
-    registerAffineCommand({
-      id: 'affine:help-getting-started',
-      category: 'affine:help',
-      icon: <UserGuideIcon />,
-      label: t['com.affine.cmdk.affine.getting-started'](),
-      preconditionStrategy: () => environment.isDesktop,
-      run() {
-        store.set(openOnboardingModalAtom, true);
       },
     })
   );

@@ -1,12 +1,12 @@
-import { Button } from '@affine/component';
+import { Button, usePromptModal } from '@affine/component';
 import type { Collection } from '@affine/env/filter';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { SaveIcon } from '@blocksuite/icons';
+import { useI18n } from '@affine/i18n';
+import { SaveIcon } from '@blocksuite/icons/rc';
 import { nanoid } from 'nanoid';
 import { useCallback } from 'react';
 
 import { createEmptyCollection } from '../use-collection-manager';
-import { useEditCollectionName } from './use-edit-collection';
+import * as styles from './save-as-collection-button.css';
 
 interface SaveAsCollectionButtonProps {
   onConfirm: (collection: Collection) => void;
@@ -15,32 +15,38 @@ interface SaveAsCollectionButtonProps {
 export const SaveAsCollectionButton = ({
   onConfirm,
 }: SaveAsCollectionButtonProps) => {
-  const t = useAFFiNEI18N();
-  const { open, node } = useEditCollectionName({
-    title: t['com.affine.editCollection.saveCollection'](),
-    showTips: true,
-  });
+  const t = useI18n();
+  const { openPromptModal } = usePromptModal();
   const handleClick = useCallback(() => {
-    open('')
-      .then(name => {
-        return onConfirm(createEmptyCollection(nanoid(), { name }));
-      })
-      .catch(err => {
-        console.error(err);
-      });
-  }, [open, onConfirm]);
+    openPromptModal({
+      title: t['com.affine.editCollection.saveCollection'](),
+      label: t['com.affine.editCollectionName.name'](),
+      inputOptions: {
+        placeholder: t['com.affine.editCollectionName.name.placeholder'](),
+      },
+      children: (
+        <div className={styles.createTips}>
+          {t['com.affine.editCollectionName.createTips']()}
+        </div>
+      ),
+      confirmText: t['com.affine.editCollection.save'](),
+      cancelText: t['com.affine.editCollection.button.cancel'](),
+      confirmButtonOptions: {
+        variant: 'primary',
+      },
+      onConfirm(name) {
+        onConfirm(createEmptyCollection(nanoid(), { name }));
+      },
+    });
+  }, [openPromptModal, t, onConfirm]);
   return (
-    <>
-      <Button
-        onClick={handleClick}
-        data-testid="save-as-collection"
-        icon={<SaveIcon />}
-        size="large"
-        style={{ padding: '7px 8px' }}
-      >
-        {t['com.affine.editCollection.saveCollection']()}
-      </Button>
-      {node}
-    </>
+    <Button
+      onClick={handleClick}
+      data-testid="save-as-collection"
+      prefix={<SaveIcon />}
+      className={styles.button}
+    >
+      {t['com.affine.editCollection.saveCollection']()}
+    </Button>
   );
 };

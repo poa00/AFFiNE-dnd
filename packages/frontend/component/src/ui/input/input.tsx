@@ -1,24 +1,22 @@
 import clsx from 'clsx';
 import type {
-  ChangeEvent,
   CSSProperties,
-  FocusEvent,
-  FocusEventHandler,
   ForwardedRef,
   InputHTMLAttributes,
-  KeyboardEvent,
   KeyboardEventHandler,
   ReactNode,
 } from 'react';
-import { forwardRef, useCallback, useState } from 'react';
+import { forwardRef } from 'react';
 
-import { input, inputWrapper } from './style.css';
+import { RowInput } from './row-input';
+import { input, inputWrapper, mobileInputWrapper } from './style.css';
 
 export type InputProps = {
   disabled?: boolean;
   onChange?: (value: string) => void;
-  onBlur?: FocusEventHandler<HTMLInputElement>;
+  onBlur?: (ev: FocusEvent & { currentTarget: HTMLInputElement }) => void;
   onKeyDown?: KeyboardEventHandler<HTMLInputElement>;
+  autoSelect?: boolean;
   noBorder?: boolean;
   status?: 'error' | 'success' | 'warning' | 'default';
   size?: 'default' | 'large' | 'extraLarge';
@@ -27,7 +25,7 @@ export type InputProps = {
   type?: HTMLInputElement['type'];
   inputStyle?: CSSProperties;
   onEnter?: () => void;
-} & Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'size'>;
+} & Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'size' | 'onBlur'>;
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   {
@@ -39,83 +37,55 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     style = {},
     inputStyle = {},
     size = 'default',
-    onFocus,
-    onBlur,
     preFix,
     endFix,
     onEnter,
     onKeyDown,
+    onBlur,
     autoFocus,
+    autoSelect,
     ...otherProps
   }: InputProps,
-  ref: ForwardedRef<HTMLInputElement>
+  upstreamRef: ForwardedRef<HTMLInputElement>
 ) {
-  const [isFocus, setIsFocus] = useState(false);
-
-  const handleAutoFocus = useCallback((ref: HTMLInputElement | null) => {
-    if (ref) {
-      window.setTimeout(() => ref.focus(), 0);
-    }
-  }, []);
-
   return (
     <div
-      className={clsx(inputWrapper, className, {
-        // status
-        disabled: disabled,
-        'no-border': noBorder,
-        focus: isFocus,
-        // color
-        error: status === 'error',
-        success: status === 'success',
-        warning: status === 'warning',
-        default: status === 'default',
-        // size
-        large: size === 'large',
-        'extra-large': size === 'extraLarge',
-      })}
+      className={clsx(
+        BUILD_CONFIG.isMobileEdition ? mobileInputWrapper : inputWrapper,
+        className,
+        {
+          // status
+          disabled: disabled,
+          'no-border': noBorder,
+          // color
+          error: status === 'error',
+          success: status === 'success',
+          warning: status === 'warning',
+          default: status === 'default',
+          // size
+          large: size === 'large',
+          'extra-large': size === 'extraLarge',
+        }
+      )}
       style={{
         ...style,
       }}
     >
       {preFix}
-      <input
+      <RowInput
         className={clsx(input, {
           large: size === 'large',
           'extra-large': size === 'extraLarge',
         })}
-        ref={autoFocus ? handleAutoFocus : ref}
+        ref={upstreamRef}
         disabled={disabled}
         style={inputStyle}
-        onFocus={useCallback(
-          (e: FocusEvent<HTMLInputElement>) => {
-            setIsFocus(true);
-            onFocus?.(e);
-          },
-          [onFocus]
-        )}
-        onBlur={useCallback(
-          (e: FocusEvent<HTMLInputElement>) => {
-            setIsFocus(false);
-            onBlur?.(e);
-          },
-          [onBlur]
-        )}
-        onChange={useCallback(
-          (e: ChangeEvent<HTMLInputElement>) => {
-            propsOnChange?.(e.target.value);
-          },
-          [propsOnChange]
-        )}
-        onKeyDown={useCallback(
-          (e: KeyboardEvent<HTMLInputElement>) => {
-            if (e.key === 'Enter') {
-              onEnter?.();
-            }
-            onKeyDown?.(e);
-          },
-          [onKeyDown, onEnter]
-        )}
+        onChange={propsOnChange}
+        onEnter={onEnter}
+        onKeyDown={onKeyDown}
+        onBlur={onBlur}
+        autoFocus={autoFocus}
+        autoSelect={autoSelect}
         {...otherProps}
       />
       {endFix}
