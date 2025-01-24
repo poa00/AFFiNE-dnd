@@ -1,16 +1,15 @@
-import { toast } from '@affine/component';
-import { useTrashModalHelper } from '@affine/core/hooks/affine/use-trash-modal-helper';
-import { useBlockSuiteDocMeta } from '@affine/core/hooks/use-block-suite-page-meta';
+import { toast, useConfirmModal } from '@affine/component';
+import { useBlockSuiteDocMeta } from '@affine/core/components/hooks/use-block-suite-page-meta';
 import { CollectionService } from '@affine/core/modules/collection';
+import { DocsService } from '@affine/core/modules/doc';
 import type { Tag } from '@affine/core/modules/tag';
+import { WorkspaceService } from '@affine/core/modules/workspace';
 import type { Collection, Filter } from '@affine/env/filter';
-import { Trans } from '@affine/i18n';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import type { DocMeta } from '@blocksuite/store';
-import { useService, WorkspaceService } from '@toeverything/infra';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { Trans, useI18n } from '@affine/i18n';
+import type { DocMeta } from '@blocksuite/affine/store';
+import { useService } from '@toeverything/infra';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 
-import { usePageHelper } from '../../blocksuite/block-suite-page-list/utils';
 import { ListFloatingToolbar } from '../components/list-floating-toolbar';
 import { usePageItemGroupDefinitions } from '../group-definitions';
 import { usePageHeaderColsDef } from '../header-col-def';
@@ -19,7 +18,6 @@ import { PageListItemRenderer } from '../page-group';
 import { ListTableHeader } from '../page-header';
 import type { ItemListHandle, ListItem } from '../types';
 import { useFilteredPageMetas } from '../use-filtered-page-metas';
-import type { AllPageListConfig } from '../view/edit-collection/edit-collection';
 import { VirtualizedList } from '../virtualized-list';
 import {
   CollectionPageListHeader,
@@ -28,7 +26,7 @@ import {
 } from './page-list-header';
 
 const usePageOperationsRenderer = () => {
-  const t = useAFFiNEI18N();
+  const t = useI18n();
   const collectionService = useService(CollectionService);
   const removeFromAllowList = useCallback(
     (id: string) => {
@@ -52,28 +50,27 @@ const usePageOperationsRenderer = () => {
   return pageOperationsRenderer;
 };
 
-export const VirtualizedPageList = ({
+export const VirtualizedPageList = memo(function VirtualizedPageList({
   tag,
   collection,
   filters,
-  config,
   listItem,
   setHideHeaderCreateNewPage,
 }: {
   tag?: Tag;
   collection?: Collection;
   filters?: Filter[];
-  config?: AllPageListConfig;
   listItem?: DocMeta[];
   setHideHeaderCreateNewPage?: (hide: boolean) => void;
-}) => {
+}) {
+  const t = useI18n();
   const listRef = useRef<ItemListHandle>(null);
   const [showFloatingToolbar, setShowFloatingToolbar] = useState(false);
   const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
   const currentWorkspace = useService(WorkspaceService).workspace;
+  const docsService = useService(DocsService);
   const pageMetas = useBlockSuiteDocMeta(currentWorkspace.docCollection);
   const pageOperations = usePageOperationsRenderer();
-  const { isPreferredEdgeless } = usePageHelper(currentWorkspace.docCollection);
   const pageHeaderColsDef = usePageHeaderColsDef();
 
   const filteredPageMetas = useFilteredPageMetas(pageMetas, {
@@ -88,8 +85,8 @@ export const VirtualizedPageList = ({
   }, [filteredPageMetas, listItem]);
 
   const filteredSelectedPageIds = useMemo(() => {
-    const ids = pageMetasToRender.map(page => page.id);
-    return selectedPageIds.filter(id => ids.includes(id));
+    const ids = new Set(pageMetasToRender.map(page => page.id));
+    return selectedPageIds.filter(id => ids.has(id));
   }, [pageMetasToRender, selectedPageIds]);
 
   const hideFloatingToolbar = useCallback(() => {
@@ -117,35 +114,53 @@ export const VirtualizedPageList = ({
     if (tag) {
       return <TagPageListHeader workspaceId={currentWorkspace.id} tag={tag} />;
     }
-    if (collection && config) {
+    if (collection) {
       return (
         <CollectionPageListHeader
           workspaceId={currentWorkspace.id}
           collection={collection}
-          config={config}
         />
       );
     }
     return <PageListHeader />;
-  }, [collection, config, currentWorkspace.id, tag]);
+  }, [collection, currentWorkspace.id, tag]);
 
-  const { setTrashModal } = useTrashModalHelper(currentWorkspace.docCollection);
+  const { openConfirmModal } = useConfirmModal();
 
   const handleMultiDelete = useCallback(() => {
-    const pageNameMapping = Object.fromEntries(
-      pageMetas.map(meta => [meta.id, meta.title])
-    );
+    if (filteredSelectedPageIds.length === 0) {
+      return;
+    }
 
-    const pageNames = filteredSelectedPageIds.map(
-      id => pageNameMapping[id] ?? ''
-    );
-    setTrashModal({
-      open: true,
-      pageIds: filteredSelectedPageIds,
-      pageTitles: pageNames,
+    openConfirmModal({
+      title: t['com.affine.moveToTrash.confirmModal.title.multiple']({
+        number: filteredSelectedPageIds.length.toString(),
+      }),
+      description: t[
+        'com.affine.moveToTrash.confirmModal.description.multiple'
+      ]({
+        number: filteredSelectedPageIds.length.toString(),
+      }),
+      cancelText: t['com.affine.confirmModal.button.cancel'](),
+      confirmText: t.Delete(),
+      confirmButtonOptions: {
+        variant: 'error',
+      },
+      onConfirm: () => {
+        for (const docId of filteredSelectedPageIds) {
+          const doc = docsService.list.doc$(docId).value;
+          doc?.moveToTrash();
+        }
+      },
     });
     hideFloatingToolbar();
-  }, [filteredSelectedPageIds, hideFloatingToolbar, pageMetas, setTrashModal]);
+  }, [
+    docsService.list,
+    filteredSelectedPageIds,
+    hideFloatingToolbar,
+    openConfirmModal,
+    t,
+  ]);
 
   const group = usePageItemGroupDefinitions();
 
@@ -164,14 +179,13 @@ export const VirtualizedPageList = ({
         onSelectedIdsChange={setSelectedPageIds}
         items={pageMetasToRender}
         rowAsLink
-        isPreferredEdgeless={isPreferredEdgeless}
         docCollection={currentWorkspace.docCollection}
         operationsRenderer={pageOperationRenderer}
         itemRenderer={pageItemRenderer}
         headerRenderer={pageHeaderRenderer}
       />
       <ListFloatingToolbar
-        open={showFloatingToolbar && filteredSelectedPageIds.length > 0}
+        open={showFloatingToolbar}
         onDelete={handleMultiDelete}
         onClose={hideFloatingToolbar}
         content={
@@ -188,4 +202,4 @@ export const VirtualizedPageList = ({
       />
     </>
   );
-};
+});

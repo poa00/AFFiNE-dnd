@@ -18,7 +18,7 @@ export interface SliderProps<T> extends HTMLAttributes<HTMLDivElement> {
 }
 
 /**
- * TODO: extract to @affine/ui
+ * TODO(@catsjuice): extract to @affine/ui
  * @returns
  */
 export const Slider = <T,>({
@@ -46,7 +46,7 @@ export const Slider = <T,>({
         }}
       >
         {items?.map((item, index) => (
-          <div key={index} className={styles.slideItem}>
+          <div key={`${item}-${index}`} className={styles.slideItem}>
             {preload === undefined || Math.abs(index - activeIndex) <= preload
               ? itemRenderer?.(item, index)
               : null}

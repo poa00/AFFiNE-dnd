@@ -1,13 +1,8 @@
 import { Avatar } from '@affine/component/ui/avatar';
-import {
-  Menu,
-  MenuIcon,
-  MenuItem,
-  MenuSeparator,
-} from '@affine/component/ui/menu';
-import { useAsyncCallback } from '@affine/core/hooks/affine-async-hooks';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { SignOutIcon } from '@blocksuite/icons';
+import { Menu, MenuItem, MenuSeparator } from '@affine/component/ui/menu';
+import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
+import { useI18n } from '@affine/i18n';
+import { SignOutIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
 import { useEffect, useMemo } from 'react';
 
@@ -24,7 +19,7 @@ const UserInfo = () => {
   const plan = useLiveData(subscription.pro$)?.plan;
 
   if (!user) {
-    // TODO: loading UI
+    // TODO(@eyhn): loading UI
     return null;
   }
   return (
@@ -54,7 +49,7 @@ const UserInfo = () => {
 export const PublishPageUserAvatar = () => {
   const authService = useService(AuthService);
   const user = useLiveData(authService.session.account$);
-  const t = useAFFiNEI18N();
+  const t = useI18n();
 
   const handleSignOut = useAsyncCallback(async () => {
     await authService.signOut();
@@ -66,11 +61,7 @@ export const PublishPageUserAvatar = () => {
         <UserInfo />
         <MenuSeparator />
         <MenuItem
-          preFix={
-            <MenuIcon>
-              <SignOutIcon />
-            </MenuIcon>
-          }
+          prefixIcon={<SignOutIcon />}
           data-testid="share-page-sign-out-option"
           onClick={handleSignOut}
         >
@@ -88,9 +79,7 @@ export const PublishPageUserAvatar = () => {
     <Menu
       items={menuItem}
       contentOptions={{
-        style: {
-          transform: 'translateX(-16px)',
-        },
+        align: 'end',
       }}
     >
       <div className={styles.iconWrapper} data-testid="share-page-user-avatar">

@@ -1,8 +1,8 @@
-import { useAppUpdater } from '@affine/core/hooks/use-app-updater';
+import { useAppUpdater } from '@affine/core/components/hooks/use-app-updater';
+import { AppUpdaterButton } from '@affine/core/modules/app-sidebar/views';
+import { Suspense } from 'react';
 
-import { AppUpdaterButton } from '../app-sidebar';
-
-export const UpdaterButton = () => {
+const UpdaterButtonInner = () => {
   const appUpdater = useAppUpdater();
 
   return (
@@ -18,5 +18,13 @@ export const UpdaterButton = () => {
       downloadProgress={appUpdater.downloadProgress}
       appQuitting={appUpdater.appQuitting}
     />
+  );
+};
+
+export const UpdaterButton = () => {
+  return (
+    <Suspense>
+      <UpdaterButtonInner />
+    </Suspense>
   );
 };

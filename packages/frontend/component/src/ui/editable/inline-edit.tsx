@@ -47,11 +47,6 @@ export interface InlineEditProps
   trigger?: 'click' | 'doubleClick';
 
   /**
-   * whether to auto select all text when trigger edit
-   */
-  autoSelect?: boolean;
-
-  /**
    * Placeholder when value is empty
    */
   placeholder?: string;
@@ -79,7 +74,6 @@ export const InlineEdit = ({
   className,
   style,
   trigger = 'doubleClick',
-  autoSelect,
 
   onInput,
   onChange,
@@ -104,11 +98,7 @@ export const InlineEdit = ({
   const triggerEdit = useCallback(() => {
     if (!editable) return;
     setEditing(true);
-    setTimeout(() => {
-      inputRef.current?.focus();
-      autoSelect && inputRef.current?.select();
-    }, 0);
-  }, [autoSelect, editable]);
+  }, [editable]);
 
   const onDoubleClick = useCallback(() => {
     if (trigger !== 'doubleClick') return;
@@ -179,8 +169,8 @@ export const InlineEdit = ({
   } as CSSProperties;
   const inputInheritsStyles = {
     ...inputWrapperInheritsStyles,
-    padding: undefined,
-    margin: undefined,
+    padding: 0,
+    margin: 0,
   };
 
   return (
@@ -208,21 +198,23 @@ export const InlineEdit = ({
       </div>
 
       {/* actual input */}
-      {
+      {editing && (
         <Input
           ref={inputRef}
           className={styles.inlineEditInput}
           value={editingValue}
           placeholder={placeholder}
-          onBlur={onBlur}
           onEnter={onEnter}
           onKeyDown={onKeyDown}
           onChange={inputHandler}
           style={inputWrapperInheritsStyles}
           inputStyle={inputInheritsStyles}
+          onBlur={onBlur}
+          autoFocus
+          autoSelect
           {...inputAttrs}
         />
-      }
+      )}
     </div>
   );
 };

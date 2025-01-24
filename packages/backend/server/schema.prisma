@@ -11,41 +11,46 @@ datasource db {
 
 model User {
   id              String    @id @default(uuid()) @db.VarChar
-  name            String
-  email           String    @unique
-  emailVerifiedAt DateTime? @map("email_verified")
+  name            String    @db.VarChar
+  email           String    @unique @db.VarChar
+  emailVerifiedAt DateTime? @map("email_verified") @db.Timestamptz(3)
   avatarUrl       String?   @map("avatar_url") @db.VarChar
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   /// Not available if user signed up through OAuth providers
   password        String?   @db.VarChar
   /// Indicate whether the user finished the signup progress.
   /// for example, the value will be false if user never registered and invited into a workspace by others.
   registered      Boolean   @default(true)
 
-  features             UserFeatures[]
-  customer             UserStripeCustomer?
-  subscriptions        UserSubscription[]
-  invoices             UserInvoice[]
-  workspacePermissions WorkspaceUserPermission[]
-  pagePermissions      WorkspacePageUserPermission[]
-  connectedAccounts    ConnectedAccount[]
-  sessions             UserSession[]
-  aiSessions           AiSession[]
+  features              UserFeature[]
+  userStripeCustomer    UserStripeCustomer?
+  workspacePermissions  WorkspaceUserPermission[]
+  pagePermissions       WorkspacePageUserPermission[]
+  connectedAccounts     ConnectedAccount[]
+  sessions              UserSession[]
+  aiSessions            AiSession[]
+  updatedRuntimeConfigs RuntimeConfig[]
+  userSnapshots         UserSnapshot[]
+  createdSnapshot       Snapshot[]                    @relation("createdSnapshot")
+  updatedSnapshot       Snapshot[]                    @relation("updatedSnapshot")
+  createdUpdate         Update[]                      @relation("createdUpdate")
+  createdHistory        SnapshotHistory[]             @relation("createdHistory")
 
+  @@index([email])
   @@map("users")
 }
 
 model ConnectedAccount {
-  id                String    @id @default(uuid()) @db.VarChar(36)
-  userId            String    @map("user_id") @db.VarChar(36)
+  id                String    @id @default(uuid()) @db.VarChar
+  userId            String    @map("user_id") @db.VarChar
   provider          String    @db.VarChar
   providerAccountId String    @map("provider_account_id") @db.VarChar
   scope             String?   @db.Text
   accessToken       String?   @map("access_token") @db.Text
   refreshToken      String?   @map("refresh_token") @db.Text
-  expiresAt         DateTime? @map("expires_at") @db.Timestamptz(6)
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  expiresAt         DateTime? @map("expires_at") @db.Timestamptz(3)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -55,21 +60,22 @@ model ConnectedAccount {
 }
 
 model Session {
-  id        String    @id @default(uuid()) @db.VarChar(36)
-  expiresAt DateTime? @map("expires_at") @db.Timestamptz(6)
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-
+  id           String        @id @default(uuid()) @db.VarChar
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   userSessions UserSession[]
+
+  // @deprecated use [UserSession.expiresAt]
+  deprecated_expiresAt DateTime? @map("expires_at") @db.Timestamptz(3)
 
   @@map("multiple_users_sessions")
 }
 
 model UserSession {
-  id        String    @id @default(uuid()) @db.VarChar(36)
-  sessionId String    @map("session_id") @db.VarChar(36)
-  userId    String    @map("user_id") @db.VarChar(36)
-  expiresAt DateTime? @map("expires_at") @db.Timestamptz(6)
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  id        String    @id @default(uuid()) @db.VarChar
+  sessionId String    @map("session_id") @db.VarChar
+  userId    String    @map("user_id") @db.VarChar
+  expiresAt DateTime? @map("expires_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -79,24 +85,28 @@ model UserSession {
 }
 
 model VerificationToken {
-  token      String   @db.VarChar(36)
+  token      String   @db.VarChar
   type       Int      @db.SmallInt
   credential String?  @db.Text
-  expiresAt  DateTime @db.Timestamptz(6)
+  expiresAt  DateTime @db.Timestamptz(3)
 
   @@unique([type, token])
   @@map("verification_tokens")
 }
 
 model Workspace {
-  id        String   @id @default(uuid()) @db.VarChar
-  public    Boolean
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id               String   @id @default(uuid()) @db.VarChar
+  public           Boolean
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  // workspace level feature flags
+  enableAi         Boolean  @default(true) @map("enable_ai")
+  enableUrlPreview Boolean  @default(false) @map("enable_url_preview")
 
   pages           WorkspacePage[]
   permissions     WorkspaceUserPermission[]
   pagePermissions WorkspacePageUserPermission[]
-  features        WorkspaceFeatures[]
+  features        WorkspaceFeature[]
+  blobs           Blob[]
 
   @@map("workspaces")
 }
@@ -107,8 +117,8 @@ model Workspace {
 //   Only the ones that have ever changed will have records here,
 //   and for others we will make sure it's has a default value return in our bussiness logic.
 model WorkspacePage {
-  workspaceId String  @map("workspace_id") @db.VarChar(36)
-  pageId      String  @map("page_id") @db.VarChar(36)
+  workspaceId String  @map("workspace_id") @db.VarChar
+  pageId      String  @map("page_id") @db.VarChar
   public      Boolean @default(false)
   // Page/Edgeless
   mode        Int     @default(0) @db.SmallInt
@@ -119,49 +129,47 @@ model WorkspacePage {
   @@map("workspace_pages")
 }
 
-// @deprecated, use WorkspaceUserPermission
-model DeprecatedUserWorkspacePermission {
-  id          String   @id @default(uuid()) @db.VarChar
-  workspaceId String   @map("workspace_id") @db.VarChar
-  subPageId   String?  @map("sub_page_id") @db.VarChar
-  userId      String?  @map("entity_id") @db.VarChar
-  /// Read/Write/Admin/Owner
-  type        Int      @db.SmallInt
-  /// Whether the permission invitation is accepted by the user
-  accepted    Boolean  @default(false)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  @@unique([workspaceId, subPageId, userId])
-  @@map("user_workspace_permissions")
+enum WorkspaceMemberStatus {
+  Pending // 1. old state accepted = false
+  NeedMoreSeat // 2.1 for team: workspace owner need to buy more seat
+  NeedMoreSeatAndReview // 2.2 for team: workspace owner need to buy more seat and member need review
+  UnderReview // 3. for team: member is under review
+  Accepted // 4. old state accepted = true
 }
 
 model WorkspaceUserPermission {
-  id          String   @id @default(uuid()) @db.VarChar(36)
-  workspaceId String   @map("workspace_id") @db.VarChar(36)
-  userId      String   @map("user_id") @db.VarChar(36)
+  id          String                @id @default(uuid()) @db.VarChar
+  workspaceId String                @map("workspace_id") @db.VarChar
+  userId      String                @map("user_id") @db.VarChar
   // Read/Write
-  type        Int      @db.SmallInt
-  /// Whether the permission invitation is accepted by the user
-  accepted    Boolean  @default(false)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  type        Int                   @db.SmallInt
+  /// @deprecated Whether the permission invitation is accepted by the user
+  accepted    Boolean               @default(false)
+  /// Whether the invite status of the workspace member
+  status      WorkspaceMemberStatus @default(Pending)
+  createdAt   DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// When the invite status changed
+  updatedAt   DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, userId])
+  // optimize for querying user's workspace permissions
+  @@index(userId)
   @@map("workspace_user_permissions")
 }
 
 model WorkspacePageUserPermission {
-  id          String   @id @default(uuid()) @db.VarChar(36)
-  workspaceId String   @map("workspace_id") @db.VarChar(36)
-  pageId      String   @map("page_id") @db.VarChar(36)
-  userId      String   @map("user_id") @db.VarChar(36)
+  id          String   @id @default(uuid()) @db.VarChar
+  workspaceId String   @map("workspace_id") @db.VarChar
+  pageId      String   @map("page_id") @db.VarChar
+  userId      String   @map("user_id") @db.VarChar
   // Read/Write
   type        Int      @db.SmallInt
   /// Whether the permission invitation is accepted by the user
   accepted    Boolean  @default(false)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -174,9 +182,9 @@ model WorkspacePageUserPermission {
 // for example:
 // - early access is a feature that allow some users to access the insider version
 // - pro plan is a quota that allow some users access to more resources after they pay
-model UserFeatures {
+model UserFeature {
   id        Int    @id @default(autoincrement())
-  userId    String @map("user_id") @db.VarChar(36)
+  userId    String @map("user_id") @db.VarChar
   featureId Int    @map("feature_id") @db.Integer
 
   // we will record the reason why the feature is enabled/disabled
@@ -184,129 +192,66 @@ model UserFeatures {
   // - pro_plan_v1: "user buy the pro plan"
   reason    String    @db.VarChar
   // record the quota enabled time
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   // record the quota expired time, pay plan is a subscription, so it will expired
-  expiredAt DateTime? @map("expired_at") @db.Timestamptz(6)
+  expiredAt DateTime? @map("expired_at") @db.Timestamptz(3)
   // whether the feature is activated
   // for example:
   // - if we switch the user to another plan, we will set the old plan to deactivated, but dont delete it
   activated Boolean   @default(false)
 
-  feature Features @relation(fields: [featureId], references: [id], onDelete: Cascade)
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feature Feature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("user_features")
 }
 
 // feature gates is a way to enable/disable features for a workspace
 // for example:
 // - copilet is a feature that allow some users in a workspace to access the copilet feature
-model WorkspaceFeatures {
+model WorkspaceFeature {
   id          Int    @id @default(autoincrement())
-  workspaceId String @map("workspace_id") @db.VarChar(36)
+  workspaceId String @map("workspace_id") @db.VarChar
   featureId   Int    @map("feature_id") @db.Integer
 
+  // override quota's configs
+  configs   Json      @default("{}") @db.Json
   // we will record the reason why the feature is enabled/disabled
   // for example:
   // - copilet_v1: "owner buy the copilet feature package"
   reason    String    @db.VarChar
   // record the feature enabled time
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   // record the quota expired time, pay plan is a subscription, so it will expired
-  expiredAt DateTime? @map("expired_at") @db.Timestamptz(6)
+  expiredAt DateTime? @map("expired_at") @db.Timestamptz(3)
   // whether the feature is activated
   // for example:
   // - if owner unsubscribe a feature package, we will set the feature to deactivated, but dont delete it
   activated Boolean   @default(false)
 
-  feature   Features  @relation(fields: [featureId], references: [id], onDelete: Cascade)
+  feature   Feature   @relation(fields: [featureId], references: [id], onDelete: Cascade)
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
+  @@index([workspaceId])
   @@map("workspace_features")
 }
 
-model Features {
+model Feature {
   id        Int      @id @default(autoincrement())
   feature   String   @db.VarChar
   version   Int      @default(0) @db.Integer
   // 0: feature, 1: quota
   type      Int      @db.Integer
-  // configs, define by feature conntroller
+  // configs, define by feature controller
   configs   Json     @db.Json
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  UserFeatureGates  UserFeatures[]
-  WorkspaceFeatures WorkspaceFeatures[]
+  UserFeatureGates  UserFeature[]
+  WorkspaceFeatures WorkspaceFeature[]
 
   @@unique([feature, version])
   @@map("features")
-}
-
-model DeprecatedNextAuthAccount {
-  id                String  @id @default(cuid())
-  userId            String  @map("user_id")
-  type              String
-  provider          String
-  providerAccountId String  @map("provider_account_id")
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
-
-  @@unique([provider, providerAccountId])
-  @@map("accounts")
-}
-
-model DeprecatedNextAuthSession {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique @map("session_token")
-  userId       String   @map("user_id")
-  expires      DateTime
-
-  @@map("sessions")
-}
-
-model DeprecatedNextAuthVerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-  @@map("verificationtokens")
-}
-
-// deprecated, use [ObjectStorage]
-model Blob {
-  id          Int       @id @default(autoincrement()) @db.Integer
-  hash        String    @db.VarChar
-  workspaceId String    @map("workspace_id") @db.VarChar
-  blob        Bytes     @db.ByteA
-  length      BigInt
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  // not for keeping, but for snapshot history
-  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
-
-  @@unique([workspaceId, hash])
-  @@map("blobs")
-}
-
-// deprecated, use [ObjectStorage]
-model OptimizedBlob {
-  id          Int       @id @default(autoincrement()) @db.Integer
-  hash        String    @db.VarChar
-  workspaceId String    @map("workspace_id") @db.VarChar
-  params      String    @db.VarChar
-  blob        Bytes     @db.ByteA
-  length      BigInt
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  // not for keeping, but for snapshot history
-  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
-
-  @@unique([workspaceId, hash, params])
-  @@map("optimized_blobs")
 }
 
 // the latest snapshot of each doc that we've seen
@@ -315,112 +260,78 @@ model Snapshot {
   workspaceId String   @map("workspace_id") @db.VarChar
   id          String   @default(uuid()) @map("guid") @db.VarChar
   blob        Bytes    @db.ByteA
-  seq         Int      @default(0) @db.Integer
   state       Bytes?   @db.ByteA
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   // the `updated_at` field will not record the time of record changed,
   // but the created time of last seen update that has been merged into snapshot.
-  updatedAt   DateTime @map("updated_at") @db.Timestamptz(6)
+  updatedAt   DateTime @map("updated_at") @db.Timestamptz(3)
+  createdBy   String?  @map("created_by") @db.VarChar
+  updatedBy   String?  @map("updated_by") @db.VarChar
 
-  @@id([id, workspaceId])
+  // should not delete origin snapshot even if user is deleted
+  // we only delete the snapshot if the workspace is deleted
+  createdByUser User? @relation(name: "createdSnapshot", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedByUser User? @relation(name: "updatedSnapshot", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  // @deprecated use updatedAt only
+  seq Int? @default(0) @db.Integer
+
+  // we need to clear all hanging updates and snapshots before enable the foreign key on workspaceId
+  // workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, id])
+  @@index([workspaceId, updatedAt])
   @@map("snapshots")
+}
+
+// user snapshots are special snapshots for user storage like personal app settings, distinguished from workspace snapshots
+// basically they share the same structure with workspace snapshots
+// but for convenience, we don't fork the updates queue and hisotry for user snapshots, until we have to
+// which means all operation on user snapshot will happen in-pace
+model UserSnapshot {
+  userId    String   @map("user_id") @db.VarChar
+  id        String   @map("id") @db.VarChar
+  blob      Bytes    @db.ByteA
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, id])
+  @@map("user_snapshots")
 }
 
 model Update {
   workspaceId String   @map("workspace_id") @db.VarChar
   id          String   @map("guid") @db.VarChar
-  seq         Int      @db.Integer
   blob        Bytes    @db.ByteA
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt   DateTime @map("created_at") @db.Timestamptz(3)
+  createdBy   String?  @map("created_by") @db.VarChar
 
-  @@id([workspaceId, id, seq])
+  // will delete createor record if createor's account is deleted
+  createdByUser User? @relation(name: "createdUpdate", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  // @deprecated use createdAt only
+  seq Int? @db.Integer
+
+  @@id([workspaceId, id, createdAt])
   @@map("updates")
 }
 
 model SnapshotHistory {
-  workspaceId String   @map("workspace_id") @db.VarChar(36)
-  id          String   @map("guid") @db.VarChar(36)
-  timestamp   DateTime @db.Timestamptz(6)
+  workspaceId String   @map("workspace_id") @db.VarChar
+  id          String   @map("guid") @db.VarChar
+  timestamp   DateTime @db.Timestamptz(3)
   blob        Bytes    @db.ByteA
   state       Bytes?   @db.ByteA
-  expiredAt   DateTime @map("expired_at") @db.Timestamptz(6)
+  expiredAt   DateTime @map("expired_at") @db.Timestamptz(3)
+  createdBy   String?  @map("created_by") @db.VarChar
+
+  // will delete createor record if creator's account is deleted
+  createdByUser User? @relation(name: "createdHistory", fields: [createdBy], references: [id], onDelete: SetNull)
 
   @@id([workspaceId, id, timestamp])
   @@map("snapshot_histories")
-}
-
-model NewFeaturesWaitingList {
-  id        String   @id @default(uuid()) @db.VarChar
-  email     String   @unique
-  type      Int      @db.SmallInt
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  @@map("new_features_waiting_list")
-}
-
-model UserStripeCustomer {
-  userId           String   @id @map("user_id") @db.VarChar
-  stripeCustomerId String   @unique @map("stripe_customer_id") @db.VarChar
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("user_stripe_customers")
-}
-
-model UserSubscription {
-  id                   Int       @id @default(autoincrement()) @db.Integer
-  userId               String    @map("user_id") @db.VarChar(36)
-  plan                 String    @db.VarChar(20)
-  // yearly/monthly
-  recurring            String    @db.VarChar(20)
-  // subscription.id
-  stripeSubscriptionId String    @unique @map("stripe_subscription_id")
-  // subscription.status, active/past_due/canceled/unpaid...
-  status               String    @db.VarChar(20)
-  // subscription.current_period_start
-  start                DateTime  @map("start") @db.Timestamptz(6)
-  // subscription.current_period_end
-  end                  DateTime  @map("end") @db.Timestamptz(6)
-  // subscription.billing_cycle_anchor
-  nextBillAt           DateTime? @map("next_bill_at") @db.Timestamptz(6)
-  // subscription.canceled_at
-  canceledAt           DateTime? @map("canceled_at") @db.Timestamptz(6)
-  // subscription.trial_start
-  trialStart           DateTime? @map("trial_start") @db.Timestamptz(6)
-  // subscription.trial_end
-  trialEnd             DateTime? @map("trial_end") @db.Timestamptz(6)
-  stripeScheduleId     String?   @map("stripe_schedule_id") @db.VarChar
-
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, plan])
-  @@map("user_subscriptions")
-}
-
-model UserInvoice {
-  id               Int      @id @default(autoincrement()) @db.Integer
-  userId           String   @map("user_id") @db.VarChar(36)
-  stripeInvoiceId  String   @unique @map("stripe_invoice_id")
-  currency         String   @db.VarChar(3)
-  // CNY 12.50 stored as 1250
-  amount           Int      @db.Integer
-  status           String   @db.VarChar(20)
-  plan             String   @db.VarChar(20)
-  recurring        String   @db.VarChar(20)
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  // billing reason
-  reason           String   @db.VarChar
-  lastPaymentError String?  @map("last_payment_error") @db.Text
-  // stripe hosted invoice link
-  link             String?  @db.Text
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("user_invoices")
 }
 
 enum AiPromptRole {
@@ -439,7 +350,7 @@ model AiPromptMessage {
   content     String       @db.Text
   attachments Json?        @db.Json
   params      Json?        @db.Json
-  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
 
   prompt AiPrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
 
@@ -453,8 +364,12 @@ model AiPrompt {
   // an mark identifying which view to use to display the session
   // it is only used in the frontend and does not affect the backend
   action    String?  @db.VarChar
-  model     String?  @db.VarChar
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  model     String   @db.VarChar
+  config    Json?    @db.Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  // whether the prompt is modified by the admin panel
+  modified  Boolean  @default(false)
 
   messages AiPromptMessage[]
   sessions AiSession[]
@@ -463,40 +378,234 @@ model AiPrompt {
 }
 
 model AiSessionMessage {
-  id          String       @id @default(uuid()) @db.VarChar(36)
-  sessionId   String       @map("session_id") @db.VarChar(36)
+  id          String       @id @default(uuid()) @db.VarChar
+  sessionId   String       @map("session_id") @db.VarChar
   role        AiPromptRole
   content     String       @db.Text
   attachments Json?        @db.Json
   params      Json?        @db.Json
-  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   session AiSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
+  @@index([sessionId])
   @@map("ai_sessions_messages")
 }
 
 model AiSession {
-  id          String   @id @default(uuid()) @db.VarChar(36)
-  userId      String   @map("user_id") @db.VarChar(36)
-  workspaceId String   @map("workspace_id") @db.VarChar(36)
-  docId       String   @map("doc_id") @db.VarChar(36)
-  promptName  String   @map("prompt_name") @db.VarChar(32)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id              String    @id @default(uuid()) @db.VarChar
+  userId          String    @map("user_id") @db.VarChar
+  workspaceId     String    @map("workspace_id") @db.VarChar
+  docId           String    @map("doc_id") @db.VarChar
+  promptName      String    @map("prompt_name") @db.VarChar(32)
+  // the session id of the parent session if this session is a forked session
+  parentSessionId String?   @map("parent_session_id") @db.VarChar
+  messageCost     Int       @default(0)
+  tokenCost       Int       @default(0)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(3)
 
   user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   prompt   AiPrompt           @relation(fields: [promptName], references: [name], onDelete: Cascade)
   messages AiSessionMessage[]
 
+  @@index([userId])
+  @@index([userId, workspaceId])
   @@map("ai_sessions_metadata")
 }
 
 model DataMigration {
-  id         String    @id @default(uuid()) @db.VarChar(36)
+  id         String    @id @default(uuid()) @db.VarChar
   name       String    @db.VarChar
-  startedAt  DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
-  finishedAt DateTime? @map("finished_at") @db.Timestamptz(6)
+  startedAt  DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz(3)
 
   @@map("_data_migrations")
+}
+
+enum RuntimeConfigType {
+  String
+  Number
+  Boolean
+  Object
+  Array
+}
+
+model RuntimeConfig {
+  id            String            @id @db.VarChar
+  type          RuntimeConfigType
+  module        String            @db.VarChar
+  key           String            @db.VarChar
+  value         Json              @db.Json
+  description   String            @db.Text
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt     DateTime?         @map("deleted_at") @db.Timestamptz(3)
+  lastUpdatedBy String?           @map("last_updated_by") @db.VarChar
+
+  lastUpdatedByUser User? @relation(fields: [lastUpdatedBy], references: [id])
+
+  @@unique([module, key])
+  @@map("app_runtime_settings")
+}
+
+model DeprecatedUserSubscription {
+  id                   Int       @id @default(autoincrement()) @db.Integer
+  userId               String    @map("user_id") @db.VarChar
+  plan                 String    @db.VarChar(20)
+  // yearly/monthly/lifetime
+  recurring            String    @db.VarChar(20)
+  // onetime subscription or anything else
+  variant              String?   @db.VarChar(20)
+  // subscription.id, null for lifetime payment or one time payment subscription
+  stripeSubscriptionId String?   @unique @map("stripe_subscription_id")
+  // subscription.status, active/past_due/canceled/unpaid...
+  status               String    @db.VarChar(20)
+  // subscription.current_period_start
+  start                DateTime  @map("start") @db.Timestamptz(3)
+  // subscription.current_period_end, null for lifetime payment
+  end                  DateTime? @map("end") @db.Timestamptz(3)
+  // subscription.billing_cycle_anchor
+  nextBillAt           DateTime? @map("next_bill_at") @db.Timestamptz(3)
+  // subscription.canceled_at
+  canceledAt           DateTime? @map("canceled_at") @db.Timestamptz(3)
+  // subscription.trial_start
+  trialStart           DateTime? @map("trial_start") @db.Timestamptz(3)
+  // subscription.trial_end
+  trialEnd             DateTime? @map("trial_end") @db.Timestamptz(3)
+  stripeScheduleId     String?   @map("stripe_schedule_id") @db.VarChar
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([userId, plan])
+  @@map("user_subscriptions")
+}
+
+model DeprecatedUserInvoice {
+  id               Int      @id @default(autoincrement()) @db.Integer
+  userId           String   @map("user_id") @db.VarChar
+  stripeInvoiceId  String   @unique @map("stripe_invoice_id")
+  currency         String   @db.VarChar(3)
+  // CNY 12.50 stored as 1250
+  amount           Int      @db.Integer
+  status           String   @db.VarChar(20)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  // billing reason
+  reason           String?  @db.VarChar
+  lastPaymentError String?  @map("last_payment_error") @db.Text
+  // stripe hosted invoice link
+  link             String?  @db.Text
+
+  // @deprecated
+  plan      String? @db.VarChar(20)
+  // @deprecated
+  recurring String? @db.VarChar(20)
+
+  @@index([userId])
+  @@map("user_invoices")
+}
+
+model UserStripeCustomer {
+  userId           String   @id @map("user_id") @db.VarChar
+  stripeCustomerId String   @unique @map("stripe_customer_id") @db.VarChar
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_stripe_customers")
+}
+
+model Subscription {
+  id                   Int       @id @default(autoincrement()) @db.Integer
+  targetId             String    @map("target_id") @db.VarChar
+  plan                 String    @db.VarChar(20)
+  // yearly/monthly/lifetime
+  recurring            String    @db.VarChar(20)
+  // onetime subscription or anything else
+  variant              String?   @db.VarChar(20)
+  quantity             Int       @default(1) @db.Integer
+  // subscription.id, null for lifetime payment or one time payment subscription
+  stripeSubscriptionId String?   @unique @map("stripe_subscription_id")
+  // stripe schedule id
+  stripeScheduleId     String?   @map("stripe_schedule_id") @db.VarChar
+  // subscription.status, active/past_due/canceled/unpaid...
+  status               String    @db.VarChar(20)
+  // subscription.current_period_start
+  start                DateTime  @map("start") @db.Timestamptz(3)
+  // subscription.current_period_end, null for lifetime payment
+  end                  DateTime? @map("end") @db.Timestamptz(3)
+  // subscription.billing_cycle_anchor
+  nextBillAt           DateTime? @map("next_bill_at") @db.Timestamptz(3)
+  // subscription.canceled_at
+  canceledAt           DateTime? @map("canceled_at") @db.Timestamptz(3)
+  // subscription.trial_start
+  trialStart           DateTime? @map("trial_start") @db.Timestamptz(3)
+  // subscription.trial_end
+  trialEnd             DateTime? @map("trial_end") @db.Timestamptz(3)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([targetId, plan])
+  @@map("subscriptions")
+}
+
+model Invoice {
+  stripeInvoiceId  String   @id @map("stripe_invoice_id")
+  targetId         String   @map("target_id") @db.VarChar
+  currency         String   @db.VarChar(3)
+  // CNY 12.50 stored as 1250
+  amount           Int      @db.Integer
+  status           String   @db.VarChar(20)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  // billing reason
+  reason           String?  @db.VarChar
+  lastPaymentError String?  @map("last_payment_error") @db.Text
+  // stripe hosted invoice link
+  link             String?  @db.Text
+
+  @@index([targetId])
+  @@map("invoices")
+}
+
+model License {
+  key         String    @id @map("key") @db.VarChar
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  revealedAt  DateTime? @map("revealed_at") @db.Timestamptz(3)
+  installedAt DateTime? @map("installed_at") @db.Timestamptz(3)
+  validateKey String?   @map("validate_key") @db.VarChar
+
+  @@map("licenses")
+}
+
+model InstalledLicense {
+  key         String    @id @map("key") @db.VarChar
+  workspaceId String    @unique @map("workspace_id") @db.VarChar
+  quantity    Int       @default(1) @db.Integer
+  recurring   String    @db.VarChar
+  installedAt DateTime  @default(now()) @map("installed_at") @db.Timestamptz(3)
+  validateKey String    @map("validate_key") @db.VarChar
+  validatedAt DateTime  @map("validated_at") @db.Timestamptz(3)
+  expiredAt   DateTime? @map("expired_at") @db.Timestamptz(3)
+
+  @@map("installed_licenses")
+}
+
+// Blob table only exists for fast non-data queries.
+// like, total size of blobs in a workspace, or blob list for sync service.
+// it should only be a map of metadata of blobs stored anywhere else
+model Blob {
+  workspaceId String    @map("workspace_id") @db.VarChar
+  key         String    @db.VarChar
+  size        Int       @db.Integer
+  mime        String    @db.VarChar
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, key])
+  @@map("blobs")
 }

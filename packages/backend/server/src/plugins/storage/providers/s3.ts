@@ -1,9 +1,10 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
+/* oxlint-disable @typescript-eslint/no-non-null-assertion */
 import { Readable } from 'node:stream';
 
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   NoSuchKey,
   PutObjectCommand,
@@ -19,8 +20,8 @@ import {
   PutObjectMetadata,
   StorageProvider,
   toBuffer,
-} from '../../../fundamentals/storage';
-import type { S3StorageConfig } from '../types';
+} from '../../../base/storage';
+import type { S3StorageConfig } from '../config';
 
 export class S3StorageProvider implements StorageProvider {
   protected logger: Logger;
@@ -50,7 +51,7 @@ export class S3StorageProvider implements StorageProvider {
   ): Promise<void> {
     const blob = await toBuffer(body);
 
-    metadata = await autoMetadata(blob, metadata);
+    metadata = autoMetadata(blob, metadata);
 
     try {
       await this.client.send(
@@ -62,7 +63,7 @@ export class S3StorageProvider implements StorageProvider {
           // metadata
           ContentType: metadata.contentType,
           ContentLength: metadata.contentLength,
-          // TODO: Cloudflare doesn't support CRC32, use md5 instead later.
+          // TODO(@forehalo): Cloudflare doesn't support CRC32, use md5 instead later.
           // ChecksumCRC32: metadata.checksumCRC32,
         })
       );
@@ -72,6 +73,34 @@ export class S3StorageProvider implements StorageProvider {
       throw new Error(`Failed to put object \`${key}\``, {
         cause: e,
       });
+    }
+  }
+
+  async head(key: string) {
+    try {
+      const obj = await this.client.send(
+        new HeadObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        })
+      );
+
+      return {
+        contentType: obj.ContentType!,
+        contentLength: obj.ContentLength!,
+        lastModified: obj.LastModified!,
+        checksumCRC32: obj.ChecksumCRC32,
+      };
+    } catch (e) {
+      // 404
+      if (e instanceof NoSuchKey) {
+        this.logger.verbose(`Object \`${key}\` not found`);
+        return undefined;
+      } else {
+        throw new Error(`Failed to head object \`${key}\``, {
+          cause: e,
+        });
+      }
     }
   }
 
@@ -140,7 +169,7 @@ export class S3StorageProvider implements StorageProvider {
             listResult.Contents.map(r => ({
               key: r.Key!,
               lastModified: r.LastModified!,
-              size: r.Size!,
+              contentLength: r.Size!,
             }))
           );
         }

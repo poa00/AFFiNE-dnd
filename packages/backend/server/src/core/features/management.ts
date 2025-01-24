@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
 
-import { Config } from '../../fundamentals';
+import { type EventPayload, OnEvent, Runtime } from '../../base';
+import { Models } from '../../models';
 import { FeatureService } from './service';
 import { FeatureType } from './types';
 
-const STAFF = ['@toeverything.info'];
+const STAFF = ['@toeverything.info', '@affine.pro'];
 
 export enum EarlyAccessType {
   App = 'app',
@@ -18,20 +18,28 @@ export class FeatureManagementService {
 
   constructor(
     private readonly feature: FeatureService,
-    private readonly prisma: PrismaClient,
-    private readonly config: Config
+    private readonly models: Models,
+    private readonly runtime: Runtime
   ) {}
 
   // ======== Admin ========
 
-  // todo(@darkskygit): replace this with abac
   isStaff(email: string) {
     for (const domain of STAFF) {
       if (email.endsWith(domain)) {
         return true;
       }
     }
+
     return false;
+  }
+
+  isAdmin(userId: string) {
+    return this.feature.hasUserFeature(userId, FeatureType.Admin);
+  }
+
+  addAdmin(userId: string) {
+    return this.feature.addUserFeature(userId, FeatureType.Admin, 'Admin user');
   }
 
   // ======== Early Access ========
@@ -61,7 +69,7 @@ export class FeatureManagementService {
   }
 
   async listEarlyAccess(type: EarlyAccessType = EarlyAccessType.App) {
-    return this.feature.listFeatureUsers(
+    return this.feature.listUsersByFeature(
       type === EarlyAccessType.App
         ? FeatureType.EarlyAccess
         : FeatureType.AIEarlyAccess
@@ -69,31 +77,17 @@ export class FeatureManagementService {
   }
 
   async isEarlyAccessUser(
-    email: string,
+    userId: string,
     type: EarlyAccessType = EarlyAccessType.App
   ) {
-    const user = await this.prisma.user.findFirst({
-      where: {
-        email: {
-          equals: email,
-          mode: 'insensitive',
-        },
-      },
-    });
-
-    if (user) {
-      const canEarlyAccess = await this.feature
-        .hasUserFeature(
-          user.id,
-          type === EarlyAccessType.App
-            ? FeatureType.EarlyAccess
-            : FeatureType.AIEarlyAccess
-        )
-        .catch(() => false);
-
-      return canEarlyAccess;
-    }
-    return false;
+    return await this.feature
+      .hasUserFeature(
+        userId,
+        type === EarlyAccessType.App
+          ? FeatureType.EarlyAccess
+          : FeatureType.AIEarlyAccess
+      )
+      .catch(() => false);
   }
 
   /// check early access by email
@@ -101,8 +95,16 @@ export class FeatureManagementService {
     email: string,
     type: EarlyAccessType = EarlyAccessType.App
   ) {
-    if (this.config.featureFlags.earlyAccessPreview && !this.isStaff(email)) {
-      return this.isEarlyAccessUser(email, type);
+    const earlyAccessControlEnabled = await this.runtime.fetch(
+      'flags/earlyAccessControl'
+    );
+
+    if (earlyAccessControlEnabled && !this.isStaff(email)) {
+      const user = await this.models.user.getUserByEmail(email);
+      if (!user) {
+        return false;
+      }
+      return this.isEarlyAccessUser(user.id, type);
     } else {
       return true;
     }
@@ -130,7 +132,7 @@ export class FeatureManagementService {
 
   // ======== User Feature ========
   async getActivatedUserFeatures(userId: string): Promise<FeatureType[]> {
-    const features = await this.feature.getActivatedUserFeatures(userId);
+    const features = await this.feature.getUserActivatedFeatures(userId);
     return features.map(f => f.feature.name);
   }
 
@@ -138,19 +140,11 @@ export class FeatureManagementService {
   async addWorkspaceFeatures(
     workspaceId: string,
     feature: FeatureType,
-    version?: number,
     reason?: string
   ) {
-    const latestVersions = await this.feature.getFeaturesVersion();
-    // use latest version if not specified
-    const latestVersion = version || latestVersions[feature];
-    if (!Number.isInteger(latestVersion)) {
-      throw new Error(`Version of feature ${feature} not found`);
-    }
     return this.feature.addWorkspaceFeature(
       workspaceId,
       feature,
-      latestVersion,
       reason || 'add feature by api'
     );
   }
@@ -171,6 +165,11 @@ export class FeatureManagementService {
   }
 
   async listFeatureWorkspaces(feature: FeatureType) {
-    return this.feature.listFeatureWorkspaces(feature);
+    return this.feature.listWorkspacesByFeature(feature);
+  }
+
+  @OnEvent('user.admin.created')
+  async onAdminUserCreated({ id }: EventPayload<'user.admin.created'>) {
+    await this.addAdmin(id);
   }
 }

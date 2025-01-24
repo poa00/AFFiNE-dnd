@@ -1,4 +1,3 @@
-import { BadRequestException } from '@nestjs/common';
 import {
   Args,
   Field,
@@ -12,10 +11,19 @@ import {
 import type { WorkspacePage as PrismaWorkspacePage } from '@prisma/client';
 import { PrismaClient } from '@prisma/client';
 
+import {
+  ExpectToPublishPage,
+  ExpectToRevokePublicPage,
+  PageIsNotPublic,
+} from '../../../base';
 import { CurrentUser } from '../../auth';
+import {
+  Permission,
+  PermissionService,
+  PublicPageMode,
+} from '../../permission';
 import { DocID } from '../../utils/doc';
-import { PermissionService, PublicPageMode } from '../permission';
-import { Permission, WorkspaceType } from '../types';
+import { WorkspaceType } from '../types';
 
 registerEnumType(PublicPageMode, {
   name: 'PublicPageMode',
@@ -126,13 +134,13 @@ export class PagePermissionResolver {
     const docId = new DocID(pageId, workspaceId);
 
     if (docId.isWorkspace) {
-      throw new BadRequestException('Expect page not to be workspace');
+      throw new ExpectToPublishPage();
     }
 
     await this.permission.checkWorkspace(
       docId.workspace,
       user.id,
-      Permission.Read
+      Permission.Write
     );
 
     return this.permission.publishPage(docId.workspace, docId.guid, mode);
@@ -163,13 +171,13 @@ export class PagePermissionResolver {
     const docId = new DocID(pageId, workspaceId);
 
     if (docId.isWorkspace) {
-      throw new BadRequestException('Expect page not to be workspace');
+      throw new ExpectToRevokePublicPage('Expect page not to be workspace');
     }
 
     await this.permission.checkWorkspace(
       docId.workspace,
       user.id,
-      Permission.Read
+      Permission.Write
     );
 
     const isPublic = await this.permission.isPublicPage(
@@ -178,7 +186,7 @@ export class PagePermissionResolver {
     );
 
     if (!isPublic) {
-      throw new BadRequestException('Page is not public');
+      throw new PageIsNotPublic('Page is not public');
     }
 
     return this.permission.revokePublicPage(docId.workspace, docId.guid);

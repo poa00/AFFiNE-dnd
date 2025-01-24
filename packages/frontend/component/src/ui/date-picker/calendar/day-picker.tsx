@@ -1,3 +1,4 @@
+import clsx from 'clsx';
 import dayjs from 'dayjs';
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 
@@ -23,6 +24,8 @@ export const DayPicker = memo(function DayPicker(
     onChange,
     onCursorChange,
     onModeChange,
+    monthHeaderCellClassName,
+    monthBodyCellClassName,
   } = props;
 
   const matrix = useMemo(() => {
@@ -94,7 +97,7 @@ export const DayPicker = memo(function DayPicker(
       const focused = document.activeElement;
 
       // check if focused is a date cell
-      if (!focused?.hasAttribute('data-is-date-cell')) return;
+      if (!(focused as HTMLElement | null)?.dataset.isDateCell) return;
       if (e.shiftKey) return;
 
       e.preventDefault();
@@ -170,7 +173,13 @@ export const DayPicker = memo(function DayPicker(
         {/* weekDays */}
         <div className={styles.monthViewRow}>
           {weekDays.split(',').map(day => (
-            <div key={day} className={styles.monthViewHeaderCell}>
+            <div
+              key={day}
+              className={clsx(
+                styles.monthViewHeaderCell,
+                monthHeaderCellClassName
+              )}
+            >
               {day}
             </div>
           ))}
@@ -178,26 +187,41 @@ export const DayPicker = memo(function DayPicker(
         {/* Weeks in month */}
         {matrix.map((week, i) => {
           return (
-            <div key={i} className={styles.monthViewRow}>
-              {week.map((cell, j) => (
-                <div
-                  className={styles.monthViewBodyCell}
-                  key={j}
-                  onClick={() => onChange?.(cell.date.format(format))}
-                >
-                  {customDayRenderer ? (
-                    customDayRenderer(cell)
-                  ) : (
-                    <DefaultDateCell key={j} {...cell} />
-                  )}
-                </div>
-              ))}
+            // eslint-disable-next-line react/no-array-index-key
+            <div key={i} className={clsx(styles.monthViewRow)}>
+              {week.map(cell => {
+                const dateValue = cell.date.format(format);
+                return (
+                  <div
+                    className={clsx(
+                      styles.monthViewBodyCell,
+                      monthBodyCellClassName
+                    )}
+                    key={dateValue}
+                    onClick={() => onChange?.(dateValue)}
+                  >
+                    {customDayRenderer ? (
+                      customDayRenderer(cell)
+                    ) : (
+                      <DefaultDateCell key={dateValue} {...cell} />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           );
         })}
       </main>
     ),
-    [customDayRenderer, format, matrix, onChange, weekDays]
+    [
+      customDayRenderer,
+      format,
+      matrix,
+      monthBodyCellClassName,
+      monthHeaderCellClassName,
+      onChange,
+      weekDays,
+    ]
   );
 
   return (

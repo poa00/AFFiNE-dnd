@@ -1,6 +1,6 @@
 {
   "name": "@affine/server-native",
-  "version": "0.14.0",
+  "version": "0.19.0",
   "engines": {
     "node": ">= 10.16.0 < 11 || >= 11.8.0"
   },
@@ -28,14 +28,15 @@
   },
   "scripts": {
     "test": "node --test ./__tests__/**/*.spec.js",
+    "bench": "node ./benchmark/index.js",
     "build": "napi build --release --strip --no-const-enum",
     "build:debug": "napi build"
   },
   "devDependencies": {
-    "@napi-rs/cli": "3.0.0-alpha.46",
-    "lib0": "^0.2.93",
-    "nx": "^18.2.4",
-    "nx-cloud": "^18.0.0",
-    "yjs": "^13.6.14"
+    "@napi-rs/cli": "3.0.0-alpha.68",
+    "lib0": "^0.2.99",
+    "tiktoken": "^1.0.17",
+    "tinybench": "^3.0.7",
+    "yjs": "^13.6.21"
   }
 }

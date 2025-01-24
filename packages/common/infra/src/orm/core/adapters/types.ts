@@ -1,28 +1,76 @@
-import type { DBSchemaBuilder, TableSchemaBuilder } from '../schema';
+import type { Key, TableOptions } from '../types';
 
-export interface Key {
-  toString(): string;
+export interface TableAdapterOptions extends TableOptions {
+  keyField: string;
 }
 
-export interface TableOptions {
-  schema: TableSchemaBuilder;
-}
+type OrmPrimitiveValues = string | number | boolean | null;
 
-export interface TableAdapter<K extends Key = any, T = unknown> {
-  setup(opts: TableOptions): void;
+type SimpleCondition =
+  | OrmPrimitiveValues
+  | {
+      not: OrmPrimitiveValues;
+    };
+
+type WhereSimpleCondition = {
+  field: string;
+  value: SimpleCondition;
+};
+
+type WhereByKeyCondition = {
+  byKey: Key;
+};
+
+// currently only support eq condition
+// TODO(@forehalo): on the way [gt, gte, lt, lte, in, notIn, like, notLike, Or]
+export type WhereCondition = Array<WhereSimpleCondition> | WhereByKeyCondition;
+export type Select = '*' | 'key' | string[];
+
+export type InsertQuery = {
+  data: any;
+  select?: Select;
+};
+
+export type DeleteQuery = {
+  where?: WhereCondition;
+};
+
+export type UpdateQuery = {
+  where?: WhereCondition;
+  data: any;
+  select?: Select;
+};
+
+export type FindQuery = {
+  where?: WhereCondition;
+  select?: Select;
+};
+
+export type ObserveQuery = {
+  where?: WhereCondition;
+  select?: Select;
+  callback: (data: any[]) => void;
+};
+
+export type Query =
+  | InsertQuery
+  | DeleteQuery
+  | UpdateQuery
+  | FindQuery
+  | ObserveQuery;
+
+export interface TableAdapter {
+  setup(opts: TableAdapterOptions): void;
   dispose(): void;
-  create(key: K, data: Partial<T>): T;
-  get(key: K): T;
-  subscribe(key: K, callback: (data: T) => void): () => void;
-  keys(): K[];
-  subscribeKeys(callback: (keys: K[]) => void): () => void;
-  update(key: K, data: Partial<T>): T;
-  delete(key: K): void;
+
+  toObject(record: any): Record<string, any>;
+  insert(query: InsertQuery): any;
+  update(query: UpdateQuery): any[];
+  delete(query: DeleteQuery): void;
+  find(query: FindQuery): any[];
+  observe(query: ObserveQuery): () => void;
 }
 
 export interface DBAdapter {
-  connect(db: DBSchemaBuilder): Promise<void>;
-  disconnect(db: DBSchemaBuilder): Promise<void>;
-
   table(tableName: string): TableAdapter;
 }

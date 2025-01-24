@@ -8,7 +8,6 @@ import type React from 'react';
 
 const DEV_MODE = process.env.NODE_ENV !== 'production';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DistributiveOmit<T, K extends string | number | symbol> = T extends any
   ? K extends keyof T
     ? Omit<T, K>
@@ -38,7 +37,6 @@ export type WebComponentProps<I extends HTMLElement> = React.DetailedHTMLProps<
 > &
   ElementProps<I>;
 
-// eslint-disable-next-line @typescript-eslint/ban-types
 type EmptyObject = {};
 
 /**
@@ -256,7 +254,9 @@ export const createComponent = <
 
   const ReactComponent = React.forwardRef<I, Props>((props, ref) => {
     const containerRef = React.useRef<HTMLElement | null>(null);
-    const prevPropsRef = React.useRef<Props | null>(null);
+    const prevPropsRef = React.useRef<React.PropsWithoutRef<Props> | null>(
+      null
+    );
     const elementRef = React.useRef<I | null>(null);
 
     // Props to be passed to React.createElement
@@ -274,8 +274,6 @@ export const createComponent = <
         ref.current = element;
       }
     }
-
-    const element = elementRef.current;
 
     for (const [k, v] of Object.entries(props)) {
       if (reservedReactProperties.has(k)) {
@@ -300,7 +298,9 @@ export const createComponent = <
         setProperty(
           elementRef.current,
           prop,
+          // @ts-expect-error: prop is a key of props
           props[prop],
+          // @ts-expect-error: prop is a key of props
           prevPropsRef.current ? prevPropsRef.current[prop] : undefined,
           events
         );
@@ -314,14 +314,13 @@ export const createComponent = <
 
     React.useLayoutEffect(() => {
       const container = containerRef.current;
-      if (!container) {
+      const element = elementRef.current;
+      if (!container || !element) {
         return;
       }
+      if (element.isConnected) return;
       container.append(element);
-      return () => {
-        element.remove();
-      };
-    }, [element]);
+    }, []);
 
     return React.createElement(tagName, {
       ...reactProps,

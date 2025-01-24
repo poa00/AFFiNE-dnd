@@ -1,7 +1,7 @@
 import type { ExecutionResult } from 'graphql';
-import { GraphQLError } from 'graphql';
 import { isNil, isObject, merge } from 'lodash-es';
 
+import { GraphQLError } from './error';
 import type { GraphQLQuery } from './graphql';
 import type { Mutations, Queries } from './schema';
 
@@ -153,7 +153,7 @@ function formatRequestBody<Q extends GraphQLQuery>({
   const body: RequestBody = {
     query: query.query,
     variables:
-      keepNilVariables ?? true ? variables : filterEmptyValue(variables),
+      (keepNilVariables ?? true) ? variables : filterEmptyValue(variables),
   };
 
   if (query.operationName) {
@@ -195,9 +195,9 @@ export const gqlFetcherFactory = (
         const result = (await res.json()) as ExecutionResult;
         if (res.status >= 400 || result.errors) {
           if (result.errors && result.errors.length > 0) {
-            throw result.errors.map(
-              error => new GraphQLError(error.message, error)
-            );
+            // throw the first error is enough
+            const firstError = result.errors[0];
+            throw new GraphQLError(firstError.message, firstError);
           } else {
             throw new GraphQLError('Empty GraphQL error body');
           }

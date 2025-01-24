@@ -1,8 +1,9 @@
 import {
   PreconditionStrategy,
   registerAffineCommand,
-  useService,
-} from '@toeverything/infra';
+} from '@affine/core/commands';
+import { track } from '@affine/track';
+import { useService } from '@toeverything/infra';
 import { useEffect } from 'react';
 
 import { NavigatorService } from '../services/navigator';
@@ -23,6 +24,8 @@ export function useRegisterNavigationCommands() {
           binding: '$mod+[',
         },
         run() {
+          track.$.cmdk.general.goBack();
+
           navigator.back();
         },
       })
@@ -38,6 +41,8 @@ export function useRegisterNavigationCommands() {
           binding: '$mod+]',
         },
         run() {
+          track.$.cmdk.general.goForward();
+
           navigator.forward();
         },
       })

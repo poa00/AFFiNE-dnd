@@ -1,12 +1,6 @@
 query quota {
   currentUser {
     id
-    copilot {
-      quota {
-        limit
-        used
-      }
-    }
     quota {
       name
       blobLimit
@@ -21,8 +15,8 @@ query quota {
         memberLimit
       }
     }
-  }
-  collectAllBlobSizes {
-    size
+    quotaUsage {
+      storageQuota
+    }
   }
 }

@@ -1,105 +1,136 @@
 import { toast } from '@affine/component';
-import { useAsyncCallback } from '@affine/core/hooks/affine-async-hooks';
-import { useDocMetaHelper } from '@affine/core/hooks/use-block-suite-page-meta';
-import { useDocCollectionHelper } from '@affine/core/hooks/use-block-suite-workspace-helper';
-import { WorkspaceSubPath } from '@affine/core/shared';
-import { DocsService, initEmptyPage, useService } from '@toeverything/infra';
+import type { DocProps } from '@affine/core/blocksuite/initialization';
+import { AppSidebarService } from '@affine/core/modules/app-sidebar';
+import { DocsService } from '@affine/core/modules/doc';
+import { EditorSettingService } from '@affine/core/modules/editor-setting';
+import { WorkbenchService } from '@affine/core/modules/workbench';
+import { type DocMode } from '@blocksuite/affine/blocks';
+import type { Workspace } from '@blocksuite/affine/store';
+import { useServices } from '@toeverything/infra';
 import { useCallback, useMemo } from 'react';
 
-import { useNavigateHelper } from '../../../hooks/use-navigate-helper';
-import type { DocCollection } from '../../../shared';
-
-export const usePageHelper = (docCollection: DocCollection) => {
-  const { openPage, jumpToSubPath } = useNavigateHelper();
-  const { createDoc } = useDocCollectionHelper(docCollection);
-  const { setDocMeta } = useDocMetaHelper(docCollection);
-  const docRecordList = useService(DocsService).list;
-
-  const isPreferredEdgeless = useCallback(
-    (pageId: string) =>
-      docRecordList.doc$(pageId).value?.mode$.value === 'edgeless',
-    [docRecordList]
-  );
+export const usePageHelper = (docCollection: Workspace) => {
+  const {
+    docsService,
+    workbenchService,
+    editorSettingService,
+    appSidebarService,
+  } = useServices({
+    DocsService,
+    WorkbenchService,
+    EditorSettingService,
+    AppSidebarService,
+  });
+  const workbench = workbenchService.workbench;
+  const docRecordList = docsService.list;
+  const appSidebar = appSidebarService.sidebar;
 
   const createPageAndOpen = useCallback(
-    (mode?: 'page' | 'edgeless') => {
-      const page = createDoc();
-      initEmptyPage(page);
-      docRecordList.doc$(page.id).value?.setMode(mode || 'page');
-      openPage(docCollection.id, page.id);
+    (
+      mode?: DocMode,
+      options: {
+        at?: 'new-tab' | 'tail' | 'active';
+        show?: boolean;
+      } = {
+        at: 'active',
+        show: true,
+      }
+    ) => {
+      appSidebar.setHovering(false);
+      const docProps: DocProps = {
+        note: editorSettingService.editorSetting.get('affine:note'),
+      };
+      const page = docsService.createDoc({ docProps });
+
+      if (mode) {
+        docRecordList.doc$(page.id).value?.setPrimaryMode(mode);
+      }
+
+      if (options.show !== false) {
+        workbench.openDoc(page.id, {
+          at: options.at,
+          show: options.show,
+        });
+      }
       return page;
     },
-    [docCollection.id, createDoc, openPage, docRecordList]
+    [
+      appSidebar,
+      docRecordList,
+      docsService,
+      editorSettingService.editorSetting,
+      workbench,
+    ]
   );
 
-  const createEdgelessAndOpen = useCallback(() => {
-    return createPageAndOpen('edgeless');
-  }, [createPageAndOpen]);
-
-  const importFileAndOpen = useAsyncCallback(async () => {
-    const { showImportModal } = await import('@blocksuite/blocks');
-    const onSuccess = (
-      pageIds: string[],
-      options: { isWorkspaceFile: boolean; importedCount: number }
+  const createEdgelessAndOpen = useCallback(
+    (
+      options: {
+        at?: 'new-tab' | 'tail' | 'active';
+        show?: boolean;
+      } = {
+        at: 'active',
+        show: true,
+      }
     ) => {
-      toast(
-        `Successfully imported ${options.importedCount} Page${
-          options.importedCount > 1 ? 's' : ''
-        }.`
-      );
-      if (options.isWorkspaceFile) {
-        jumpToSubPath(docCollection.id, WorkspaceSubPath.ALL);
-        return;
-      }
-
-      if (pageIds.length === 0) {
-        return;
-      }
-      const pageId = pageIds[0];
-      openPage(docCollection.id, pageId);
-    };
-    showImportModal({ collection: docCollection, onSuccess });
-  }, [docCollection, openPage, jumpToSubPath]);
-
-  const createLinkedPageAndOpen = useAsyncCallback(
-    async (pageId: string) => {
-      const page = createPageAndOpen();
-      page.load();
-      const parentPage = docCollection.getDoc(pageId);
-      if (parentPage) {
-        parentPage.load();
-        const text = parentPage.Text.fromDelta([
-          {
-            insert: ' ',
-            attributes: {
-              reference: {
-                type: 'LinkedPage',
-                pageId: page.id,
-              },
-            },
-          },
-        ]);
-        const [frame] = parentPage.getBlockByFlavour('affine:note');
-        frame && parentPage.addBlock('affine:paragraph', { text }, frame.id);
-        setDocMeta(page.id, {});
-      }
+      return createPageAndOpen('edgeless', options);
     },
-    [docCollection, createPageAndOpen, setDocMeta]
+    [createPageAndOpen]
+  );
+
+  const importFileAndOpen = useMemo(
+    () => async () => {
+      const { showImportModal } = await import('@blocksuite/affine/blocks');
+      const { promise, resolve, reject } =
+        Promise.withResolvers<
+          Parameters<
+            NonNullable<Parameters<typeof showImportModal>[0]['onSuccess']>
+          >[1]
+        >();
+      const onSuccess = (
+        pageIds: string[],
+        options: { isWorkspaceFile: boolean; importedCount: number }
+      ) => {
+        resolve(options);
+        toast(
+          `Successfully imported ${options.importedCount} Page${
+            options.importedCount > 1 ? 's' : ''
+          }.`
+        );
+        if (options.isWorkspaceFile) {
+          workbench.openAll();
+          return;
+        }
+
+        if (pageIds.length === 0) {
+          return;
+        }
+        const pageId = pageIds[0];
+        workbench.openDoc(pageId);
+      };
+      showImportModal({
+        collection: docCollection,
+        onSuccess,
+        onFail: message => {
+          reject(new Error(message));
+        },
+      });
+      return await promise;
+    },
+    [docCollection, workbench]
   );
 
   return useMemo(() => {
     return {
-      isPreferredEdgeless,
-      createPage: createPageAndOpen,
+      createPage: (
+        mode?: DocMode,
+        options?: {
+          at?: 'new-tab' | 'tail' | 'active';
+          show?: boolean;
+        }
+      ) => createPageAndOpen(mode, options),
       createEdgeless: createEdgelessAndOpen,
       importFile: importFileAndOpen,
-      createLinkedPage: createLinkedPageAndOpen,
     };
-  }, [
-    isPreferredEdgeless,
-    createEdgelessAndOpen,
-    createLinkedPageAndOpen,
-    createPageAndOpen,
-    importFileAndOpen,
-  ]);
+  }, [createEdgelessAndOpen, createPageAndOpen, importFileAndOpen]);
 };

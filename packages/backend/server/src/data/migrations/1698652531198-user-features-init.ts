@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 
 import { Features } from '../../core/features';
 import { Quotas } from '../../core/quota/schema';
-import { migrateNewFeatureTable, upsertFeature } from './utils/user-features';
+import { upsertFeature } from './utils/user-features';
 
 export class UserFeaturesInit1698652531198 {
   // do the migration
@@ -11,7 +11,6 @@ export class UserFeaturesInit1698652531198 {
     for (const feature of Features) {
       await upsertFeature(db, feature);
     }
-    await migrateNewFeatureTable(db);
 
     for (const quota of Quotas) {
       await upsertFeature(db, quota);
@@ -20,6 +19,6 @@ export class UserFeaturesInit1698652531198 {
 
   // revert the migration
   static async down(_db: PrismaClient) {
-    // TODO: revert the migration
+    // noop
   }
 }

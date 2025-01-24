@@ -1,15 +1,8 @@
 import { nanoid } from 'nanoid';
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  test as t,
-  type TestAPI,
-} from 'vitest';
+import { beforeEach, describe, expect, test as t, type TestAPI } from 'vitest';
 
 import {
-  createORMClientType,
+  createORMClient,
   type DBSchemaBuilder,
   type Entity,
   f,
@@ -29,10 +22,10 @@ const TEST_SCHEMA = {
   },
 } satisfies DBSchemaBuilder;
 
-const Client = createORMClientType(TEST_SCHEMA);
+const ORMClient = createORMClient(TEST_SCHEMA);
 
 // define the hooks
-Client.defineHook('tags', 'migrate field `color` to field `colors`', {
+ORMClient.defineHook('tags', 'migrate field `color` to field `colors`', {
   deserialize(data) {
     if (!data.colors && data.color) {
       data.colors = [data.color];
@@ -43,16 +36,11 @@ Client.defineHook('tags', 'migrate field `color` to field `colors`', {
 });
 
 type Context = {
-  client: InstanceType<typeof Client>;
+  client: InstanceType<typeof ORMClient>;
 };
 
 beforeEach<Context>(async t => {
-  t.client = new Client(new MemoryORMAdapter());
-  await t.client.connect();
-});
-
-afterEach<Context>(async t => {
-  await t.client.disconnect();
+  t.client = new ORMClient(new MemoryORMAdapter());
 });
 
 const test = t as TestAPI<Context>;
@@ -78,7 +66,7 @@ describe('ORM hook mixin', () => {
     });
 
     const tag2 = client.tags.get(tag.id);
-    expect(tag2.colors).toStrictEqual(['red']);
+    expect(tag2!.colors).toStrictEqual(['red']);
   });
 
   test('update entity', t => {
@@ -90,7 +78,7 @@ describe('ORM hook mixin', () => {
     });
 
     const tag2 = client.tags.update(tag.id, { color: 'blue' });
-    expect(tag2.colors).toStrictEqual(['blue']);
+    expect(tag2!.colors).toStrictEqual(['blue']);
   });
 
   test('subscribe entity', t => {
@@ -137,6 +125,6 @@ describe('ORM hook mixin', () => {
     // @ts-expect-error private
     const rawTag = client.tags.adapter.data.get(tag.id);
     expect(rawTag.color).toBe('red');
-    expect(rawTag.colors).toBe(null);
+    expect(rawTag.colors).toBe(undefined);
   });
 });

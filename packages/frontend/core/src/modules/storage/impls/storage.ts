@@ -1,13 +1,22 @@
-import type { GlobalCache, GlobalState, Memento } from '@toeverything/infra';
+import type { Memento } from '@toeverything/infra';
 import { Observable } from 'rxjs';
 
-export class LocalStorageMemento implements Memento {
-  constructor(private readonly prefix: string) {}
+import type {
+  GlobalCache,
+  GlobalSessionState,
+  GlobalState,
+} from '../providers/global';
+
+export class StorageMemento implements Memento {
+  constructor(
+    private readonly storage: Storage,
+    private readonly prefix: string
+  ) {}
 
   keys(): string[] {
     const keys: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
+    for (let i = 0; i < this.storage.length; i++) {
+      const key = this.storage.key(i);
       if (key && key.startsWith(this.prefix)) {
         keys.push(key.slice(this.prefix.length));
       }
@@ -15,14 +24,14 @@ export class LocalStorageMemento implements Memento {
     return keys;
   }
 
-  get<T>(key: string): T | null {
-    const json = localStorage.getItem(this.prefix + key);
-    return json ? JSON.parse(json) : null;
+  get<T>(key: string): T | undefined {
+    const json = this.storage.getItem(this.prefix + key);
+    return json ? JSON.parse(json) : undefined;
   }
-  watch<T>(key: string): Observable<T | null> {
-    return new Observable<T | null>(subscriber => {
-      const json = localStorage.getItem(this.prefix + key);
-      const first = json ? JSON.parse(json) : null;
+  watch<T>(key: string): Observable<T | undefined> {
+    return new Observable<T | undefined>(subscriber => {
+      const json = this.storage.getItem(this.prefix + key);
+      const first = json ? JSON.parse(json) : undefined;
       subscriber.next(first);
 
       const channel = new BroadcastChannel(this.prefix + key);
@@ -34,15 +43,15 @@ export class LocalStorageMemento implements Memento {
       };
     });
   }
-  set<T>(key: string, value: T | null): void {
-    localStorage.setItem(this.prefix + key, JSON.stringify(value));
+  set<T>(key: string, value: T): void {
+    this.storage.setItem(this.prefix + key, JSON.stringify(value));
     const channel = new BroadcastChannel(this.prefix + key);
     channel.postMessage(value);
     channel.close();
   }
 
   del(key: string): void {
-    localStorage.removeItem(this.prefix + key);
+    this.storage.removeItem(this.prefix + key);
   }
 
   clear(): void {
@@ -53,19 +62,28 @@ export class LocalStorageMemento implements Memento {
 }
 
 export class LocalStorageGlobalCache
-  extends LocalStorageMemento
+  extends StorageMemento
   implements GlobalCache
 {
   constructor() {
-    super('global-cache:');
+    super(localStorage, 'global-cache:');
   }
 }
 
 export class LocalStorageGlobalState
-  extends LocalStorageMemento
+  extends StorageMemento
   implements GlobalState
 {
   constructor() {
-    super('global-state:');
+    super(localStorage, 'global-state:');
+  }
+}
+
+export class SessionStorageGlobalSessionState
+  extends StorageMemento
+  implements GlobalSessionState
+{
+  constructor() {
+    super(sessionStorage, 'global-session-state:');
   }
 }

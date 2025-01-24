@@ -80,7 +80,7 @@ export const VirtualizedList = forwardRef<
   );
 });
 
-const headingAtom = selectAtom(listPropsAtom, props => props.heading);
+const headingAtom = selectAtom(listPropsAtom, props => props?.heading);
 
 const PageListHeading = () => {
   const heading = useAtomValue(headingAtom);
@@ -206,7 +206,7 @@ const ListInner = ({
       totalCount={virtuosoItems.length}
       itemContent={itemContentRenderer}
       className={clsx(props.className, styles.root)}
-      // todo: set a reasonable overscan value to avoid blank space?
+      // TODO(@Peng): set a reasonable overscan value to avoid blank space?
       // overscan={100}
     />
   );

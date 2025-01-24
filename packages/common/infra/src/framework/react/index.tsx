@@ -9,12 +9,19 @@ export const FrameworkStackContext = React.createContext<FrameworkProvider[]>([
   Framework.EMPTY.provider(),
 ]);
 
+export function useFramework(): FrameworkProvider {
+  const stack = useContext(FrameworkStackContext);
+
+  return stack[stack.length - 1]; // never null, because the default value
+}
+
 export function useService<T extends Service>(
   identifier: GeneralIdentifier<T>
 ): T {
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const stack = useContext(FrameworkStackContext);
 
-  let service: T | null = null;
+  let service: T | undefined = undefined;
 
   for (let i = stack.length - 1; i >= 0; i--) {
     service = stack[i].getOptional(identifier, {
@@ -78,10 +85,11 @@ export function useServices<
 
 export function useServiceOptional<T extends Service>(
   identifier: Type<T>
-): T | null {
+): T | undefined {
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const stack = useContext(FrameworkStackContext);
 
-  let service: T | null = null;
+  let service: T | undefined = undefined;
 
   for (let i = stack.length - 1; i >= 0; i--) {
     service = stack[i].getOptional(identifier, {

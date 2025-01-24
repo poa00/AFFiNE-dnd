@@ -1,23 +1,35 @@
-import { useDocMetaHelper } from '@affine/core/hooks/use-block-suite-page-meta';
-import { useDocCollectionPage } from '@affine/core/hooks/use-block-suite-workspace-page';
-import { timestampToLocalDate } from '@affine/core/utils';
+import { useDocMetaHelper } from '@affine/core/components/hooks/use-block-suite-page-meta';
+import { useDocCollectionPage } from '@affine/core/components/hooks/use-block-suite-workspace-page';
+import { FetchService, GraphQLService } from '@affine/core/modules/cloud';
+import {
+  getAFFiNEWorkspaceSchema,
+  type WorkspaceFlavourProvider,
+  WorkspaceService,
+  WorkspacesService,
+} from '@affine/core/modules/workspace';
+import { WorkspaceImpl } from '@affine/core/modules/workspace/impls/workspace';
 import { DebugLogger } from '@affine/debug';
 import type { ListHistoryQuery } from '@affine/graphql';
 import { listHistoryQuery, recoverDocMutation } from '@affine/graphql';
-import { assertEquals } from '@blocksuite/global/utils';
-import { DocCollection } from '@blocksuite/store';
-import { globalBlockSuiteSchema } from '@toeverything/infra';
-import { revertUpdate } from '@toeverything/y-indexeddb';
+import { i18nTime } from '@affine/i18n';
+import { assertEquals } from '@blocksuite/affine/global/utils';
+import type { Workspace } from '@blocksuite/affine/store';
+import { useService } from '@toeverything/infra';
 import { useEffect, useMemo } from 'react';
 import useSWRImmutable from 'swr/immutable';
-import { applyUpdate, encodeStateAsUpdate } from 'yjs';
+import {
+  applyUpdate,
+  Doc as YDoc,
+  encodeStateAsUpdate,
+  encodeStateVector,
+  UndoManager,
+} from 'yjs';
 
 import {
   useMutateQueryResource,
   useMutation,
-} from '../../../hooks/use-mutation';
-import { useQueryInfinite } from '../../../hooks/use-query';
-import { CloudBlobStorage } from '../../../modules/workspace-engine/impls/engine/blob-cloud';
+} from '../../../components/hooks/use-mutation';
+import { useQueryInfinite } from '../../../components/hooks/use-query';
 
 const logger = new DebugLogger('page-history');
 
@@ -63,7 +75,8 @@ export const useDocSnapshotList = (workspaceId: string, pageDocId: string) => {
 };
 
 const snapshotFetcher = async (
-  [workspaceId, pageDocId, ts]: [
+  [fetchService, workspaceId, pageDocId, ts]: [
+    FetchService,
     workspaceId: string,
     pageDocId: string,
     ts: string,
@@ -72,7 +85,7 @@ const snapshotFetcher = async (
   if (!ts) {
     return null;
   }
-  const res = await fetch(
+  const res = await fetchService.fetch(
     `/api/workspaces/${workspaceId}/docs/${pageDocId}/histories/${ts}`
   );
 
@@ -89,23 +102,36 @@ const snapshotFetcher = async (
 
 // attach the Page shown in the modal to a temporary workspace
 // so that we do not need to worry about providers etc
-// todo: fix references to the page (the referenced page will shown as deleted)
+// TODO(@Peng): fix references to the page (the referenced page will shown as deleted)
 // if we simply clone the current workspace, it maybe time consuming right?
-const docCollectionMap = new Map<string, DocCollection>();
+const docCollectionMap = new Map<string, Workspace>();
 
 // assume the workspace is a cloud workspace since the history feature is only enabled for cloud workspace
-const getOrCreateShellWorkspace = (workspaceId: string) => {
+const getOrCreateShellWorkspace = (
+  workspaceId: string,
+  flavourProvider?: WorkspaceFlavourProvider
+) => {
   let docCollection = docCollectionMap.get(workspaceId);
   if (!docCollection) {
-    const blobStorage = new CloudBlobStorage(workspaceId);
-    docCollection = new DocCollection({
+    docCollection = new WorkspaceImpl({
       id: workspaceId,
-      blobStorages: [
-        () => ({
-          crud: blobStorage,
-        }),
-      ],
-      schema: globalBlockSuiteSchema,
+      blobSource: {
+        name: 'cloud',
+        readonly: true,
+        async get(key) {
+          return flavourProvider?.getWorkspaceBlob(workspaceId, key) ?? null;
+        },
+        set() {
+          return Promise.resolve('');
+        },
+        delete() {
+          return Promise.resolve();
+        },
+        list() {
+          return Promise.resolve([]);
+        },
+      },
+      schema: getAFFiNEWorkspaceSchema(),
     });
     docCollectionMap.set(workspaceId, docCollection);
     docCollection.doc.emit('sync', [true, docCollection.doc]);
@@ -119,9 +145,10 @@ export const usePageHistory = (
   pageDocId: string,
   ts?: string
 ) => {
+  const fetchService = useService(FetchService);
   // snapshot should be immutable. so we use swr immutable to disable revalidation
   const { data } = useSWRImmutable<ArrayBuffer | null>(
-    [workspaceId, pageDocId, ts],
+    [fetchService, workspaceId, pageDocId, ts],
     {
       fetcher: snapshotFetcher,
       suspense: false,
@@ -132,39 +159,61 @@ export const usePageHistory = (
 
 // workspace id + page id + timestamp + snapshot -> Page (to be used for rendering in blocksuite editor)
 export const useSnapshotPage = (
-  docCollection: DocCollection,
+  docCollection: Workspace,
   pageDocId: string,
   ts?: string
 ) => {
+  const affineWorkspace = useService(WorkspaceService).workspace;
+  const workspacesService = useService(WorkspacesService);
+  const fetchService = useService(FetchService);
+  const graphQLService = useService(GraphQLService);
   const snapshot = usePageHistory(docCollection.id, pageDocId, ts);
   const page = useMemo(() => {
     if (!ts) {
       return;
     }
     const pageId = pageDocId + '-' + ts;
-    const historyShellWorkspace = getOrCreateShellWorkspace(docCollection.id);
+    const historyShellWorkspace = getOrCreateShellWorkspace(
+      docCollection.id,
+      workspacesService.getWorkspaceFlavourProvider(affineWorkspace.meta)
+    );
     let page = historyShellWorkspace.getDoc(pageId);
     if (!page && snapshot) {
       page = historyShellWorkspace.createDoc({
         id: pageId,
       });
-      page.awarenessStore.setReadonly(page.blockCollection, true);
+      page.readonly = true;
       const spaceDoc = page.spaceDoc;
       page.load(() => {
         applyUpdate(spaceDoc, new Uint8Array(snapshot));
-        historyShellWorkspace.schema.upgradeDoc(0, {}, spaceDoc);
       }); // must load before applyUpdate
     }
     return page ?? undefined;
-  }, [pageDocId, snapshot, ts, docCollection]);
+  }, [
+    ts,
+    pageDocId,
+    docCollection.id,
+    workspacesService,
+    affineWorkspace.meta,
+    snapshot,
+  ]);
 
   useEffect(() => {
-    const historyShellWorkspace = getOrCreateShellWorkspace(docCollection.id);
+    const historyShellWorkspace = getOrCreateShellWorkspace(
+      docCollection.id,
+      workspacesService.getWorkspaceFlavourProvider(affineWorkspace.meta)
+    );
     // apply the rootdoc's update to the current workspace
     // this makes sure the page reference links are not deleted ones in the preview
     const update = encodeStateAsUpdate(docCollection.doc);
     applyUpdate(historyShellWorkspace.doc, update);
-  }, [docCollection]);
+  }, [
+    affineWorkspace.meta,
+    docCollection,
+    fetchService,
+    graphQLService,
+    workspacesService,
+  ]);
 
   return page;
 };
@@ -172,7 +221,17 @@ export const useSnapshotPage = (
 export const historyListGroupByDay = (histories: DocHistory[]) => {
   const map = new Map<string, DocHistory[]>();
   for (const history of histories) {
-    const day = timestampToLocalDate(history.timestamp);
+    const day = i18nTime(history.timestamp, {
+      relative: {
+        max: [1, 'week'],
+        accuracy: 'day',
+        weekday: true,
+      },
+      absolute: {
+        accuracy: 'day',
+        noYear: true,
+      },
+    });
     const list = map.get(day) ?? [];
     list.push(history);
     map.set(day, list);
@@ -180,16 +239,52 @@ export const historyListGroupByDay = (histories: DocHistory[]) => {
   return [...map.entries()];
 };
 
-export const useRestorePage = (
-  docCollection: DocCollection,
-  pageId: string
-) => {
+export function revertUpdate(
+  doc: YDoc,
+  snapshotUpdate: Uint8Array,
+  getMetadata: (key: string) => 'Text' | 'Map' | 'Array'
+) {
+  const snapshotDoc = new YDoc();
+  applyUpdate(snapshotDoc, snapshotUpdate);
+
+  const currentStateVector = encodeStateVector(doc);
+  const snapshotStateVector = encodeStateVector(snapshotDoc);
+
+  const changesSinceSnapshotUpdate = encodeStateAsUpdate(
+    doc,
+    snapshotStateVector
+  );
+  const undoManager = new UndoManager(
+    // oxlint-disable array-callback-return
+    [...snapshotDoc.share.keys()].map(key => {
+      const type = getMetadata(key);
+      if (type === 'Text') {
+        return snapshotDoc.getText(key);
+      } else if (type === 'Map') {
+        return snapshotDoc.getMap(key);
+      } else if (type === 'Array') {
+        return snapshotDoc.getArray(key);
+      }
+
+      throw new Error('Unknown type');
+    })
+  );
+  applyUpdate(snapshotDoc, changesSinceSnapshotUpdate);
+  undoManager.undo();
+  const revertChangesSinceSnapshotUpdate = encodeStateAsUpdate(
+    snapshotDoc,
+    currentStateVector
+  );
+  applyUpdate(doc, revertChangesSinceSnapshotUpdate);
+}
+
+export const useRestorePage = (docCollection: Workspace, pageId: string) => {
   const page = useDocCollectionPage(docCollection, pageId);
   const mutateQueryResource = useMutateQueryResource();
   const { trigger: recover, isMutating } = useMutation({
     mutation: recoverDocMutation,
   });
-  const { getDocMeta, setDocTitle } = useDocMetaHelper(docCollection);
+  const { getDocMeta, setDocTitle } = useDocMetaHelper();
 
   const onRestore = useMemo(() => {
     return async (version: string, update: Uint8Array) => {

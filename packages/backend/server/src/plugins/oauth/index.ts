@@ -1,3 +1,5 @@
+import './config';
+
 import { AuthModule } from '../../core/auth';
 import { ServerFeature } from '../../core/config';
 import { UserModule } from '../../core/user';
@@ -19,7 +21,6 @@ import { OAuthService } from './service';
   ],
   controllers: [OAuthController],
   contributesTo: ServerFeature.OAuth,
-  if: config => !!config.plugins.oauth,
+  if: config => config.flavor.graphql && !!config.plugins.oauth,
 })
 export class OAuthModule {}
-export type { OAuthConfig } from './types';

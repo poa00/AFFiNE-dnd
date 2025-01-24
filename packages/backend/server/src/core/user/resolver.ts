@@ -1,48 +1,43 @@
-import { BadRequestException } from '@nestjs/common';
 import {
   Args,
+  Field,
+  InputType,
   Int,
   Mutation,
   Query,
-  ResolveField,
   Resolver,
 } from '@nestjs/graphql';
-import type { User } from '@prisma/client';
 import { PrismaClient } from '@prisma/client';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.mjs';
 import { isNil, omitBy } from 'lodash-es';
 
-import type { FileUpload } from '../../fundamentals';
 import {
-  EventEmitter,
-  PaymentRequiredException,
+  CannotDeleteOwnAccount,
+  type FileUpload,
   Throttle,
-} from '../../fundamentals';
-import { CurrentUser } from '../auth/current-user';
+  UserNotFound,
+} from '../../base';
+import { Models } from '../../models';
 import { Public } from '../auth/guard';
 import { sessionUser } from '../auth/service';
-import { FeatureManagementService, FeatureType } from '../features';
-import { QuotaService } from '../quota';
+import { CurrentUser } from '../auth/session';
+import { Admin } from '../common';
 import { AvatarStorage } from '../storage';
-import { UserService } from './service';
+import { validators } from '../utils/validators';
 import {
   DeleteAccount,
+  ManageUserInput,
   RemoveAvatar,
   UpdateUserInput,
   UserOrLimitedUser,
-  UserQuotaType,
   UserType,
 } from './types';
 
 @Resolver(() => UserType)
 export class UserResolver {
   constructor(
-    private readonly prisma: PrismaClient,
     private readonly storage: AvatarStorage,
-    private readonly users: UserService,
-    private readonly feature: FeatureManagementService,
-    private readonly quota: QuotaService,
-    private readonly event: EventEmitter
+    private readonly models: Models
   ) {}
 
   @Throttle('strict')
@@ -53,17 +48,13 @@ export class UserResolver {
   })
   @Public()
   async user(
-    @CurrentUser() currentUser?: CurrentUser,
-    @Args('email') email?: string
+    @Args('email') email: string,
+    @CurrentUser() currentUser?: CurrentUser
   ): Promise<typeof UserOrLimitedUser | null> {
-    if (!email || !(await this.feature.canEarlyAccess(email))) {
-      throw new PaymentRequiredException(
-        `You don't have early access permission\nVisit https://community.affine.pro/c/insider-general/ for more information`
-      );
-    }
+    validators.assertValidEmail(email);
 
-    // TODO: need to limit a user can only get another user witch is in the same workspace
-    const user = await this.users.findUserWithHashedPasswordByEmail(email);
+    // TODO(@forehalo): need to limit a user can only get another user witch is in the same workspace
+    const user = await this.models.user.getUserByEmail(email);
 
     // return empty response when user not exists
     if (!user) return null;
@@ -79,31 +70,6 @@ export class UserResolver {
     };
   }
 
-  @ResolveField(() => UserQuotaType, { name: 'quota', nullable: true })
-  async getQuota(@CurrentUser() me: User) {
-    const quota = await this.quota.getUserQuota(me.id);
-
-    return quota.feature;
-  }
-
-  @ResolveField(() => Int, {
-    name: 'invoiceCount',
-    description: 'Get user invoice count',
-  })
-  async invoiceCount(@CurrentUser() user: CurrentUser) {
-    return this.prisma.userInvoice.count({
-      where: { userId: user.id },
-    });
-  }
-
-  @ResolveField(() => [FeatureType], {
-    name: 'features',
-    description: 'Enabled features of a user',
-  })
-  async userFeatures(@CurrentUser() user: CurrentUser) {
-    return this.feature.getActivatedUserFeatures(user.id);
-  }
-
   @Mutation(() => UserType, {
     name: 'uploadAvatar',
     description: 'Upload user avatar',
@@ -113,24 +79,27 @@ export class UserResolver {
     @Args({ name: 'avatar', type: () => GraphQLUpload })
     avatar: FileUpload
   ) {
-    if (!user) {
-      throw new BadRequestException(`User not found`);
+    if (!avatar.mimetype.startsWith('image/')) {
+      throw new Error('Invalid file type');
     }
 
-    const link = await this.storage.put(
-      `${user.id}-avatar`,
+    if (!user) {
+      throw new UserNotFound();
+    }
+
+    const avatarUrl = await this.storage.put(
+      `${user.id}-avatar-${Date.now()}`,
       avatar.createReadStream(),
       {
         contentType: avatar.mimetype,
       }
     );
 
-    return this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        avatarUrl: link,
-      },
-    });
+    if (user.avatarUrl) {
+      await this.storage.delete(user.avatarUrl);
+    }
+
+    return this.models.user.update(user.id, { avatarUrl });
   }
 
   @Mutation(() => UserType, {
@@ -146,12 +115,7 @@ export class UserResolver {
       return user;
     }
 
-    return sessionUser(
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: input,
-      })
-    );
+    return sessionUser(await this.models.user.update(user.id, input));
   }
 
   @Mutation(() => RemoveAvatar, {
@@ -160,12 +124,9 @@ export class UserResolver {
   })
   async removeAvatar(@CurrentUser() user: CurrentUser) {
     if (!user) {
-      throw new BadRequestException(`User not found`);
+      throw new UserNotFound();
     }
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { avatarUrl: null },
-    });
+    await this.models.user.update(user.id, { avatarUrl: null });
     return { success: true };
   }
 
@@ -173,8 +134,138 @@ export class UserResolver {
   async deleteAccount(
     @CurrentUser() user: CurrentUser
   ): Promise<DeleteAccount> {
-    const deletedUser = await this.users.deleteUser(user.id);
-    this.event.emit('user.deleted', deletedUser);
+    await this.models.user.delete(user.id);
     return { success: true };
+  }
+}
+
+@InputType()
+class ListUserInput {
+  @Field(() => Int, { nullable: true, defaultValue: 0 })
+  skip!: number;
+
+  @Field(() => Int, { nullable: true, defaultValue: 20 })
+  first!: number;
+}
+
+@InputType()
+class CreateUserInput {
+  @Field(() => String)
+  email!: string;
+
+  @Field(() => String, { nullable: true })
+  name!: string | null;
+}
+
+@Admin()
+@Resolver(() => UserType)
+export class UserManagementResolver {
+  constructor(
+    private readonly db: PrismaClient,
+    private readonly models: Models
+  ) {}
+
+  @Query(() => Int, {
+    description: 'Get users count',
+  })
+  async usersCount(): Promise<number> {
+    return this.db.user.count();
+  }
+
+  @Query(() => [UserType], {
+    description: 'List registered users',
+  })
+  async users(
+    @Args({ name: 'filter', type: () => ListUserInput }) input: ListUserInput
+  ): Promise<UserType[]> {
+    const users = await this.models.user.pagination(input.skip, input.first);
+
+    return users.map(sessionUser);
+  }
+
+  @Query(() => UserType, {
+    name: 'userById',
+    description: 'Get user by id',
+  })
+  async getUser(@Args('id') id: string) {
+    const user = await this.models.user.get(id);
+
+    if (!user) {
+      return null;
+    }
+
+    return sessionUser(user);
+  }
+
+  @Query(() => UserType, {
+    name: 'userByEmail',
+    description: 'Get user by email for admin',
+    nullable: true,
+  })
+  async getUserByEmail(@Args('email') email: string) {
+    const user = await this.models.user.getUserByEmail(email);
+
+    if (!user) {
+      return null;
+    }
+
+    return sessionUser(user);
+  }
+
+  @Mutation(() => UserType, {
+    description: 'Create a new user',
+  })
+  async createUser(
+    @Args({ name: 'input', type: () => CreateUserInput }) input: CreateUserInput
+  ) {
+    const { id } = await this.models.user.create({
+      email: input.email,
+      registered: true,
+    });
+
+    // data returned by `createUser` does not satisfies `UserType`
+    return this.getUser(id);
+  }
+
+  @Mutation(() => DeleteAccount, {
+    description: 'Delete a user account',
+  })
+  async deleteUser(
+    @CurrentUser() user: CurrentUser,
+    @Args('id') id: string
+  ): Promise<DeleteAccount> {
+    if (user.id === id) {
+      throw new CannotDeleteOwnAccount();
+    }
+    await this.models.user.delete(id);
+    return { success: true };
+  }
+
+  @Mutation(() => UserType, {
+    description: 'Update a user',
+  })
+  async updateUser(
+    @Args('id') id: string,
+    @Args('input') input: ManageUserInput
+  ): Promise<UserType> {
+    const user = await this.db.user.findUnique({
+      where: { id },
+    });
+
+    if (!user) {
+      throw new UserNotFound();
+    }
+
+    input = omitBy(input, isNil);
+    if (Object.keys(input).length === 0) {
+      return sessionUser(user);
+    }
+
+    return sessionUser(
+      await this.models.user.update(user.id, {
+        email: input.email,
+        name: input.name,
+      })
+    );
   }
 }

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
+import { CannotDeleteAllAdminAccount } from '../../base';
 import { WorkspaceType } from '../workspaces/types';
 import { FeatureConfigType, getFeature } from './feature';
 import { FeatureKind, FeatureType } from './types';
@@ -9,47 +10,15 @@ import { FeatureKind, FeatureType } from './types';
 export class FeatureService {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async getFeaturesVersion() {
-    const features = await this.prisma.features.findMany({
-      where: {
-        type: FeatureKind.Feature,
-      },
-      select: {
-        feature: true,
-        version: true,
-      },
-    });
-    return features.reduce(
-      (acc, feature) => {
-        // only keep the latest version
-        if (acc[feature.feature]) {
-          if (acc[feature.feature] < feature.version) {
-            acc[feature.feature] = feature.version;
-          }
-        } else {
-          acc[feature.feature] = feature.version;
-        }
-        return acc;
-      },
-      {} as Record<string, number>
-    );
-  }
-
-  async getFeature<F extends FeatureType>(
-    feature: F
-  ): Promise<FeatureConfigType<F> | undefined> {
-    const data = await this.prisma.features.findFirst({
-      where: {
-        feature,
-        type: FeatureKind.Feature,
-      },
+  async getFeature<F extends FeatureType>(feature: F) {
+    const data = await this.prisma.feature.findFirst({
+      where: { feature, type: FeatureKind.Feature },
       select: { id: true },
-      orderBy: {
-        version: 'desc',
-      },
+      orderBy: { version: 'desc' },
     });
+
     if (data) {
-      return getFeature(this.prisma, data.id) as FeatureConfigType<F>;
+      return getFeature(this.prisma, data.id) as Promise<FeatureConfigType<F>>;
     }
     return undefined;
   }
@@ -63,7 +32,7 @@ export class FeatureService {
     expiredAt?: Date | string
   ) {
     return this.prisma.$transaction(async tx => {
-      const latestFlag = await tx.userFeatures.findFirst({
+      const latestFlag = await tx.userFeature.findFirst({
         where: {
           userId,
           feature: {
@@ -80,37 +49,26 @@ export class FeatureService {
       if (latestFlag) {
         return latestFlag.id;
       } else {
-        const latestVersion = await tx.features
-          .aggregate({
-            where: { feature },
-            _max: { version: true },
+        const featureId = await tx.feature
+          .findFirst({
+            where: { feature, type: FeatureKind.Feature },
+            orderBy: { version: 'desc' },
+            select: { id: true },
           })
-          .then(r => r._max.version);
+          .then(r => r?.id);
 
-        if (!latestVersion) {
+        if (!featureId) {
           throw new Error(`Feature ${feature} not found`);
         }
 
-        return tx.userFeatures
+        return tx.userFeature
           .create({
             data: {
               reason,
               expiredAt,
               activated: true,
-              user: {
-                connect: {
-                  id: userId,
-                },
-              },
-              feature: {
-                connect: {
-                  feature_version: {
-                    feature,
-                    version: latestVersion,
-                  },
-                  type: FeatureKind.Feature,
-                },
-              },
+              userId,
+              featureId,
             },
           })
           .then(r => r.id);
@@ -119,7 +77,10 @@ export class FeatureService {
   }
 
   async removeUserFeature(userId: string, feature: FeatureType) {
-    return this.prisma.userFeatures
+    if (feature === FeatureType.Admin) {
+      await this.ensureNotLastAdmin(userId);
+    }
+    return this.prisma.userFeature
       .updateMany({
         where: {
           userId,
@@ -136,18 +97,30 @@ export class FeatureService {
       .then(r => r.count);
   }
 
+  async ensureNotLastAdmin(userId: string) {
+    const count = await this.prisma.userFeature.count({
+      where: {
+        userId: { not: userId },
+        feature: { feature: FeatureType.Admin, type: FeatureKind.Feature },
+        activated: true,
+      },
+    });
+
+    if (count === 0) {
+      throw new CannotDeleteAllAdminAccount();
+    }
+  }
+
   /**
    * get user's features, will included inactivated features
    * @param userId user id
    * @returns list of features
    */
   async getUserFeatures(userId: string) {
-    const features = await this.prisma.userFeatures.findMany({
+    const features = await this.prisma.userFeature.findMany({
       where: {
-        user: { id: userId },
-        feature: {
-          type: FeatureKind.Feature,
-        },
+        userId,
+        feature: { type: FeatureKind.Feature },
       },
       select: {
         activated: true,
@@ -168,10 +141,10 @@ export class FeatureService {
     return configs.filter(feature => !!feature.feature);
   }
 
-  async getActivatedUserFeatures(userId: string) {
-    const features = await this.prisma.userFeatures.findMany({
+  async getUserActivatedFeatures(userId: string) {
+    const features = await this.prisma.userFeature.findMany({
       where: {
-        user: { id: userId },
+        userId,
         feature: { type: FeatureKind.Feature },
         activated: true,
         OR: [{ expiredAt: null }, { expiredAt: { gt: new Date() } }],
@@ -195,8 +168,8 @@ export class FeatureService {
     return configs.filter(feature => !!feature.feature);
   }
 
-  async listFeatureUsers(feature: FeatureType) {
-    return this.prisma.userFeatures
+  async listUsersByFeature(feature: FeatureType) {
+    return this.prisma.userFeature
       .findMany({
         where: {
           activated: true,
@@ -222,7 +195,7 @@ export class FeatureService {
   }
 
   async hasUserFeature(userId: string, feature: FeatureType) {
-    return this.prisma.userFeatures
+    return this.prisma.userFeature
       .count({
         where: {
           userId,
@@ -242,12 +215,11 @@ export class FeatureService {
   async addWorkspaceFeature(
     workspaceId: string,
     feature: FeatureType,
-    version: number,
     reason: string,
     expiredAt?: Date | string
   ) {
     return this.prisma.$transaction(async tx => {
-      const latestFlag = await tx.workspaceFeatures.findFirst({
+      const latestFlag = await tx.workspaceFeature.findFirst({
         where: {
           workspaceId,
           feature: {
@@ -263,26 +235,27 @@ export class FeatureService {
       if (latestFlag) {
         return latestFlag.id;
       } else {
-        return tx.workspaceFeatures
+        // use latest version of feature
+        const featureId = await tx.feature
+          .findFirst({
+            where: { feature, type: FeatureKind.Feature },
+            select: { id: true },
+            orderBy: { version: 'desc' },
+          })
+          .then(r => r?.id);
+
+        if (!featureId) {
+          throw new Error(`Feature ${feature} not found`);
+        }
+
+        return tx.workspaceFeature
           .create({
             data: {
               reason,
               expiredAt,
               activated: true,
-              workspace: {
-                connect: {
-                  id: workspaceId,
-                },
-              },
-              feature: {
-                connect: {
-                  feature_version: {
-                    feature,
-                    version,
-                  },
-                  type: FeatureKind.Feature,
-                },
-              },
+              workspaceId,
+              featureId,
             },
           })
           .then(r => r.id);
@@ -291,7 +264,7 @@ export class FeatureService {
   }
 
   async removeWorkspaceFeature(workspaceId: string, feature: FeatureType) {
-    return this.prisma.workspaceFeatures
+    return this.prisma.workspaceFeature
       .updateMany({
         where: {
           workspaceId,
@@ -314,7 +287,7 @@ export class FeatureService {
    * @returns list of features
    */
   async getWorkspaceFeatures(workspaceId: string) {
-    const features = await this.prisma.workspaceFeatures.findMany({
+    const features = await this.prisma.workspaceFeature.findMany({
       where: {
         workspace: { id: workspaceId },
         feature: {
@@ -340,8 +313,10 @@ export class FeatureService {
     return configs.filter(feature => !!feature.feature);
   }
 
-  async listFeatureWorkspaces(feature: FeatureType): Promise<WorkspaceType[]> {
-    return this.prisma.workspaceFeatures
+  async listWorkspacesByFeature(
+    feature: FeatureType
+  ): Promise<WorkspaceType[]> {
+    return this.prisma.workspaceFeature
       .findMany({
         where: {
           activated: true,
@@ -364,7 +339,7 @@ export class FeatureService {
   }
 
   async hasWorkspaceFeature(workspaceId: string, feature: FeatureType) {
-    return this.prisma.workspaceFeatures
+    return this.prisma.workspaceFeature
       .count({
         where: {
           workspaceId,

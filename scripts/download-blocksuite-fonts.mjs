@@ -2,8 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// eslint-disable-next-line @typescript-eslint/no-restricted-imports
-import { CanvasTextFonts } from '@blocksuite/blocks/dist/surface-block/consts.js';
+import { AffineCanvasTextFonts } from '@blocksuite/blocks';
 
 const fontPath = join(
   fileURLToPath(import.meta.url),
@@ -11,13 +10,13 @@ const fontPath = join(
   '..',
   'packages',
   'frontend',
-  'web',
-  'dist',
-  'assets'
+  'core',
+  'public',
+  'fonts'
 );
 
 await Promise.all(
-  CanvasTextFonts.map(async ({ url }) => {
+  AffineCanvasTextFonts.map(async ({ url }) => {
     const buffer = await fetch(url).then(res =>
       res.arrayBuffer().then(res => Buffer.from(res))
     );

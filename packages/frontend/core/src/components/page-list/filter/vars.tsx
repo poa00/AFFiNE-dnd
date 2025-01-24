@@ -1,11 +1,11 @@
-import { MenuIcon, MenuItem, MenuSeparator } from '@affine/component';
+import { MenuItem, MenuSeparator } from '@affine/component';
 import type {
   Filter,
   LiteralValue,
   PropertiesMeta,
   VariableMap,
 } from '@affine/env/filter';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
+import { useI18n } from '@affine/i18n';
 import dayjs from 'dayjs';
 import type { ReactNode } from 'react';
 
@@ -81,7 +81,7 @@ export const VariableSelect = ({
   onSelect: (value: Filter) => void;
   propertiesMeta: PropertiesMeta;
 }) => {
-  const t = useAFFiNEI18N();
+  const t = useI18n();
   return (
     <div data-testid="variable-select">
       <div className={styles.variableSelectTitleStyle}>
@@ -92,7 +92,7 @@ export const VariableSelect = ({
         // .filter(v => !selected.find(filter => filter.left.name === v.name))
         .map(v => (
           <MenuItem
-            preFix={<MenuIcon>{variableDefineMap[v.name].icon}</MenuIcon>}
+            prefixIcon={variableDefineMap[v.name].icon}
             key={v.name}
             onClick={() => {
               onSelect(createDefaultFilter(v, propertiesMeta));

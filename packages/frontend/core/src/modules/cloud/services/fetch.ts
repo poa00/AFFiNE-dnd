@@ -1,21 +1,18 @@
 import { DebugLogger } from '@affine/debug';
+import { UserFriendlyError } from '@affine/graphql';
 import { fromPromise, Service } from '@toeverything/infra';
 
 import { BackendError, NetworkError } from '../error';
-
-export function getAffineCloudBaseUrl(): string {
-  if (environment.isDesktop) {
-    return runtimeConfig.serverUrlPrefix;
-  }
-  const { protocol, hostname, port } = window.location;
-  return `${protocol}//${hostname}${port ? `:${port}` : ''}`;
-}
+import type { ServerService } from './server';
 
 const logger = new DebugLogger('affine:fetch');
 
 export type FetchInit = RequestInit & { timeout?: number };
 
 export class FetchService extends Service {
+  constructor(private readonly serverService: ServerService) {
+    super();
+  }
   rxFetch = (
     input: string,
     init?: RequestInit & {
@@ -40,8 +37,8 @@ export class FetchService extends Service {
       throw externalSignal.reason;
     }
     const abortController = new AbortController();
-    externalSignal?.addEventListener('abort', () => {
-      abortController.abort();
+    externalSignal?.addEventListener('abort', reason => {
+      abortController.abort(reason);
     });
 
     const timeout = init?.timeout ?? 15000;
@@ -49,18 +46,24 @@ export class FetchService extends Service {
       abortController.abort('timeout');
     }, timeout);
 
-    const res = await fetch(new URL(input, getAffineCloudBaseUrl()), {
-      ...init,
-      signal: abortController.signal,
-    }).catch(err => {
-      logger.debug('network error', err);
-      throw new NetworkError(err);
-    });
+    const res = await globalThis
+      .fetch(new URL(input, this.serverService.server.serverMetadata.baseUrl), {
+        ...init,
+        signal: abortController.signal,
+        headers: {
+          ...init?.headers,
+          'x-affine-version': BUILD_CONFIG.appVersion,
+        },
+      })
+      .catch(err => {
+        logger.debug('network error', err);
+        throw new NetworkError(err);
+      });
     clearTimeout(timeoutId);
     if (res.status === 504) {
       const error = new Error('Gateway Timeout');
       logger.debug('network error', error);
-      throw new NetworkError(error);
+      throw new NetworkError(error, res.status);
     }
     if (!res.ok) {
       logger.warn(
@@ -71,12 +74,13 @@ export class FetchService extends Service {
       if (res.headers.get('Content-Type')?.includes('application/json')) {
         try {
           reason = await res.json();
-        } catch (err) {
+        } catch {
           // ignore
         }
       }
       throw new BackendError(
-        new Error(`${res.status} ${res.statusText}`, reason)
+        UserFriendlyError.fromAnyError(reason),
+        res.status
       );
     }
     return res;

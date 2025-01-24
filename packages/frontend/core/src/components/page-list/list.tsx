@@ -7,7 +7,6 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
-  useRef,
 } from 'react';
 
 import { usePageHeaderColsDef } from './header-col-def';
@@ -43,7 +42,7 @@ export const List = forwardRef<ItemListHandle, ListProps<ListItem>>(
 );
 
 // when pressing ESC or double clicking outside of the page list, close the selection mode
-// todo: use jotai-effect instead but it seems it does not work with jotai-scope?
+// TODO(@Peng): use jotai-effect instead but it seems it does not work with jotai-scope?
 const useItemSelectionStateEffect = () => {
   const [selectionState, setSelectionActive] = useAtom(selectionStateAtom);
   useEffect(() => {
@@ -62,7 +61,9 @@ const useItemSelectionStateEffect = () => {
         if (
           target.tagName === 'BUTTON' ||
           target.tagName === 'INPUT' ||
-          (e.target as HTMLElement).closest('button, input, [role="toolbar"]')
+          (e.target as HTMLElement).closest(
+            'button, input, [role="toolbar"], [role="list-item"]'
+          )
         ) {
           return;
         }
@@ -118,17 +119,13 @@ export const ListInnerWrapper = memo(
       onSelectionActiveChange?.(!!selectionState.selectionActive);
     }, [onSelectionActiveChange, selectionState.selectionActive]);
 
-    useImperativeHandle(
-      handleRef,
-      () => {
-        return {
-          toggleSelectable: () => {
-            setListSelectionState(false);
-          },
-        };
-      },
-      [setListSelectionState]
-    );
+    useImperativeHandle(handleRef, () => {
+      return {
+        toggleSelectable: () => {
+          setListSelectionState(false);
+        },
+      };
+    }, [setListSelectionState]);
     return children;
   }
 );
@@ -160,8 +157,7 @@ export const ListScrollContainer = forwardRef<
   HTMLDivElement,
   PropsWithChildren<ListScrollContainerProps>
 >(({ className, children, style }, ref) => {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const hasScrollTop = useHasScrollTop(containerRef);
+  const [setContainer, hasScrollTop] = useHasScrollTop();
 
   const setNodeRef = useCallback(
     (r: HTMLDivElement) => {
@@ -172,9 +168,9 @@ export const ListScrollContainer = forwardRef<
           ref.current = r;
         }
       }
-      containerRef.current = r;
+      return setContainer(r);
     },
-    [ref]
+    [ref, setContainer]
   );
 
   return (

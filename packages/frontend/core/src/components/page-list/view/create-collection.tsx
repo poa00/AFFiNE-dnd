@@ -1,5 +1,6 @@
 import { Button, Input, Modal } from '@affine/component';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
+import { useCatchEventCallback } from '@affine/core/components/hooks/use-catch-event-hook';
+import { useI18n } from '@affine/i18n';
 import type { KeyboardEvent } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -23,7 +24,7 @@ export const CreateCollectionModal = ({
   onOpenChange,
   title,
 }: CreateCollectionModalProps) => {
-  const t = useAFFiNEI18N();
+  const t = useI18n();
   const onConfirmTitle = useCallback(
     (title: string) => {
       onConfirm(title);
@@ -65,7 +66,7 @@ export const CreateCollection = ({
   onCancel,
   onConfirm,
 }: CreateCollectionProps) => {
-  const t = useAFFiNEI18N();
+  const t = useI18n();
   const [value, onChange] = useState(init);
   const isNameEmpty = useMemo(() => value.trim().length === 0, [value]);
   const save = useCallback(() => {
@@ -74,7 +75,7 @@ export const CreateCollection = ({
     }
     onConfirm(value);
   }, [onConfirm, value, isNameEmpty]);
-  const onKeyDown = useCallback(
+  const onKeyDown = useCatchEventCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Escape') {
         if (isNameEmpty) {
@@ -83,12 +84,11 @@ export const CreateCollection = ({
           e.currentTarget.blur();
         }
       }
-      e.stopPropagation();
     },
     [isNameEmpty]
   );
   return (
-    <div>
+    <div data-testid="edit-collection-modal">
       <div className={styles.content}>
         <div className={styles.label}>
           {t['com.affine.editCollectionName.name']()}
@@ -115,7 +115,7 @@ export const CreateCollection = ({
         <Button
           size="large"
           data-testid="save-collection"
-          type="primary"
+          variant="primary"
           disabled={isNameEmpty}
           onClick={save}
         >

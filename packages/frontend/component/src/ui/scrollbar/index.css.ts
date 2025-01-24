@@ -27,7 +27,7 @@ export const scrollableViewport = style({
   height: '100%',
   width: '100%',
 });
-globalStyle(`${scrollableViewport} > div`, {
+globalStyle(`${scrollableViewport} >:first-child`, {
   display: 'contents !important',
 });
 export const scrollableContainer = style({
@@ -53,6 +53,11 @@ export const scrollbar = style({
     },
   },
 });
+
+export const mobileScrollbar = style({
+  display: 'none',
+});
+
 export const TableScrollbar = style({
   marginTop: '60px',
   height: 'calc(100% - 120px)',

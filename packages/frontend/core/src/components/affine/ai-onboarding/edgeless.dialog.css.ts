@@ -19,3 +19,14 @@ export const thumbContent = style({
   width: 'calc(100% + 4px)',
   height: 'calc(100% + 4px)',
 });
+
+export const actionButton = style({
+  fontSize: cssVar('fontSm'),
+  lineHeight: '22px',
+});
+export const getStartedButtonText = style({
+  color: cssVar('textSecondaryColor'),
+});
+export const purchaseButtonText = style({
+  color: cssVar('textPrimaryColor'),
+});

@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
+/* oxlint-disable @typescript-eslint/no-non-null-assertion */
 // Custom configurations for AFFiNE Cloud
 // ====================================================================================
 // Q: WHY THIS FILE EXISTS?
@@ -17,38 +17,50 @@
 // ====================================================================================
 const env = process.env;
 
+AFFiNE.serverName = AFFiNE.affine.canary
+  ? 'AFFiNE Canary Cloud'
+  : AFFiNE.affine.beta
+    ? 'AFFiNE Beta Cloud'
+    : 'AFFiNE Cloud';
 AFFiNE.metrics.enabled = !AFFiNE.node.test;
 
 if (env.R2_OBJECT_STORAGE_ACCOUNT_ID) {
-  AFFiNE.plugins.use('cloudflare-r2', {
+  AFFiNE.use('cloudflare-r2', {
     accountId: env.R2_OBJECT_STORAGE_ACCOUNT_ID,
     credentials: {
       accessKeyId: env.R2_OBJECT_STORAGE_ACCESS_KEY_ID!,
       secretAccessKey: env.R2_OBJECT_STORAGE_SECRET_ACCESS_KEY!,
     },
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+    responseChecksumValidation: 'WHEN_REQUIRED',
   });
-  AFFiNE.storage.storages.avatar.provider = 'cloudflare-r2';
-  AFFiNE.storage.storages.avatar.bucket = 'account-avatar';
-  AFFiNE.storage.storages.avatar.publicLinkFactory = key =>
+  AFFiNE.storages.avatar.provider = 'cloudflare-r2';
+  AFFiNE.storages.avatar.bucket = 'account-avatar';
+  AFFiNE.storages.avatar.publicLinkFactory = key =>
     `https://avatar.affineassets.com/${key}`;
 
-  AFFiNE.storage.storages.blob.provider = 'cloudflare-r2';
-  AFFiNE.storage.storages.blob.bucket = `workspace-blobs-${
+  AFFiNE.storages.blob.provider = 'cloudflare-r2';
+  AFFiNE.storages.blob.bucket = `workspace-blobs-${
     AFFiNE.affine.canary ? 'canary' : 'prod'
   }`;
 
-  AFFiNE.storage.storages.copilot.provider = 'cloudflare-r2';
-  AFFiNE.storage.storages.copilot.bucket = `workspace-copilot-${
-    AFFiNE.affine.canary ? 'canary' : 'prod'
-  }`;
+  AFFiNE.use('copilot', {
+    storage: {
+      provider: 'cloudflare-r2',
+      bucket: `workspace-copilot-${AFFiNE.affine.canary ? 'canary' : 'prod'}`,
+    },
+  });
 }
 
-AFFiNE.plugins.use('copilot', {
-  openai: {},
-  fal: {},
+AFFiNE.use('copilot', {
+  openai: {
+    apiKey: '',
+  },
+  fal: {
+    apiKey: '',
+  },
 });
-AFFiNE.plugins.use('redis');
-AFFiNE.plugins.use('payment', {
+AFFiNE.use('payment', {
   stripe: {
     keys: {
       // fake the key to ensure the server generate full GraphQL Schema even env vars are not set
@@ -57,7 +69,15 @@ AFFiNE.plugins.use('payment', {
     },
   },
 });
-AFFiNE.plugins.use('oauth');
+AFFiNE.use('oauth');
+
+/* Captcha Plugin Default Config */
+AFFiNE.use('captcha', {
+  turnstile: {},
+  challenge: {
+    bits: 20,
+  },
+});
 
 if (AFFiNE.deploy) {
   AFFiNE.mailer = {
@@ -68,5 +88,5 @@ if (AFFiNE.deploy) {
     },
   };
 
-  AFFiNE.plugins.use('gcloud');
+  AFFiNE.use('gcloud');
 }

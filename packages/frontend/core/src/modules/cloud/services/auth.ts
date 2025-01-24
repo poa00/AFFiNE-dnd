@@ -1,49 +1,45 @@
-import { apis } from '@affine/electron-api';
+import { AIProvider } from '@affine/core/blocksuite/presets/ai';
 import type { OAuthProviderType } from '@affine/graphql';
-import { AIProvider } from '@blocksuite/presets';
-import {
-  ApplicationFocused,
-  ApplicationStarted,
-  createEvent,
-  OnEvent,
-  Service,
-} from '@toeverything/infra';
+import { track } from '@affine/track';
+import { OnEvent, Service } from '@toeverything/infra';
 import { distinctUntilChanged, map, skip } from 'rxjs';
 
+import { ApplicationFocused } from '../../lifecycle';
+import type { UrlService } from '../../url';
 import { type AuthAccountInfo, AuthSession } from '../entities/session';
+import { BackendError } from '../error';
+import { AccountChanged } from '../events/account-changed';
+import { AccountLoggedIn } from '../events/account-logged-in';
+import { AccountLoggedOut } from '../events/account-logged-out';
+import { ServerStarted } from '../events/server-started';
 import type { AuthStore } from '../stores/auth';
 import type { FetchService } from './fetch';
 
-// Emit when account changed
-export const AccountChanged = createEvent<AuthAccountInfo | null>(
-  'AccountChanged'
-);
+function toAIUserInfo(account: AuthAccountInfo | null) {
+  if (!account) return null;
+  return {
+    avatarUrl: account.avatar ?? '',
+    email: account.email ?? '',
+    id: account.id,
+    name: account.label,
+  };
+}
 
-export const AccountLoggedIn = createEvent<AuthAccountInfo>('AccountLoggedIn');
-
-export const AccountLoggedOut =
-  createEvent<AuthAccountInfo>('AccountLoggedOut');
-
-@OnEvent(ApplicationStarted, e => e.onApplicationStart)
 @OnEvent(ApplicationFocused, e => e.onApplicationFocused)
+@OnEvent(ServerStarted, e => e.onServerStarted)
 export class AuthService extends Service {
   session = this.framework.createEntity(AuthSession);
 
   constructor(
     private readonly fetchService: FetchService,
-    private readonly store: AuthStore
+    private readonly store: AuthStore,
+    private readonly urlService: UrlService
   ) {
     super();
 
+    // TODO(@forehalo): make AIProvider a standalone service passed to AI elements by props
     AIProvider.provide('userInfo', () => {
-      const account = this.session.account$.value;
-      if (!account) return null;
-      return {
-        avatarUrl: account.avatar ?? '',
-        email: account.email ?? '',
-        id: account.id,
-        name: account.label,
-      };
+      return toAIUserInfo(this.session.account$.value);
     });
 
     this.session.account$
@@ -56,6 +52,8 @@ export class AuthService extends Service {
         skip(1) // skip the initial value
       )
       .subscribe(({ account }) => {
+        AIProvider.slots.userInfo.emit(toAIUserInfo(account));
+
         if (account === null) {
           this.eventBus.emit(AccountLoggedOut, account);
         } else {
@@ -65,7 +63,7 @@ export class AuthService extends Service {
       });
   }
 
-  private onApplicationStart() {
+  private onServerStarted() {
     this.session.revalidate();
   }
 
@@ -75,77 +73,154 @@ export class AuthService extends Service {
 
   async sendEmailMagicLink(
     email: string,
-    verifyToken: string,
+    verifyToken?: string,
     challenge?: string,
-    redirectUri?: string | null
+    redirectUrl?: string // url to redirect to after signed-in
   ) {
-    const searchParams = new URLSearchParams();
-    if (challenge) {
-      searchParams.set('challenge', challenge);
-    }
-    searchParams.set('token', verifyToken);
-    const redirect = environment.isDesktop
-      ? this.buildRedirectUri('/open-app/signin-redirect')
-      : redirectUri ?? location.href;
-    searchParams.set('redirect_uri', redirect.toString());
-
-    const res = await this.fetchService.fetch(
-      '/api/auth/sign-in?' + searchParams.toString(),
-      {
+    track.$.$.auth.signIn({ method: 'magic-link' });
+    try {
+      const scheme = this.urlService.getClientScheme();
+      const magicLinkUrlParams = new URLSearchParams();
+      if (redirectUrl) {
+        magicLinkUrlParams.set('redirect_uri', redirectUrl);
+      }
+      if (scheme) {
+        magicLinkUrlParams.set('client', scheme);
+      }
+      await this.fetchService.fetch('/api/auth/sign-in', {
         method: 'POST',
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({
+          email,
+          // we call it [callbackUrl] instead of [redirect_uri]
+          // to make it clear the url is used to finish the sign-in process instead of redirect after signed-in
+          callbackUrl: `/magic-link?${magicLinkUrlParams.toString()}`,
+        }),
+        headers: {
+          'content-type': 'application/json',
+          ...(verifyToken ? this.captchaHeaders(verifyToken, challenge) : {}),
+        },
+      });
+    } catch (e) {
+      track.$.$.auth.signInFail({
+        method: 'magic-link',
+        reason: e instanceof BackendError ? e.originError.name : 'unknown',
+      });
+      throw e;
+    }
+  }
+
+  async signInMagicLink(email: string, token: string) {
+    try {
+      await this.fetchService.fetch('/api/auth/magic-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, token }),
+      });
+
+      this.session.revalidate();
+      track.$.$.auth.signedIn({ method: 'magic-link' });
+    } catch (e) {
+      track.$.$.auth.signInFail({
+        method: 'magic-link',
+        reason: e instanceof BackendError ? e.originError.name : 'unknown',
+      });
+      throw e;
+    }
+  }
+
+  async oauthPreflight(
+    provider: OAuthProviderType,
+    client: string,
+    /** @deprecated*/ redirectUrl?: string
+  ) {
+    try {
+      const res = await this.fetchService.fetch('/api/oauth/preflight', {
+        method: 'POST',
+        body: JSON.stringify({ provider, redirect_uri: redirectUrl }),
         headers: {
           'content-type': 'application/json',
         },
-      }
-    );
-    if (!res?.ok) {
-      throw new Error('Failed to send email');
-    }
-  }
+      });
 
-  async signInOauth(provider: OAuthProviderType, redirectUri?: string | null) {
-    if (environment.isDesktop) {
-      await apis?.ui.openExternal(
-        `${
-          runtimeConfig.serverUrlPrefix
-        }/desktop-signin?provider=${provider}&redirect_uri=${this.buildRedirectUri(
-          '/open-app/signin-redirect'
-        )}`
+      let { url } = await res.json();
+
+      // change `state=xxx` to `state={state:xxx,native:true}`
+      // so we could know the callback should be redirect to native app
+      const oauthUrl = new URL(url);
+      oauthUrl.searchParams.set(
+        'state',
+        JSON.stringify({
+          state: oauthUrl.searchParams.get('state'),
+          client,
+          provider,
+        })
       );
-    } else {
-      location.href = `${
-        runtimeConfig.serverUrlPrefix
-      }/oauth/login?provider=${provider}&redirect_uri=${encodeURIComponent(
-        redirectUri ?? location.pathname
-      )}`;
-    }
+      url = oauthUrl.toString();
 
-    return;
+      return url;
+    } catch (e) {
+      track.$.$.auth.signInFail({
+        method: 'oauth',
+        provider,
+        reason: e instanceof BackendError ? e.originError.name : 'unknown',
+      });
+      throw e;
+    }
   }
 
-  async signInPassword(credential: { email: string; password: string }) {
-    const searchParams = new URLSearchParams();
-    const redirectUri = new URL(location.href);
-    if (environment.isDesktop) {
-      redirectUri.pathname = this.buildRedirectUri('/open-app/signin-redirect');
-    }
-    searchParams.set('redirect_uri', redirectUri.toString());
+  async signInOauth(code: string, state: string, provider: string) {
+    try {
+      const res = await this.fetchService.fetch('/api/oauth/callback', {
+        method: 'POST',
+        body: JSON.stringify({ code, state }),
+        headers: {
+          'content-type': 'application/json',
+        },
+      });
 
-    const res = await this.fetchService.fetch(
-      '/api/auth/sign-in?' + searchParams.toString(),
-      {
+      this.session.revalidate();
+
+      track.$.$.auth.signedIn({ method: 'oauth', provider });
+      return await res.json();
+    } catch (e) {
+      track.$.$.auth.signInFail({
+        method: 'oauth',
+        provider,
+        reason: e instanceof BackendError ? e.originError.name : 'unknown',
+      });
+      throw e;
+    }
+  }
+
+  async signInPassword(credential: {
+    email: string;
+    password: string;
+    verifyToken?: string;
+    challenge?: string;
+  }) {
+    track.$.$.auth.signIn({ method: 'password' });
+    try {
+      await this.fetchService.fetch('/api/auth/sign-in', {
         method: 'POST',
         body: JSON.stringify(credential),
         headers: {
           'content-type': 'application/json',
+          ...(credential.verifyToken
+            ? this.captchaHeaders(credential.verifyToken, credential.challenge)
+            : {}),
         },
-      }
-    );
-    if (!res.ok) {
-      throw new Error('Failed to sign in');
+      });
+      this.session.revalidate();
+      track.$.$.auth.signedIn({ method: 'password' });
+    } catch (e) {
+      track.$.$.auth.signInFail({
+        method: 'password',
+        reason: e instanceof BackendError ? e.originError.name : 'unknown',
+      });
+      throw e;
     }
-    this.session.revalidate();
   }
 
   async signOut() {
@@ -154,20 +229,19 @@ export class AuthService extends Service {
     this.session.revalidate();
   }
 
-  private buildRedirectUri(callbackUrl: string) {
-    const params: string[][] = [];
-    if (environment.isDesktop && window.appInfo.schema) {
-      params.push(['schema', window.appInfo.schema]);
-    }
-    const query =
-      params.length > 0
-        ? '?' +
-          params.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&')
-        : '';
-    return callbackUrl + query;
-  }
-
   checkUserByEmail(email: string) {
     return this.store.checkUserByEmail(email);
+  }
+
+  captchaHeaders(token: string, challenge?: string) {
+    const headers: Record<string, string> = {
+      'x-captcha-token': token,
+    };
+
+    if (challenge) {
+      headers['x-captcha-challenge'] = challenge;
+    }
+
+    return headers;
   }
 }

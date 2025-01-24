@@ -14,7 +14,7 @@ export interface Notification {
   foreground?: string;
   alignMessage?: 'title' | 'icon';
   action?: {
-    label: string;
+    label: ReactNode;
     onClick: (() => void) | (() => Promise<void>);
     buttonProps?: ButtonProps;
     /**
@@ -43,4 +43,8 @@ export interface NotificationCenterProps {
 
 export interface NotificationCustomRendererProps {
   onDismiss?: () => void;
+}
+
+export interface NotificationCardProps extends HTMLAttributes<HTMLDivElement> {
+  notification: Notification;
 }

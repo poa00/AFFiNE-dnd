@@ -1,12 +1,13 @@
 import { Controller, Get } from '@nestjs/common';
 
+import { Config, SkipThrottle } from './base';
 import { Public } from './core/auth';
-import { Config } from './fundamentals/config';
 
-@Controller('/')
+@Controller('/info')
 export class AppController {
   constructor(private readonly config: Config) {}
 
+  @SkipThrottle()
   @Public()
   @Get()
   info() {
@@ -14,7 +15,7 @@ export class AppController {
       compatibility: this.config.version,
       message: `AFFiNE ${this.config.version} Server`,
       type: this.config.type,
-      flavor: this.config.flavor,
+      flavor: this.config.flavor.type,
     };
   }
 }

@@ -1,4 +1,4 @@
-import { ArrowLeftSmallIcon, ArrowRightSmallIcon } from '@blocksuite/icons';
+import { ArrowLeftSmallIcon, ArrowRightSmallIcon } from '@blocksuite/icons/rc';
 import clsx from 'clsx';
 import dayjs from 'dayjs';
 import type { ForwardedRef, HTMLAttributes } from 'react';
@@ -13,6 +13,7 @@ import {
   useState,
 } from 'react';
 
+import { observeResize } from '../../utils';
 import { IconButton } from '../button';
 import * as styles from './week-date-picker.css';
 
@@ -28,7 +29,7 @@ export interface WeekDatePickerProps
   handleRef?: ForwardedRef<WeekDatePickerHandle>;
 }
 
-// TODO: i18n
+// TODO(catsjuice): i18n
 const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 // const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
 const format = 'YYYY-MM-DD';
@@ -116,8 +117,7 @@ export const WeekDatePicker = memo(function WeekDatePicker({
     const el = weekRef.current;
     if (!el) return;
 
-    const resizeObserver = new ResizeObserver(entries => {
-      const rect = entries[0].contentRect;
+    return observeResize(el, ({ contentRect: rect }) => {
       const width = rect.width;
       if (!width) return;
 
@@ -127,11 +127,6 @@ export const WeekDatePicker = memo(function WeekDatePicker({
       setViewPortSize(Math.max(1, Math.min(viewPortCount, 7)));
       setDense(width < 300);
     });
-    resizeObserver.observe(el);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
   }, []);
 
   // when value changes, reset cursor
@@ -167,7 +162,7 @@ export const WeekDatePicker = memo(function WeekDatePicker({
 
   return (
     <div className={clsx(styles.weekDatePicker, className)} {...attrs}>
-      <IconButton onClick={onPrev}>
+      <IconButton onClick={onPrev} data-testid="week-picker-prev">
         <ArrowLeftSmallIcon />
       </IconButton>
 
@@ -184,7 +179,7 @@ export const WeekDatePicker = memo(function WeekDatePicker({
         ))}
       </div>
 
-      <IconButton onClick={onNext}>
+      <IconButton onClick={onNext} data-testid="week-picker-next">
         <ArrowRightSmallIcon />
       </IconButton>
     </div>
@@ -209,6 +204,7 @@ const Cell = ({ day, dense, value, cursor, onClick }: CellProps) => {
   return (
     <button
       tabIndex={cursor.isSame(day, 'day') ? 0 : -1}
+      data-testid="week-picker-day"
       aria-label={day.format(format)}
       data-active={isActive}
       data-curr-month={isCurrentMonth}
