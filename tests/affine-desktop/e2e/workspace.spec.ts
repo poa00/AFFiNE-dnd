@@ -136,6 +136,8 @@ test('delete workspace and then restore it from backup', async ({ page }) => {
   );
   //#endregion
 
+  await page.waitForTimeout(1000);
+
   //#region 4. restore the workspace from backup
   await page.getByTestId('slider-bar-workspace-setting-button').click();
   await expect(page.getByTestId('setting-modal')).toBeVisible();

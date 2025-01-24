@@ -77,6 +77,7 @@ export const blobCard = style({
   borderRadius: '4px',
   overflow: 'hidden',
   position: 'relative',
+  userSelect: 'none',
 });
 
 export const loadingContainer = style({
@@ -123,7 +124,7 @@ export const blobGridItemCheckbox = style({
   position: 'absolute',
   top: 8,
   right: 8,
-  fontSize: 16,
+  fontSize: 24,
   opacity: 0,
   selectors: {
     [`${blobCard}:hover &`]: {
@@ -133,6 +134,10 @@ export const blobGridItemCheckbox = style({
       opacity: 1,
     },
   },
+});
+
+globalStyle(`${blobGridItemCheckbox} path`, {
+  backgroundColor: cssVarV2('layer/background/primary'),
 });
 
 export const blobImagePreview = style({

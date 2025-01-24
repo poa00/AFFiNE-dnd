@@ -3,7 +3,7 @@ import clsx from 'clsx';
 import { useCallback, useMemo } from 'react';
 import ReactPaginate from 'react-paginate';
 
-import * as styles from './styles.css';
+import * as styles from './pagination.css';
 export interface PaginationProps {
   totalCount: number;
   pageNum?: number;

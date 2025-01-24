@@ -100,10 +100,10 @@ export class ChatPanelDocChip extends SignalWatcher(
         doc.load();
       }
       const result = await extractMarkdownFromDoc(doc, this.host.std.provider);
-      if (this.chip.content) {
-        this.chip.content.value = result.markdown;
+      if (this.chip.markdown) {
+        this.chip.markdown.value = result.markdown;
       } else {
-        this.chip.content = new Signal<string>(result.markdown);
+        this.chip.markdown = new Signal<string>(result.markdown);
       }
       this.updateChip(this.chip, {
         state: 'success',
