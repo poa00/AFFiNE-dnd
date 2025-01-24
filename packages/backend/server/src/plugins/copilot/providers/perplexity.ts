@@ -120,7 +120,7 @@ export class CitationParser {
   }
 
   public end() {
-    return this.flush() + this.getFootnotes();
+    return this.flush() + '\n' + this.getFootnotes();
   }
 
   private flush() {
@@ -135,7 +135,7 @@ export class CitationParser {
         citation
       )}"}`;
     });
-    return '\n\n' + footnotes.join('\n\n');
+    return footnotes.join('\n');
   }
 
   private getTokenContent() {

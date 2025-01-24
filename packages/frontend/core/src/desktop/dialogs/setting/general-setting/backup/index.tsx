@@ -7,8 +7,10 @@ import {
   Skeleton,
   useConfirmModal,
 } from '@affine/component';
-import { Pagination } from '@affine/component/member-components';
-import { SettingHeader } from '@affine/component/setting-components';
+import {
+  Pagination,
+  SettingHeader,
+} from '@affine/component/setting-components';
 import { Avatar } from '@affine/component/ui/avatar';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import { useNavigateHelper } from '@affine/core/components/hooks/use-navigate-helper';
@@ -209,26 +211,30 @@ export const BackupSettingPanel = () => {
         />
       );
     }
-    if (backupWorkspaces?.items.length === 0) {
+    if (backupWorkspaces?.items.length === 0 || !backupWorkspaces) {
       return <Empty />;
     }
     return (
       <>
         <div className={styles.list}>
-          {backupWorkspaces?.items
+          {backupWorkspaces.items
             .slice(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE)
-            .map(item => <BackupWorkspaceItem key={item.id} item={item} />)}
+            .map(item => (
+              <BackupWorkspaceItem key={item.id} item={item} />
+            ))}
         </div>
-        <div className={styles.pagination}>
-          <Pagination
-            totalCount={backupWorkspaces?.items.length ?? 0}
-            countPerPage={PAGE_SIZE}
-            pageNum={pageNum}
-            onPageChange={(_, pageNum) => {
-              setPageNum(pageNum);
-            }}
-          />
-        </div>
+        {backupWorkspaces.items.length > PAGE_SIZE && (
+          <div className={styles.pagination}>
+            <Pagination
+              totalCount={backupWorkspaces?.items.length ?? 0}
+              countPerPage={PAGE_SIZE}
+              pageNum={pageNum}
+              onPageChange={(_, pageNum) => {
+                setPageNum(pageNum);
+              }}
+            />
+          </div>
+        )}
       </>
     );
   }, [isLoading, backupWorkspaces, pageNum]);

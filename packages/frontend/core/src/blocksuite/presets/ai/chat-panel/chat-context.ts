@@ -76,7 +76,7 @@ export interface BaseChip {
 
 export interface DocChip extends BaseChip {
   docId: string;
-  content?: Signal<string>;
+  markdown?: Signal<string>;
 }
 
 export interface FileChip extends BaseChip {

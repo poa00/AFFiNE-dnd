@@ -119,7 +119,7 @@ class CreateChatMessageInput implements Omit<SubmittedMessage, 'content'> {
   blobs!: Promise<FileUpload>[] | undefined;
 
   @Field(() => GraphQLJSON, { nullable: true })
-  params!: Record<string, string> | undefined;
+  params!: Record<string, any> | undefined;
 }
 
 enum ChatHistoryOrder {

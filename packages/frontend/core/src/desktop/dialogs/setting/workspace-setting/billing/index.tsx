@@ -1,6 +1,6 @@
 import { Button, Loading } from '@affine/component';
-import { Pagination } from '@affine/component/member-components';
 import {
+  Pagination,
   SettingHeader,
   SettingRow,
   SettingWrapper,

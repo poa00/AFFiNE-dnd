@@ -773,14 +773,17 @@ test.describe('chat with doc', () => {
     // oxlint-disable-next-line unicorn/prefer-dom-node-dataset
     expect(await chip.getAttribute('data-state')).toBe('success');
 
-    await makeChat(page, 'summarize');
+    await typeChatSequentially(page, 'What is AFFiNE AI?');
+    await page.keyboard.press('Enter');
     const history = await collectChat(page);
     expect(history[0]).toEqual({
       name: 'You',
-      content:
-        'AFFiNE AI is an assistant with the ability to create well-structured outlines for any given content.\nsummarize',
+      content: 'What is AFFiNE AI?',
     });
     expect(history[1].name).toBe('AFFiNE AI');
+    expect(
+      await page.locator('chat-panel affine-footnote-node').count()
+    ).toBeGreaterThan(0);
     await clearChat(page);
     expect((await collectChat(page)).length).toBe(0);
   });
