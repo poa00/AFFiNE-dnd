@@ -1,8 +1,7 @@
 import { type PasswordLimitsFragment } from '@affine/graphql';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
+import { useI18n } from '@affine/i18n';
 import { type Options, passwordStrength } from 'check-password-strength';
-import { type FC, useEffect, useMemo } from 'react';
-import { useCallback, useState } from 'react';
+import { type FC, useCallback, useEffect, useMemo, useState } from 'react';
 import { z, type ZodCustomIssue, ZodIssueCode } from 'zod';
 
 import type { InputProps } from '../../../ui/input';
@@ -43,7 +42,7 @@ export const PasswordInput: FC<
     onPrevent: () => void;
   }
 > = ({ passwordLimits, onPass, onPrevent, ...inputProps }) => {
-  const t = useAFFiNEI18N();
+  const t = useI18n();
 
   const [status, setStatus] = useState<Status | null>(null);
   const [confirmStatus, setConfirmStatus] = useState<

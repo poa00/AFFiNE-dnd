@@ -1,30 +1,30 @@
-import { CopilotConfig } from './copilot';
-import { GCloudConfig } from './gcloud/config';
-import { OAuthConfig } from './oauth';
-import { PaymentConfig } from './payment';
-import { RedisOptions } from './redis';
-import { R2StorageConfig, S3StorageConfig } from './storage';
+import { ModuleStartupConfigDescriptions } from '../base/config/types';
 
-declare module '../fundamentals/config' {
-  interface PluginsConfig {
-    readonly copilot: CopilotConfig;
-    readonly payment: PaymentConfig;
-    readonly redis: RedisOptions;
-    readonly gcloud: GCloudConfig;
-    readonly 'cloudflare-r2': R2StorageConfig;
-    readonly 'aws-s3': S3StorageConfig;
-    readonly oauth: OAuthConfig;
+export interface PluginsConfig {}
+export type AvailablePlugins = keyof PluginsConfig;
+
+declare module '../base/config' {
+  interface AppConfig {
+    plugins: PluginsConfig;
   }
 
-  export type AvailablePlugins = keyof PluginsConfig;
-
-  interface AFFiNEConfig {
-    readonly plugins: {
-      enabled: Set<AvailablePlugins>;
+  interface AppPluginsConfig {
+    use<Plugin extends AvailablePlugins>(
+      plugin: Plugin,
+      config?: DeepPartial<
+        ModuleStartupConfigDescriptions<PluginsConfig[Plugin]>
+      >
+    ): void;
+    plugins: {
+      /**
+       * @deprecated use `AFFiNE.use` instead
+       */
       use<Plugin extends AvailablePlugins>(
         plugin: Plugin,
-        config?: DeepPartial<PluginsConfig[Plugin]>
+        config?: DeepPartial<
+          ModuleStartupConfigDescriptions<PluginsConfig[Plugin]>
+        >
       ): void;
-    } & Partial<PluginsConfig>;
+    };
   }
 }

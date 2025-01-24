@@ -1,13 +1,13 @@
 import { Menu } from '@affine/component';
+import { TagItem as TagItemComponent } from '@affine/core/components/tags';
 import type { Tag } from '@affine/core/modules/tag';
-import { CloseIcon, MoreHorizontalIcon } from '@blocksuite/icons';
+import { stopPropagation } from '@affine/core/utils';
+import { MoreHorizontalIcon } from '@blocksuite/icons/rc';
 import { LiveData, useLiveData } from '@toeverything/infra';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import clsx from 'clsx';
-import type { MouseEventHandler } from 'react';
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 
-import { stopPropagation } from '../utils';
 import * as styles from './page-tags.css';
 
 export interface PageTagsProps {
@@ -22,83 +22,29 @@ interface TagItemProps {
   idx?: number;
   maxWidth?: number | string;
   mode: 'inline' | 'list-item';
+  focused?: boolean;
   onRemoved?: () => void;
   style?: React.CSSProperties;
 }
 
-export const TempTagItem = ({
-  value,
-  color,
-  maxWidth = '100%',
-}: {
-  value: string;
-  color: string;
-  maxWidth?: number | string;
-}) => {
-  return (
-    <div className={styles.tag} title={value}>
-      <div style={{ maxWidth: maxWidth }} className={styles.tagInline}>
-        <div
-          className={styles.tagIndicator}
-          style={{
-            backgroundColor: color,
-          }}
-        />
-        <div className={styles.tagLabel}>{value}</div>
-      </div>
-    </div>
-  );
-};
-
-export const TagItem = ({
-  tag,
-  idx,
-  mode,
-  onRemoved,
-  style,
-  maxWidth,
-}: TagItemProps) => {
+export const TagItem = ({ tag, ...props }: TagItemProps) => {
   const value = useLiveData(tag?.value$);
   const color = useLiveData(tag?.color$);
-  const handleRemove: MouseEventHandler = useCallback(
-    e => {
-      e.stopPropagation();
-      onRemoved?.();
-    },
-    [onRemoved]
-  );
+
+  if (!tag || !value || !color) {
+    return null;
+  }
+
   return (
-    <div
-      data-testid="page-tag"
-      className={styles.tag}
-      data-idx={idx}
-      data-tag-id={tag?.id}
-      data-tag-value={value}
-      title={value}
-      style={style}
-    >
-      <div
-        style={{ maxWidth: maxWidth }}
-        className={mode === 'inline' ? styles.tagInline : styles.tagListItem}
-      >
-        <div
-          className={styles.tagIndicator}
-          style={{
-            backgroundColor: color,
-          }}
-        />
-        <div className={styles.tagLabel}>{value}</div>
-        {onRemoved ? (
-          <div
-            data-testid="remove-tag-button"
-            className={styles.tagRemove}
-            onClick={handleRemove}
-          >
-            <CloseIcon />
-          </div>
-        ) : null}
-      </div>
-    </div>
+    <TagItemComponent
+      {...props}
+      mode={props.mode === 'inline' ? 'inline-tag' : 'list-tag'}
+      tag={{
+        id: tag?.id,
+        value: value,
+        color: color,
+      }}
+    />
   );
 };
 

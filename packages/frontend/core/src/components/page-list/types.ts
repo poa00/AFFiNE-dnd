@@ -1,6 +1,6 @@
 import type { Collection, Tag } from '@affine/env/filter';
-import type { DocCollection, DocMeta } from '@blocksuite/store';
-import type { PropsWithChildren, ReactNode } from 'react';
+import type { DocMeta, Workspace } from '@blocksuite/affine/store';
+import type { JSX, PropsWithChildren, ReactNode } from 'react';
 import type { To } from 'react-router-dom';
 
 export type ListItem = DocMeta | CollectionMeta | TagMeta;
@@ -19,7 +19,7 @@ export type TagMeta = {
   createDate?: Date | number;
   updatedDate?: Date | number;
 };
-// TODO: consider reducing the number of props here
+// TODO(@JimmFly): consider reducing the number of props here
 // using type instead of interface to make it Record compatible
 export type PageListItemProps = {
   pageId: string;
@@ -73,10 +73,8 @@ export type TagListItemProps = {
 
 export interface ItemListHeaderProps {}
 
-// todo: a temporary solution. may need to be refactored later
-export type ItemGroupByType = 'createDate' | 'updatedDate'; // todo: can add more later
-
-// todo: a temporary solution. may need to be refactored later
+// TODO(@JimmFly): a temporary solution. may need to be refactored later
+export type ItemGroupByType = 'createDate' | 'updatedDate';
 export interface SortBy {
   key: 'createDate' | 'updatedDate';
   order: 'asc' | 'desc';
@@ -93,11 +91,10 @@ export type PageGroupByType =
 export interface ListProps<T> {
   // required data:
   items: T[];
-  docCollection: DocCollection;
+  docCollection: Workspace;
   className?: string;
   hideHeader?: boolean; // whether or not to hide the header. default is false (showing header)
   groupBy?: ItemGroupDefinition<T>[];
-  isPreferredEdgeless?: (pageId: string) => boolean; // determines the icon used for each row
   rowAsLink?: boolean;
   selectable?: 'toggle' | boolean; // show selection checkbox. toggle means showing a toggle selection in header on click; boolean == true means showing a selection checkbox for each item
   selectedIds?: string[]; // selected page ids

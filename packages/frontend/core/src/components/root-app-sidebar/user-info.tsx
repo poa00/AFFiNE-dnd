@@ -1,31 +1,37 @@
 import {
   Avatar,
-  Button,
   Divider,
   ErrorMessage,
+  IconButton,
   Menu,
-  MenuIcon,
   MenuItem,
+  type MenuProps,
   Skeleton,
 } from '@affine/component';
 import {
-  authAtom,
-  openDisableCloudAlertModalAtom,
-  openSettingModalAtom,
-  openSignOutModalAtom,
-} from '@affine/core/atoms';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { AccountIcon, SignOutIcon } from '@blocksuite/icons';
+  GlobalDialogService,
+  WorkspaceDialogService,
+} from '@affine/core/modules/dialogs';
+import { useI18n } from '@affine/i18n';
+import { track } from '@affine/track';
+import { AccountIcon, SignOutIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
+import { cssVar } from '@toeverything/theme';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
-import { useSetAtom } from 'jotai';
+import clsx from 'clsx';
 import { useCallback, useEffect } from 'react';
 
 import {
   type AuthAccountInfo,
   AuthService,
+  ServerService,
+  SubscriptionService,
+  UserCopilotQuotaService,
   UserQuotaService,
 } from '../../modules/cloud';
+import { UserPlanButton } from '../affine/auth/user-plan-button';
+import { useSignOut } from '../hooks/affine/use-sign-out';
+import { useCatchEventCallback } from '../hooks/use-catch-event-hook';
 import * as styles from './index.css';
 import { UnknownUserIcon } from './unknow-user';
 
@@ -39,81 +45,64 @@ export const UserInfo = () => {
   );
 };
 
+const menuContentOptions: MenuProps['contentOptions'] = {
+  className: styles.operationMenu,
+};
 const AuthorizedUserInfo = ({ account }: { account: AuthAccountInfo }) => {
   return (
-    <Menu items={<OperationMenu />}>
-      <Button
-        data-testid="sidebar-user-avatar"
-        type="plain"
-        className={styles.userInfoWrapper}
-      >
+    <Menu items={<OperationMenu />} contentOptions={menuContentOptions}>
+      <IconButton data-testid="sidebar-user-avatar" variant="plain" size="24">
         <Avatar size={24} name={account.label} url={account.avatar} />
-      </Button>
+      </IconButton>
     </Menu>
   );
 };
 
 const UnauthorizedUserInfo = () => {
-  const setDisableCloudOpen = useSetAtom(openDisableCloudAlertModalAtom);
-  const setOpen = useSetAtom(authAtom);
+  const globalDialogService = useService(GlobalDialogService);
 
   const openSignInModal = useCallback(() => {
-    if (!runtimeConfig.enableCloud) setDisableCloudOpen(true);
-    else setOpen(state => ({ ...state, openModal: true }));
-  }, [setDisableCloudOpen, setOpen]);
+    globalDialogService.open('sign-in', {});
+  }, [globalDialogService]);
 
   return (
-    <Button
+    <IconButton
       onClick={openSignInModal}
       data-testid="sidebar-user-avatar"
-      type="plain"
-      className={styles.userInfoWrapper}
+      variant="plain"
+      size="24"
     >
-      <UnknownUserIcon width={24} height={24} />
-    </Button>
+      <UnknownUserIcon />
+    </IconButton>
   );
 };
 
 const AccountMenu = () => {
-  const setSettingModalAtom = useSetAtom(openSettingModalAtom);
-  const setOpenSignOutModalAtom = useSetAtom(openSignOutModalAtom);
+  const workspaceDialogService = useService(WorkspaceDialogService);
+  const openSignOutModal = useSignOut();
 
   const onOpenAccountSetting = useCallback(() => {
-    setSettingModalAtom(prev => ({
-      ...prev,
-      open: true,
+    track.$.navigationPanel.profileAndBadge.openSettings({ to: 'account' });
+    workspaceDialogService.open('setting', {
       activeTab: 'account',
-    }));
-  }, [setSettingModalAtom]);
+    });
+  }, [workspaceDialogService]);
 
-  const onOpenSignOutModal = useCallback(() => {
-    setOpenSignOutModalAtom(true);
-  }, [setOpenSignOutModalAtom]);
-
-  const t = useAFFiNEI18N();
+  const t = useI18n();
 
   return (
     <>
       <MenuItem
-        preFix={
-          <MenuIcon>
-            <AccountIcon />
-          </MenuIcon>
-        }
+        prefixIcon={<AccountIcon />}
         data-testid="workspace-modal-account-settings-option"
         onClick={onOpenAccountSetting}
       >
         {t['com.affine.workspace.cloud.account.settings']()}
       </MenuItem>
-      <Divider />
       <MenuItem
-        preFix={
-          <MenuIcon>
-            <SignOutIcon />
-          </MenuIcon>
-        }
+        prefixIcon={<SignOutIcon />}
         data-testid="workspace-modal-sign-out-option"
-        onClick={onOpenSignOutModal}
+        onClick={openSignOutModal}
       >
         {t['com.affine.workspace.cloud.account.logout']()}
       </MenuItem>
@@ -122,8 +111,17 @@ const AccountMenu = () => {
 };
 
 const CloudUsage = () => {
+  const t = useI18n();
   const quota = useService(UserQuotaService).quota;
   const quotaError = useLiveData(quota.error$);
+
+  const workspaceDialogService = useService(WorkspaceDialogService);
+  const handleClick = useCatchEventCallback(() => {
+    workspaceDialogService.open('setting', {
+      activeTab: 'plans',
+      scrollAnchor: 'cloudPricingPlan',
+    });
+  }, [workspaceDialogService]);
 
   useEffect(() => {
     // revalidate quota to get the latest status
@@ -148,15 +146,124 @@ const CloudUsage = () => {
 
   return (
     <div
-      className={styles.cloudUsage}
+      className={clsx(styles.usageBlock, styles.cloudUsageBlock)}
       style={assignInlineVars({
         [styles.progressColorVar]: color,
       })}
     >
-      <div className={styles.cloudUsageLabel}>
-        <span className={styles.cloudUsageLabelUsed}>{usedFormatted}</span>
-        <span>&nbsp;/&nbsp;</span>
-        <span>{maxFormatted}</span>
+      <div className={styles.usageLabel}>
+        <div>
+          <span className={styles.usageLabelTitle}>
+            {t['com.affine.user-info.usage.cloud']()}
+          </span>
+          <span>{usedFormatted}</span>
+          <span>&nbsp;/&nbsp;</span>
+          <span>{maxFormatted}</span>
+        </div>
+        <UserPlanButton onClick={handleClick} />
+      </div>
+
+      <div className={styles.cloudUsageBar}>
+        <div
+          className={styles.cloudUsageBarInner}
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+    </div>
+  );
+};
+
+const AIUsage = () => {
+  const t = useI18n();
+  const copilotQuotaService = useService(UserCopilotQuotaService);
+  const subscriptionService = useService(SubscriptionService);
+
+  useEffect(() => {
+    // revalidate latest subscription status
+    subscriptionService.subscription.revalidate();
+  }, [subscriptionService]);
+  useEffect(() => {
+    copilotQuotaService.copilotQuota.revalidate();
+  }, [copilotQuotaService]);
+
+  const copilotActionLimit = useLiveData(
+    copilotQuotaService.copilotQuota.copilotActionLimit$
+  );
+  const copilotActionUsed = useLiveData(
+    copilotQuotaService.copilotQuota.copilotActionUsed$
+  );
+  const loading = copilotActionLimit === null || copilotActionUsed === null;
+  const loadError = useLiveData(copilotQuotaService.copilotQuota.error$);
+
+  const workspaceDialogService = useService(WorkspaceDialogService);
+
+  const goToAIPlanPage = useCallback(() => {
+    workspaceDialogService.open('setting', {
+      activeTab: 'plans',
+      scrollAnchor: 'aiPricingPlan',
+    });
+  }, [workspaceDialogService]);
+
+  const goToAccountSetting = useCallback(() => {
+    workspaceDialogService.open('setting', {
+      activeTab: 'account',
+    });
+  }, [workspaceDialogService]);
+
+  if (loading) {
+    if (loadError) console.error(loadError);
+    return null;
+  }
+
+  // unlimited
+  if (copilotActionLimit === 'unlimited') {
+    return (
+      <div
+        onClick={goToAccountSetting}
+        data-pro
+        className={clsx(styles.usageBlock, styles.aiUsageBlock)}
+      >
+        <div className={styles.usageLabel}>
+          <div className={styles.usageLabelTitle}>
+            {t['com.affine.user-info.usage.ai']()}
+          </div>
+        </div>
+        <div className={styles.usageLabel}>
+          {t['com.affine.payment.ai.usage-description-purchased']()}
+        </div>
+      </div>
+    );
+  }
+
+  const percent = Math.min(
+    100,
+    Math.max(
+      0.5,
+      Number(((copilotActionUsed / copilotActionLimit) * 100).toFixed(4))
+    )
+  );
+
+  const color = percent > 80 ? cssVar('errorColor') : cssVar('processingColor');
+
+  return (
+    <div
+      onClick={goToAIPlanPage}
+      className={clsx(styles.usageBlock, styles.aiUsageBlock)}
+      style={assignInlineVars({
+        [styles.progressColorVar]: color,
+      })}
+    >
+      <div className={styles.usageLabel}>
+        <div>
+          <span className={styles.usageLabelTitle}>
+            {t['com.affine.user-info.usage.ai']()}
+          </span>
+          <span>{copilotActionUsed}</span>
+          <span>&nbsp;/&nbsp;</span>
+          <span>{copilotActionLimit}</span>
+        </div>
+
+        <div className={styles.freeTag}>Free</div>
       </div>
 
       <div className={styles.cloudUsageBar}>
@@ -170,8 +277,12 @@ const CloudUsage = () => {
 };
 
 const OperationMenu = () => {
+  const serverService = useService(ServerService);
+  const serverFeatures = useLiveData(serverService.server.features$);
+
   return (
     <>
+      {serverFeatures?.copilot ? <AIUsage /> : null}
       <CloudUsage />
       <Divider />
       <AccountMenu />

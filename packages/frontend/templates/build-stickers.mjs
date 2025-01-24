@@ -10,12 +10,20 @@ const categories = Array.from(
   await fs.readdir(join(__dirname, './stickers'))
 ).filter(v => v !== '.DS_Store');
 
+const naturalSort = array => {
+  return array.sort(
+    new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }).compare
+  );
+};
+
 let i = 0;
 
 for (const category of categories) {
-  const stickers = Array.from(
-    await fs.readdir(join(__dirname, './stickers', category, 'Cover'))
-  ).filter(v => v !== '.DS_Store');
+  const stickers = naturalSort(
+    Array.from(
+      await fs.readdir(join(__dirname, './stickers', category, 'Cover'))
+    ).filter(v => v !== '.DS_Store')
+  );
 
   data[category] = {};
 
@@ -36,7 +44,7 @@ import stickerContent${id} from './stickers/${category}/Content/${sticker}';`,
         name: ${JSON.stringify(name)},
         cover: stickerCover${id},
         content: stickerContent${id},
-        hash: ${JSON.stringify(hash)},
+        hash: ${JSON.stringify(hash).replace(/\+/g, '-').replace(/\//g, '_')},
       }`,
     };
   }

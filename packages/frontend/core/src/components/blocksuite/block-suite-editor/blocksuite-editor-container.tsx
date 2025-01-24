@@ -1,50 +1,34 @@
-import type { BlockElement } from '@blocksuite/block-std';
+import { type DocMode, getLastNoteBlock } from '@blocksuite/affine/blocks';
+import { Slot } from '@blocksuite/affine/global/utils';
 import type {
   AffineEditorContainer,
+  DocTitle,
   EdgelessEditor,
   PageEditor,
-} from '@blocksuite/presets';
-import type { Doc } from '@blocksuite/store';
-import { Slot } from '@blocksuite/store';
-import type { DocMode } from '@toeverything/infra';
+} from '@blocksuite/affine/presets';
+import { type Store } from '@blocksuite/affine/store';
 import clsx from 'clsx';
 import type React from 'react';
-import type { RefObject } from 'react';
 import {
   forwardRef,
-  useEffect,
+  useCallback,
+  useImperativeHandle,
   useLayoutEffect,
   useMemo,
   useRef,
-  useState,
 } from 'react';
 
+import type { DefaultOpenProperty } from '../../doc-properties';
 import { BlocksuiteDocEditor, BlocksuiteEdgelessEditor } from './lit-adaper';
-import type { InlineRenderers } from './specs';
 import * as styles from './styles.css';
 
-// copy forwardSlot from blocksuite, but it seems we need to dispose the pipe
-// after the component is unmounted right?
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function forwardSlot<T extends Record<string, Slot<any>>>(
-  from: T,
-  to: Partial<T>
-) {
-  Object.entries(from).forEach(([key, slot]) => {
-    const target = to[key];
-    if (target) {
-      slot.pipe(target);
-    }
-  });
-}
-
 interface BlocksuiteEditorContainerProps {
-  page: Doc;
+  page: Store;
   mode: DocMode;
+  shared?: boolean;
   className?: string;
+  defaultOpenProperty?: DefaultOpenProperty;
   style?: React.CSSProperties;
-  defaultSelectedBlockId?: string;
-  customRenderers?: InlineRenderers;
 }
 
 // mimic the interface of the webcomponent and expose slots & host
@@ -54,90 +38,28 @@ type BlocksuiteEditorContainerRef = Pick<
 > &
   HTMLDivElement;
 
-function findBlockElementById(container: HTMLElement, blockId: string) {
-  const element = container.querySelector(
-    `[data-block-id="${blockId}"]`
-  ) as BlockElement | null;
-  return element;
-}
-
-// a workaround for returning the webcomponent for the given block id
-// by iterating over the children of the rendered dom tree
-const useBlockElementById = (
-  containerRef: RefObject<HTMLElement | null>,
-  blockId: string | undefined,
-  timeout = 1000
-) => {
-  const [blockElement, setBlockElement] = useState<BlockElement | null>(null);
-  useEffect(() => {
-    if (!blockId) {
-      return;
-    }
-    let canceled = false;
-    const start = Date.now();
-    function run() {
-      if (canceled || !containerRef.current || !blockId) {
-        return;
-      }
-      const element = findBlockElementById(containerRef.current, blockId);
-      if (element) {
-        setBlockElement(element);
-      } else if (Date.now() - start < timeout) {
-        setTimeout(run, 100);
-      }
-    }
-    run();
-    return () => {
-      canceled = true;
-    };
-  }, [blockId, containerRef, timeout]);
-  return blockElement;
-};
-
 export const BlocksuiteEditorContainer = forwardRef<
   AffineEditorContainer,
   BlocksuiteEditorContainerProps
 >(function AffineEditorContainer(
-  { page, mode, className, style, defaultSelectedBlockId, customRenderers },
+  { page, mode, className, style, shared, defaultOpenProperty },
   ref
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
   const docRef = useRef<PageEditor>(null);
+  const docTitleRef = useRef<DocTitle>(null);
   const edgelessRef = useRef<EdgelessEditor>(null);
 
   const slots: BlocksuiteEditorContainerRef['slots'] = useMemo(() => {
     return {
-      docLinkClicked: new Slot(),
       editorModeSwitched: new Slot(),
       docUpdated: new Slot(),
-      tagClicked: new Slot(),
     };
   }, []);
-
-  // forward the slot to the webcomponent
-  useLayoutEffect(() => {
-    requestAnimationFrame(() => {
-      const docPage = rootRef.current?.querySelector('affine-page-root');
-      const edgelessPage = rootRef.current?.querySelector(
-        'affine-edgeless-root'
-      );
-      if (docPage) {
-        forwardSlot(docPage.slots, slots);
-      }
-
-      if (edgelessPage) {
-        forwardSlot(edgelessPage.slots, slots);
-      }
-    });
-  }, [page, slots]);
 
   useLayoutEffect(() => {
     slots.docUpdated.emit({ newDocId: page.id });
   }, [page, slots.docUpdated]);
-
-  useLayoutEffect(() => {
-    slots.editorModeSwitched.emit(mode);
-  }, [mode, slots.editorModeSwitched]);
 
   /**
    * mimic an AffineEditorContainer using proxy
@@ -150,6 +72,9 @@ export const BlocksuiteEditorContainer = forwardRef<
       },
       get doc() {
         return page;
+      },
+      get docTitle() {
+        return docTitleRef.current;
       },
       get host() {
         return mode === 'page'
@@ -166,6 +91,12 @@ export const BlocksuiteEditorContainer = forwardRef<
       },
       get mode() {
         return mode;
+      },
+      get origin() {
+        return rootRef.current;
+      },
+      get std() {
+        return mode === 'page' ? docRef.current?.std : edgelessRef.current?.std;
       },
     };
 
@@ -190,45 +121,38 @@ export const BlocksuiteEditorContainer = forwardRef<
         }
         return undefined;
       },
-    }) as unknown as AffineEditorContainer;
+    }) as unknown as AffineEditorContainer & { origin: HTMLDivElement };
 
     return proxy;
   }, [mode, page, slots]);
 
-  useEffect(() => {
-    if (ref) {
-      if (typeof ref === 'function') {
-        ref(affineEditorContainerProxy);
-      } else {
-        ref.current = affineEditorContainerProxy;
+  useImperativeHandle(ref, () => affineEditorContainerProxy, [
+    affineEditorContainerProxy,
+  ]);
+
+  const handleClickPageModeBlank = useCallback(() => {
+    if (shared || page.readonly) return;
+    const std = affineEditorContainerProxy.host?.std;
+    if (!std) {
+      return;
+    }
+    const note = getLastNoteBlock(page);
+    if (note) {
+      const lastBlock = note.lastChild();
+      if (
+        lastBlock &&
+        lastBlock.flavour === 'affine:paragraph' &&
+        lastBlock.text?.length === 0
+      ) {
+        std.command.exec('focusBlockEnd' as never, {
+          focusBlock: std.view.getBlock(lastBlock.id) as never,
+        });
+        return;
       }
     }
-  }, [affineEditorContainerProxy, ref]);
 
-  const blockElement = useBlockElementById(rootRef, defaultSelectedBlockId);
-
-  useEffect(() => {
-    if (blockElement) {
-      affineEditorContainerProxy.updateComplete
-        .then(() => {
-          if (mode === 'page') {
-            blockElement.scrollIntoView({
-              behavior: 'smooth',
-              block: 'center',
-            });
-          }
-          const selectManager = affineEditorContainerProxy.host?.selection;
-          if (!blockElement.path.length || !selectManager) {
-            return;
-          }
-          const newSelection = selectManager.create('block', {
-            path: blockElement.path,
-          });
-          selectManager.set([newSelection]);
-        })
-        .catch(console.error);
-    }
-  }, [blockElement, affineEditorContainerProxy, mode]);
+    std.command.exec('appendParagraph' as never, {});
+  }, [affineEditorContainerProxy, page, shared]);
 
   return (
     <div
@@ -244,15 +168,18 @@ export const BlocksuiteEditorContainer = forwardRef<
     >
       {mode === 'page' ? (
         <BlocksuiteDocEditor
+          shared={shared}
           page={page}
           ref={docRef}
-          customRenderers={customRenderers}
+          titleRef={docTitleRef}
+          onClickBlank={handleClickPageModeBlank}
+          defaultOpenProperty={defaultOpenProperty}
         />
       ) : (
         <BlocksuiteEdgelessEditor
+          shared={shared}
           page={page}
           ref={edgelessRef}
-          customRenderers={customRenderers}
         />
       )}
     </div>

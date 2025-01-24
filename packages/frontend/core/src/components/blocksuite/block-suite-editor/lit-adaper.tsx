@@ -1,16 +1,35 @@
 import {
   createReactComponentFromLit,
+  useConfirmModal,
   useLitPortalFactory,
 } from '@affine/component';
-import { useJournalInfoHelper } from '@affine/core/hooks/use-journal';
+import type { DocCustomPropertyInfo } from '@affine/core/modules/db';
+import { DocService, DocsService } from '@affine/core/modules/doc';
+import type {
+  DatabaseRow,
+  DatabaseValueCell,
+} from '@affine/core/modules/doc-info/types';
+import { EditorService } from '@affine/core/modules/editor';
+import { EditorSettingService } from '@affine/core/modules/editor-setting';
+import { FeatureFlagService } from '@affine/core/modules/feature-flag';
+import { JournalService } from '@affine/core/modules/journal';
+import { toURLSearchParams } from '@affine/core/modules/navigation';
+import { PeekViewService } from '@affine/core/modules/peek-view/services/peek-view';
+import { WorkspaceService } from '@affine/core/modules/workspace';
+import track from '@affine/track';
+import type { DocMode } from '@blocksuite/affine/blocks';
 import {
-  BiDirectionalLinkPanel,
-  DocMetaTags,
   DocTitle,
   EdgelessEditor,
   PageEditor,
-} from '@blocksuite/presets';
-import type { Doc } from '@blocksuite/store';
+} from '@blocksuite/affine/presets';
+import type { Store } from '@blocksuite/affine/store';
+import {
+  useFramework,
+  useLiveData,
+  useService,
+  useServices,
+} from '@toeverything/infra';
 import React, {
   forwardRef,
   Fragment,
@@ -18,13 +37,39 @@ import React, {
   useEffect,
   useMemo,
   useRef,
-  useState,
 } from 'react';
 
-import { PagePropertiesTable } from '../../affine/page-properties';
+import {
+  AffinePageReference,
+  AffineSharedPageReference,
+} from '../../affine/reference-link';
+import {
+  type DefaultOpenProperty,
+  DocPropertiesTable,
+} from '../../doc-properties';
+import { BiDirectionalLinkPanel } from './bi-directional-link-panel';
 import { BlocksuiteEditorJournalDocTitle } from './journal-doc-title';
-import type { InlineRenderers } from './specs';
-import { docModeSpecs, edgelessModeSpecs, patchSpecs } from './specs';
+import { extendEdgelessPreviewSpec } from './specs/custom/root-block';
+import {
+  patchDocModeService,
+  patchEdgelessClipboard,
+  patchForAttachmentEmbedViews,
+  patchForClipboardInElectron,
+  patchForEdgelessNoteConfig,
+  patchForMobile,
+  patchGenerateDocUrlExtension,
+  patchNotificationService,
+  patchOpenDocExtension,
+  patchParseDocUrlExtension,
+  patchPeekViewService,
+  patchQuickSearchService,
+  patchReferenceRenderer,
+  patchSideBarService,
+  type ReferenceReactRenderer,
+} from './specs/custom/spec-patchers';
+import { createEdgelessModeSpecs } from './specs/edgeless';
+import { createPageModeSpecs } from './specs/page';
+import { StarterBar } from './starter-bar';
 import * as styles from './styles.css';
 
 const adapted = {
@@ -36,35 +81,154 @@ const adapted = {
     react: React,
     elementClass: DocTitle,
   }),
-  PageMetaTags: createReactComponentFromLit({
-    react: React,
-    elementClass: DocMetaTags,
-  }),
   EdgelessEditor: createReactComponentFromLit({
     react: React,
     elementClass: EdgelessEditor,
   }),
-  BiDirectionalLinkPanel: createReactComponentFromLit({
-    react: React,
-    elementClass: BiDirectionalLinkPanel,
-  }),
 };
 
-interface BlocksuiteDocEditorProps {
-  page: Doc;
-  customRenderers?: InlineRenderers;
-  // todo: add option to replace docTitle with custom component (e.g., for journal page)
+interface BlocksuiteEditorProps {
+  page: Store;
+  shared?: boolean;
+  defaultOpenProperty?: DefaultOpenProperty;
 }
+
+const usePatchSpecs = (mode: DocMode) => {
+  const [reactToLit, portals] = useLitPortalFactory();
+  const {
+    peekViewService,
+    docService,
+    docsService,
+    editorService,
+    workspaceService,
+    featureFlagService,
+  } = useServices({
+    PeekViewService,
+    DocService,
+    DocsService,
+    WorkspaceService,
+    EditorService,
+    FeatureFlagService,
+  });
+  const framework = useFramework();
+  const referenceRenderer: ReferenceReactRenderer = useMemo(() => {
+    return function customReference(reference) {
+      const data = reference.delta.attributes?.reference;
+      if (!data) return <span />;
+
+      const pageId = data.pageId;
+      if (!pageId) return <span />;
+
+      // title alias
+      const title = data.title;
+      const params = toURLSearchParams(data.params);
+
+      if (workspaceService.workspace.openOptions.isSharedMode) {
+        return (
+          <AffineSharedPageReference
+            docCollection={workspaceService.workspace.docCollection}
+            pageId={pageId}
+            params={params}
+            title={title}
+          />
+        );
+      }
+
+      return (
+        <AffinePageReference pageId={pageId} params={params} title={title} />
+      );
+    };
+  }, [workspaceService]);
+
+  useMemo(() => {
+    extendEdgelessPreviewSpec(framework);
+  }, [framework]);
+
+  const specs = useMemo(() => {
+    return mode === 'edgeless'
+      ? createEdgelessModeSpecs(framework)
+      : createPageModeSpecs(framework);
+  }, [mode, framework]);
+
+  const confirmModal = useConfirmModal();
+  const patchedSpecs = useMemo(() => {
+    let patched = specs.concat(
+      patchReferenceRenderer(reactToLit, referenceRenderer)
+    );
+
+    if (featureFlagService.flags.enable_pdf_embed_preview.value) {
+      patched = patched.concat(patchForAttachmentEmbedViews(reactToLit));
+    }
+
+    patched = patched.concat(patchForEdgelessNoteConfig(reactToLit));
+    patched = patched.concat(patchNotificationService(confirmModal));
+    patched = patched.concat(patchPeekViewService(peekViewService));
+    patched = patched.concat(patchOpenDocExtension());
+    patched = patched.concat(patchEdgelessClipboard());
+    patched = patched.concat(patchParseDocUrlExtension(framework));
+    patched = patched.concat(patchGenerateDocUrlExtension(framework));
+    patched = patched.concat(patchQuickSearchService(framework));
+    patched = patched.concat(patchSideBarService(framework));
+    if (BUILD_CONFIG.isMobileEdition) {
+      patched = patched.concat(patchForMobile());
+    }
+    if (BUILD_CONFIG.isElectron) {
+      patched = patched.concat(patchForClipboardInElectron(framework));
+    }
+    patched = patched.concat(
+      patchDocModeService(docService, docsService, editorService)
+    );
+    return patched;
+  }, [
+    confirmModal,
+    docService,
+    docsService,
+    editorService,
+    framework,
+    peekViewService,
+    reactToLit,
+    referenceRenderer,
+    specs,
+    featureFlagService,
+  ]);
+
+  return [
+    patchedSpecs,
+    useMemo(
+      () => (
+        <>
+          {portals.map(p => (
+            <Fragment key={p.id}>{p.portal}</Fragment>
+          ))}
+        </>
+      ),
+      [portals]
+    ),
+  ] as const;
+};
 
 export const BlocksuiteDocEditor = forwardRef<
   PageEditor,
-  BlocksuiteDocEditorProps
->(function BlocksuiteDocEditor({ page, customRenderers }, ref) {
-  const titleRef = useRef<DocTitle>(null);
+  BlocksuiteEditorProps & {
+    onClickBlank?: () => void;
+    titleRef?: React.Ref<DocTitle>;
+  }
+>(function BlocksuiteDocEditor(
+  {
+    page,
+    shared,
+    onClickBlank,
+    titleRef: externalTitleRef,
+    defaultOpenProperty,
+  },
+  ref
+) {
+  const titleRef = useRef<DocTitle | null>(null);
   const docRef = useRef<PageEditor | null>(null);
-  const [docPage, setDocPage] =
-    useState<HTMLElementTagNameMap['affine-page-root']>();
-  const { isJournal } = useJournalInfoHelper(page.collection, page.id);
+  const journalService = useService(JournalService);
+  const isJournal = !!useLiveData(journalService.journalDate$(page.id));
+
+  const editorSettingService = useService(EditorSettingService);
 
   const onDocRef = useCallback(
     (el: PageEditor) => {
@@ -80,37 +244,84 @@ export const BlocksuiteDocEditor = forwardRef<
     [ref]
   );
 
-  const [litToTemplate, portals] = useLitPortalFactory();
-
-  const specs = useMemo(() => {
-    return patchSpecs(docModeSpecs, litToTemplate, customRenderers);
-  }, [customRenderers, litToTemplate]);
-
-  useEffect(() => {
-    // auto focus the title
-    setTimeout(() => {
-      const docPage = docRef.current?.querySelector('affine-page-root');
-      if (docPage) {
-        setDocPage(docPage);
+  const onTitleRef = useCallback(
+    (el: DocTitle) => {
+      titleRef.current = el;
+      if (externalTitleRef) {
+        if (typeof externalTitleRef === 'function') {
+          externalTitleRef(el);
+        } else {
+          (externalTitleRef as any).current = el;
+        }
       }
-      if (titleRef.current) {
-        const richText = titleRef.current.querySelector('rich-text');
-        richText?.inlineEditor?.focusEnd();
-      } else {
-        docPage?.focusFirstParagraph();
-      }
+    },
+    [externalTitleRef]
+  );
+
+  const [specs, portals] = usePatchSpecs('page');
+
+  const displayBiDirectionalLink = useLiveData(
+    editorSettingService.editorSetting.settings$.selector(
+      s => s.displayBiDirectionalLink
+    )
+  );
+
+  const displayDocInfo = useLiveData(
+    editorSettingService.editorSetting.settings$.selector(s => s.displayDocInfo)
+  );
+
+  const onPropertyChange = useCallback((property: DocCustomPropertyInfo) => {
+    track.doc.inlineDocInfo.property.editProperty({
+      type: property.type,
     });
   }, []);
 
+  const onPropertyAdded = useCallback((property: DocCustomPropertyInfo) => {
+    track.doc.inlineDocInfo.property.addProperty({
+      type: property.type,
+      control: 'at menu',
+    });
+  }, []);
+
+  const onDatabasePropertyChange = useCallback(
+    (_row: DatabaseRow, cell: DatabaseValueCell) => {
+      track.doc.inlineDocInfo.databaseProperty.editProperty({
+        type: cell.property.type$.value,
+      });
+    },
+    []
+  );
+
+  const onPropertyInfoChange = useCallback(
+    (property: DocCustomPropertyInfo, field: string) => {
+      track.doc.inlineDocInfo.property.editPropertyMeta({
+        type: property.type,
+        field,
+      });
+    },
+    []
+  );
+
   return (
-    <div className={styles.docEditorRoot}>
+    <>
       <div className={styles.affineDocViewport}>
         {!isJournal ? (
-          <adapted.DocTitle doc={page} ref={titleRef} />
+          <adapted.DocTitle doc={page} ref={onTitleRef} />
         ) : (
           <BlocksuiteEditorJournalDocTitle page={page} />
         )}
-        <PagePropertiesTable page={page} />
+        {!shared && displayDocInfo ? (
+          <div className={styles.docPropertiesTableContainer}>
+            <DocPropertiesTable
+              className={styles.docPropertiesTable}
+              onDatabasePropertyChange={onDatabasePropertyChange}
+              onPropertyChange={onPropertyChange}
+              onPropertyAdded={onPropertyAdded}
+              onPropertyInfoChange={onPropertyInfoChange}
+              defaultOpenProperty={defaultOpenProperty}
+            />
+          </div>
+        ) : null}
         <adapted.DocEditor
           className={styles.docContainer}
           ref={onDocRef}
@@ -118,39 +329,56 @@ export const BlocksuiteDocEditor = forwardRef<
           specs={specs}
           hasViewport={false}
         />
-        {docPage && !page.readonly ? (
-          <div
-            className={styles.docEditorGap}
-            onClick={() => {
-              docPage.std.spec.getService('affine:page').appendParagraph();
-            }}
-          ></div>
-        ) : null}
-        {docPage && !page.readonly ? (
-          <adapted.BiDirectionalLinkPanel doc={page} pageRoot={docPage} />
+        <div
+          className={styles.docEditorGap}
+          data-testid="page-editor-blank"
+          onClick={onClickBlank}
+        ></div>
+        <StarterBar doc={page} />
+        {!shared && displayBiDirectionalLink ? (
+          <BiDirectionalLinkPanel />
         ) : null}
       </div>
-      {portals.map(p => (
-        <Fragment key={p.id}>{p.portal}</Fragment>
-      ))}
-    </div>
+      {portals}
+    </>
   );
 });
-
 export const BlocksuiteEdgelessEditor = forwardRef<
   EdgelessEditor,
-  BlocksuiteDocEditorProps
->(function BlocksuiteEdgelessEditor({ page, customRenderers }, ref) {
-  const [litToTemplate, portals] = useLitPortalFactory();
-  const specs = useMemo(() => {
-    return patchSpecs(edgelessModeSpecs, litToTemplate, customRenderers);
-  }, [customRenderers, litToTemplate]);
+  BlocksuiteEditorProps
+>(function BlocksuiteEdgelessEditor({ page }, ref) {
+  const [specs, portals] = usePatchSpecs('edgeless');
+  const editorRef = useRef<EdgelessEditor | null>(null);
+
+  const onDocRef = useCallback(
+    (el: EdgelessEditor) => {
+      editorRef.current = el;
+      if (ref) {
+        if (typeof ref === 'function') {
+          ref(el);
+        } else {
+          ref.current = el;
+        }
+      }
+    },
+    [ref]
+  );
+
+  useEffect(() => {
+    if (editorRef.current) {
+      editorRef.current.updateComplete
+        .then(() => {
+          // make sure editor can get keyboard events on showing up
+          editorRef.current?.querySelector('affine-edgeless-root')?.click();
+        })
+        .catch(console.error);
+    }
+  }, []);
+
   return (
-    <>
-      <adapted.EdgelessEditor ref={ref} doc={page} specs={specs} />
-      {portals.map(p => (
-        <Fragment key={p.id}>{p.portal}</Fragment>
-      ))}
-    </>
+    <div className={styles.affineEdgelessDocViewport}>
+      <adapted.EdgelessEditor ref={onDocRef} doc={page} specs={specs} />
+      {portals}
+    </div>
   );
 });

@@ -2,12 +2,14 @@ import {
   backoffRetry,
   effect,
   Entity,
+  exhaustMapWithTrailing,
   fromPromise,
   LiveData,
   onComplete,
   onStart,
 } from '@toeverything/infra';
-import { EMPTY, exhaustMap, mergeMap } from 'rxjs';
+import { isEqual } from 'lodash-es';
+import { EMPTY, mergeMap } from 'rxjs';
 
 import { validateAndReduceImage } from '../../../utils/reduce-image';
 import type { AccountProfile, AuthStore } from '../stores/auth';
@@ -33,9 +35,12 @@ export interface AuthSessionAuthenticated {
   session: AuthSessionInfo;
 }
 
-export class AuthSession extends Entity {
-  id = 'affine-cloud' as const;
+export type AuthSessionStatus = (
+  | AuthSessionUnauthenticated
+  | AuthSessionAuthenticated
+)['status'];
 
+export class AuthSession extends Entity {
   session$: LiveData<AuthSessionUnauthenticated | AuthSessionAuthenticated> =
     LiveData.from(this.store.watchCachedAuthSession(), null).map(session =>
       session
@@ -67,13 +72,15 @@ export class AuthSession extends Entity {
   }
 
   revalidate = effect(
-    exhaustMap(() =>
-      fromPromise(this.getSession()).pipe(
+    exhaustMapWithTrailing(() =>
+      fromPromise(() => this.getSession()).pipe(
         backoffRetry({
           count: Infinity,
         }),
         mergeMap(sessionInfo => {
-          this.store.setCachedAuthSession(sessionInfo);
+          if (!isEqual(this.store.getCachedAuthSession(), sessionInfo)) {
+            this.store.setCachedAuthSession(sessionInfo);
+          }
           return EMPTY;
         }),
         onStart(() => {

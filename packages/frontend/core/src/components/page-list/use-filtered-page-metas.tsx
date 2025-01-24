@@ -1,8 +1,8 @@
-import { FavoriteItemsAdapter } from '@affine/core/modules/properties';
-import { ShareDocsService } from '@affine/core/modules/share-doc';
+import { CompatibleFavoriteItemsAdapter } from '@affine/core/modules/favorite';
+import { ShareDocsListService } from '@affine/core/modules/share-doc';
 import type { Collection, Filter } from '@affine/env/filter';
 import { PublicPageMode } from '@affine/graphql';
-import type { DocMeta } from '@blocksuite/store';
+import type { DocMeta } from '@blocksuite/affine/store';
 import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useEffect, useMemo } from 'react';
 
@@ -16,8 +16,8 @@ export const useFilteredPageMetas = (
     collection?: Collection;
   } = {}
 ) => {
-  const shareDocsService = useService(ShareDocsService);
-  const shareDocs = useLiveData(shareDocsService.shareDocs.list$);
+  const shareDocsListService = useService(ShareDocsListService);
+  const shareDocs = useLiveData(shareDocsListService.shareDocs?.list$);
 
   const getPublicMode = useCallback(
     (id: string) => {
@@ -32,11 +32,11 @@ export const useFilteredPageMetas = (
   );
 
   useEffect(() => {
-    // TODO: loading & error UI
-    shareDocsService.shareDocs.revalidate();
-  }, [shareDocsService]);
+    // TODO(@eyhn): loading & error UI
+    shareDocsListService.shareDocs?.revalidate();
+  }, [shareDocsListService]);
 
-  const favAdapter = useService(FavoriteItemsAdapter);
+  const favAdapter = useService(CompatibleFavoriteItemsAdapter);
   const favoriteItems = useLiveData(favAdapter.favorites$);
 
   const filteredPageMetas = useMemo(

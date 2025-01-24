@@ -1,35 +1,34 @@
-export { ShareService } from './services/share';
-export { ShareDocsService } from './services/share-docs';
+export { ShareDocsListService } from './services/share-docs-list';
+export { ShareInfoService } from './services/share-info';
 
+import { type Framework } from '@toeverything/infra';
+
+import { WorkspaceServerService } from '../cloud';
+import { DocScope, DocService } from '../doc';
 import {
-  DocScope,
-  DocService,
-  type Framework,
   WorkspaceLocalCache,
   WorkspaceScope,
   WorkspaceService,
-} from '@toeverything/infra';
-
-import { GraphQLService } from '../cloud';
+} from '../workspace';
 import { ShareDocsList } from './entities/share-docs-list';
-import { Share } from './entities/share-info';
-import { ShareService } from './services/share';
-import { ShareDocsService } from './services/share-docs';
+import { ShareInfo } from './entities/share-info';
+import { ShareDocsListService } from './services/share-docs-list';
+import { ShareInfoService } from './services/share-info';
 import { ShareStore } from './stores/share';
 import { ShareDocsStore } from './stores/share-docs';
 
 export function configureShareDocsModule(framework: Framework) {
   framework
     .scope(WorkspaceScope)
-    .service(ShareDocsService)
-    .store(ShareDocsStore, [GraphQLService])
+    .service(ShareDocsListService, [WorkspaceService])
+    .store(ShareDocsStore, [WorkspaceServerService])
     .entity(ShareDocsList, [
       WorkspaceService,
       ShareDocsStore,
       WorkspaceLocalCache,
     ])
     .scope(DocScope)
-    .service(ShareService)
-    .entity(Share, [WorkspaceService, DocService, ShareStore])
-    .store(ShareStore, [GraphQLService]);
+    .service(ShareInfoService)
+    .entity(ShareInfo, [WorkspaceService, DocService, ShareStore])
+    .store(ShareStore, [WorkspaceServerService]);
 }

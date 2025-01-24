@@ -5,7 +5,7 @@ import { validators } from './validators';
 
 export class ORMClient {
   static hooksMap: Map<string, Hook<any>[]> = new Map();
-  private readonly tables = new Map<string, Table<any>>();
+  readonly tables = new Map<string, Table<any>>();
   constructor(
     protected readonly db: DBSchemaBuilder,
     protected readonly adapter: DBAdapter
@@ -36,19 +36,11 @@ export class ORMClient {
 
     hooks.push(hook);
   }
-
-  async connect() {
-    await this.adapter.connect(this.db);
-  }
-
-  async disconnect() {
-    await this.adapter.disconnect(this.db);
-  }
 }
 
-export function createORMClientType<Schema extends DBSchemaBuilder>(
+export function createORMClient<Schema extends DBSchemaBuilder>(
   db: Schema
-) {
+): ORMClientWithTablesClass<Schema> {
   Object.entries(db).forEach(([tableName, schema]) => {
     validators.validateTableSchema(tableName, schema);
   });
@@ -59,15 +51,15 @@ export function createORMClientType<Schema extends DBSchemaBuilder>(
     }
   }
 
-  return ORMClientWithTables as {
-    new (
-      ...args: ConstructorParameters<typeof ORMClientWithTables>
-    ): ORMClient & TableMap<Schema>;
-
-    defineHook<TableName extends keyof Schema>(
-      tableName: TableName,
-      desc: string,
-      hook: Hook<CreateEntityInput<Schema[TableName]>>
-    ): void;
-  };
+  return ORMClientWithTables as any;
 }
+
+export type ORMClientWithTablesClass<Schema extends DBSchemaBuilder> = {
+  new (adapter: DBAdapter): TableMap<Schema> & ORMClient;
+
+  defineHook<TableName extends keyof Schema>(
+    tableName: TableName,
+    desc: string,
+    hook: Hook<CreateEntityInput<Schema[TableName]>>
+  ): void;
+};

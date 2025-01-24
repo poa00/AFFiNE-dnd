@@ -1,25 +1,32 @@
 [package]
-name = "affine_server_native"
-version = "1.0.0"
 edition = "2021"
+name    = "affine_server_native"
+version = "1.0.0"
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-chrono = "0.4"
-file-format = { version = "0.24", features = ["reader"] }
-napi = { version = "2", default-features = false, features = [
-  "napi5",
-  "async",
-] }
-napi-derive = { version = "2", features = ["type-def"] }
-rand = "0.8"
-sha3 = "0.10"
-y-octo = { git = "https://github.com/y-crdt/y-octo.git", branch = "main" }
+affine_common = { workspace = true }
+chrono        = { workspace = true }
+file-format   = { workspace = true }
+napi          = { workspace = true }
+napi-derive   = { workspace = true }
+rand          = { workspace = true }
+sha3          = { workspace = true }
+tiktoken-rs   = { workspace = true }
+v_htmlescape  = { workspace = true }
+y-octo        = { workspace = true }
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+mimalloc = { workspace = true }
+
+[target.'cfg(all(target_os = "linux", not(target_arch = "arm")))'.dependencies]
+mimalloc = { workspace = true, features = ["local_dynamic_tls"] }
 
 [dev-dependencies]
-tokio = "1"
+rayon = { workspace = true }
+tokio = { workspace = true }
 
 [build-dependencies]
-napi-build = "2"
+napi-build = { workspace = true }

@@ -1,8 +1,8 @@
-import { useDeleteCollectionInfo } from '@affine/core/hooks/affine/use-delete-collection-info';
+import { useDeleteCollectionInfo } from '@affine/core/components/hooks/affine/use-delete-collection-info';
+import { WorkspaceService } from '@affine/core/modules/workspace';
 import type { Collection, DeleteCollectionInfo } from '@affine/env/filter';
 import { Trans } from '@affine/i18n';
-import { useService, WorkspaceService } from '@toeverything/infra';
-import type { ReactElement } from 'react';
+import { useService } from '@toeverything/infra';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { CollectionService } from '../../../modules/collection';
@@ -12,17 +12,14 @@ import { CollectionOperationCell } from '../operation-cell';
 import { CollectionListItemRenderer } from '../page-group';
 import { ListTableHeader } from '../page-header';
 import type { CollectionMeta, ItemListHandle, ListItem } from '../types';
-import type { AllPageListConfig } from '../view';
 import { VirtualizedList } from '../virtualized-list';
 import { CollectionListHeader } from './collection-list-header';
 
 const useCollectionOperationsRenderer = ({
   info,
   service,
-  config,
 }: {
   info: DeleteCollectionInfo;
-  config: AllPageListConfig;
   service: CollectionService;
 }) => {
   const collectionOperationsRenderer = useCallback(
@@ -32,11 +29,10 @@ const useCollectionOperationsRenderer = ({
           info={info}
           collection={collection}
           service={service}
-          config={config}
         />
       );
     },
-    [config, info, service]
+    [info, service]
   );
 
   return collectionOperationsRenderer;
@@ -46,14 +42,10 @@ export const VirtualizedCollectionList = ({
   collections,
   collectionMetas,
   setHideHeaderCreateNewCollection,
-  node,
   handleCreateCollection,
-  config,
 }: {
   collections: Collection[];
   collectionMetas: CollectionMeta[];
-  config: AllPageListConfig;
-  node: ReactElement | null;
   handleCreateCollection: () => void;
   setHideHeaderCreateNewCollection: (hide: boolean) => void;
 }) => {
@@ -69,12 +61,11 @@ export const VirtualizedCollectionList = ({
   const collectionOperations = useCollectionOperationsRenderer({
     info,
     service: collectionService,
-    config,
   });
 
   const filteredSelectedCollectionIds = useMemo(() => {
-    const ids = collections.map(collection => collection.id);
-    return selectedCollectionIds.filter(id => ids.includes(id));
+    const ids = new Set(collections.map(collection => collection.id));
+    return selectedCollectionIds.filter(id => ids.has(id));
   }, [collections, selectedCollectionIds]);
 
   const hideFloatingToolbar = useCallback(() => {
@@ -98,8 +89,12 @@ export const VirtualizedCollectionList = ({
   }, []);
 
   const handleDelete = useCallback(() => {
-    return collectionService.deleteCollection(info, ...selectedCollectionIds);
-  }, [collectionService, info, selectedCollectionIds]);
+    if (selectedCollectionIds.length === 0) {
+      return;
+    }
+    collectionService.deleteCollection(info, ...selectedCollectionIds);
+    hideFloatingToolbar();
+  }, [collectionService, hideFloatingToolbar, info, selectedCollectionIds]);
 
   return (
     <>
@@ -110,9 +105,7 @@ export const VirtualizedCollectionList = ({
         atTopThreshold={80}
         atTopStateChange={setHideHeaderCreateNewCollection}
         onSelectionActiveChange={setShowFloatingToolbar}
-        heading={
-          <CollectionListHeader node={node} onCreate={handleCreateCollection} />
-        }
+        heading={<CollectionListHeader onCreate={handleCreateCollection} />}
         selectedIds={filteredSelectedCollectionIds}
         onSelectedIdsChange={setSelectedCollectionIds}
         items={collectionMetas}
@@ -123,7 +116,7 @@ export const VirtualizedCollectionList = ({
         headerRenderer={collectionHeaderRenderer}
       />
       <ListFloatingToolbar
-        open={showFloatingToolbar && selectedCollectionIds.length > 0}
+        open={showFloatingToolbar}
         content={
           <Trans
             i18nKey="com.affine.collection.toolbar.selected"

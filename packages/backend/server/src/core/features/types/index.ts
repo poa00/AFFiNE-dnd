@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { featureAdministrator } from './admin';
 import { FeatureType } from './common';
 import { featureCopilot } from './copilot';
 import { featureAIEarlyAccess, featureEarlyAccess } from './early-access';
@@ -65,23 +66,34 @@ export const Features: Feature[] = [
     version: 1,
     configs: {},
   },
+  {
+    feature: FeatureType.Admin,
+    type: FeatureKind.Feature,
+    version: 1,
+    configs: {},
+  },
 ];
 
 /// ======== schema infer ========
+
+export const FeatureConfigSchema = z.discriminatedUnion('feature', [
+  featureCopilot,
+  featureEarlyAccess,
+  featureAIEarlyAccess,
+  featureUnlimitedWorkspace,
+  featureUnlimitedCopilot,
+  featureAdministrator,
+]);
 
 export const FeatureSchema = commonFeatureSchema
   .extend({
     type: z.literal(FeatureKind.Feature),
   })
-  .and(
-    z.discriminatedUnion('feature', [
-      featureCopilot,
-      featureEarlyAccess,
-      featureAIEarlyAccess,
-      featureUnlimitedWorkspace,
-      featureUnlimitedCopilot,
-    ])
-  );
+  .and(FeatureConfigSchema);
+
+export type FeatureConfig<F extends FeatureType> = (z.infer<
+  typeof FeatureConfigSchema
+> & { feature: F })['configs'];
 
 export type Feature = z.infer<typeof FeatureSchema>;
 

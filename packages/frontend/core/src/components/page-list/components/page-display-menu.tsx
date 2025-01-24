@@ -5,8 +5,8 @@ import {
   MenuSeparator,
   MenuSub,
 } from '@affine/component';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { ArrowDownSmallIcon, DoneIcon } from '@blocksuite/icons';
+import { useI18n } from '@affine/i18n';
+import { ArrowDownSmallIcon, DoneIcon } from '@blocksuite/icons/rc';
 import { useCallback, useMemo } from 'react';
 
 import type { PageDisplayProperties, PageGroupByType } from '../types';
@@ -18,8 +18,33 @@ type GroupOption = {
   label: string;
 };
 
+export function getGroupOptions(t: ReturnType<typeof useI18n>) {
+  return [
+    {
+      value: 'createDate',
+      label: t['Created'](),
+    },
+    {
+      value: 'updatedDate',
+      label: t['Updated'](),
+    },
+    {
+      value: 'tag',
+      label: t['com.affine.page.display.grouping.group-by-tag'](),
+    },
+    {
+      value: 'favourites',
+      label: t['com.affine.page.display.grouping.group-by-favourites'](),
+    },
+    {
+      value: 'none',
+      label: t['com.affine.page.display.grouping.no-grouping'](),
+    },
+  ] satisfies GroupOption[];
+}
+
 export const PageDisplayMenu = () => {
-  const t = useAFFiNEI18N();
+  const t = useI18n();
   const [workspaceProperties, setProperties] = useAllDocDisplayProperties();
   const handleSelect = useCallback(
     (value: PageGroupByType) => {
@@ -66,35 +91,14 @@ export const PageDisplayMenu = () => {
   }, [handleSetDocDisplayProperties, t]);
 
   const items = useMemo(() => {
-    const groupOptions: GroupOption[] = [
-      {
-        value: 'createDate',
-        label: t['Created'](),
-      },
-      {
-        value: 'updatedDate',
-        label: t['Updated'](),
-      },
-      {
-        value: 'tag',
-        label: t['com.affine.page.display.grouping.group-by-tag'](),
-      },
-      {
-        value: 'favourites',
-        label: t['com.affine.page.display.grouping.group-by-favourites'](),
-      },
-      {
-        value: 'none',
-        label: t['com.affine.page.display.grouping.no-grouping'](),
-      },
-    ];
+    const groupOptions: GroupOption[] = getGroupOptions(t);
 
     const subItems = groupOptions.map(option => (
       <MenuItem
         key={option.value}
         onSelect={() => handleSelect(option.value)}
         data-active={workspaceProperties.groupBy === option.value}
-        endFix={
+        suffixIcon={
           workspaceProperties.groupBy === option.value ? (
             <DoneIcon fontSize={'20px'} />
           ) : null
@@ -167,8 +171,7 @@ export const PageDisplayMenu = () => {
       }}
     >
       <Button
-        iconPosition="end"
-        icon={<ArrowDownSmallIcon className={styles.arrowDownSmallIcon} />}
+        suffix={<ArrowDownSmallIcon />}
         className={styles.headerDisplayButton}
         data-testid="page-display-menu-button"
       >

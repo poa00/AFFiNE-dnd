@@ -1,5 +1,5 @@
 import { Permission } from '@affine/graphql';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
+import { useI18n } from '@affine/i18n';
 import { useCallback, useEffect, useState } from 'react';
 
 import { ConfirmModal } from '../../ui/modal';
@@ -19,7 +19,7 @@ export const InviteModal = ({
   onConfirm,
   isMutating,
 }: InviteModalProps) => {
-  const t = useAFFiNEI18N();
+  const t = useI18n();
   const [inviteEmail, setInviteEmail] = useState('');
   const [permission] = useState(Permission.Write);
   const [isValidEmail, setIsValidEmail] = useState(true);
@@ -57,15 +57,14 @@ export const InviteModal = ({
           padding: '20px 26px',
         },
       }}
+      confirmText={t['Invite']()}
       confirmButtonOptions={{
         loading: isMutating,
-        type: 'primary',
-        ['data-testid' as string]: 'confirm-enable-affine-cloud-button',
-        children: t['Invite'](),
+        variant: 'primary',
+        'data-testid': 'confirm-enable-affine-cloud-button',
       }}
       onConfirm={handleConfirm}
     >
-      {/*TODO: check email & add placeholder*/}
       <AuthInput
         disabled={isMutating}
         placeholder="email@example.com"

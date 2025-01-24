@@ -1,4 +1,3 @@
-import { darkCssVariables, lightCssVariables } from '@toeverything/theme';
 import { globalStyle } from '@vanilla-extract/css';
 
 globalStyle('*', {
@@ -14,14 +13,10 @@ globalStyle('body', {
   backgroundColor: 'var(--affine-background-primary-color)',
 });
 
-globalStyle('html', {
-  vars: lightCssVariables,
-});
-
-globalStyle('html[data-theme="dark"]', {
-  vars: darkCssVariables,
-});
-
 globalStyle('.docs-story', {
   backgroundColor: 'var(--affine-background-primary-color)',
+});
+
+globalStyle('body.sb-main-fullscreen', {
+  overflowY: 'auto',
 });

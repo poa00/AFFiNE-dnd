@@ -5,30 +5,37 @@ import type {
 import {
   cancelSubscriptionMutation,
   createCheckoutSessionMutation,
+  getWorkspaceSubscriptionQuery,
   pricesQuery,
   resumeSubscriptionMutation,
   SubscriptionPlan,
   subscriptionQuery,
   updateSubscriptionMutation,
 } from '@affine/graphql';
-import type { GlobalCacheService } from '@toeverything/infra';
 import { Store } from '@toeverything/infra';
 
+import type { GlobalCache } from '../../storage';
+import type { UrlService } from '../../url';
 import type { SubscriptionType } from '../entities/subscription';
-import { getAffineCloudBaseUrl } from '../services/fetch';
 import type { GraphQLService } from '../services/graphql';
-
+import type { ServerService } from '../services/server';
 const SUBSCRIPTION_CACHE_KEY = 'subscription:';
 
 const getDefaultSubscriptionSuccessCallbackLink = (
-  plan: SubscriptionPlan | null
+  baseUrl: string,
+  plan?: SubscriptionPlan | null,
+  scheme?: string
 ) => {
   const path =
-    plan === SubscriptionPlan.AI ? '/ai-upgrade-success' : '/upgrade-success';
-  const urlString = getAffineCloudBaseUrl() + path;
+    plan === SubscriptionPlan.Team
+      ? '/upgrade-success/team'
+      : plan === SubscriptionPlan.AI
+        ? '/ai-upgrade-success'
+        : '/upgrade-success';
+  const urlString = baseUrl + path;
   const url = new URL(urlString);
-  if (environment.isDesktop) {
-    url.searchParams.set('schema', window.appInfo.schema);
+  if (scheme) {
+    url.searchParams.set('scheme', scheme);
   }
   return url.toString();
 };
@@ -36,7 +43,9 @@ const getDefaultSubscriptionSuccessCallbackLink = (
 export class SubscriptionStore extends Store {
   constructor(
     private readonly gqlService: GraphQLService,
-    private readonly globalCacheService: GlobalCacheService
+    private readonly globalCache: GlobalCache,
+    private readonly urlService: UrlService,
+    private readonly serverService: ServerService
   ) {
     super();
   }
@@ -59,19 +68,47 @@ export class SubscriptionStore extends Store {
     };
   }
 
+  async fetchWorkspaceSubscriptions(
+    workspaceId: string,
+    abortSignal?: AbortSignal
+  ) {
+    const data = await this.gqlService.gql({
+      query: getWorkspaceSubscriptionQuery,
+      variables: {
+        workspaceId,
+      },
+      context: {
+        signal: abortSignal,
+      },
+    });
+
+    if (!data.workspace) {
+      throw new Error('No workspace');
+    }
+
+    return {
+      workspaceId: data.workspace.subscription?.id,
+      subscription: data.workspace.subscription,
+    };
+  }
+
   async mutateResumeSubscription(
     idempotencyKey: string,
     plan?: SubscriptionPlan,
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    workspaceId?: string
   ) {
     const data = await this.gqlService.gql({
       query: resumeSubscriptionMutation,
       variables: {
-        idempotencyKey,
         plan,
+        workspaceId,
       },
       context: {
         signal: abortSignal,
+        headers: {
+          'Idempotency-Key': idempotencyKey,
+        },
       },
     });
     return data.resumeSubscription;
@@ -80,45 +117,68 @@ export class SubscriptionStore extends Store {
   async mutateCancelSubscription(
     idempotencyKey: string,
     plan?: SubscriptionPlan,
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    workspaceId?: string
   ) {
     const data = await this.gqlService.gql({
       query: cancelSubscriptionMutation,
       variables: {
-        idempotencyKey,
         plan,
+        workspaceId,
       },
       context: {
         signal: abortSignal,
+        headers: {
+          'Idempotency-Key': idempotencyKey,
+        },
       },
     });
     return data.cancelSubscription;
   }
 
   getCachedSubscriptions(userId: string) {
-    return this.globalCacheService.globalCache.get<SubscriptionType[]>(
+    return this.globalCache.get<SubscriptionType[]>(
       SUBSCRIPTION_CACHE_KEY + userId
     );
   }
 
   setCachedSubscriptions(userId: string, subscriptions: SubscriptionType[]) {
-    return this.globalCacheService.globalCache.set(
-      SUBSCRIPTION_CACHE_KEY + userId,
-      subscriptions
+    return this.globalCache.set(SUBSCRIPTION_CACHE_KEY + userId, subscriptions);
+  }
+
+  getCachedWorkspaceSubscription(workspaceId: string) {
+    return this.globalCache.get<SubscriptionType>(
+      SUBSCRIPTION_CACHE_KEY + workspaceId
+    );
+  }
+
+  setCachedWorkspaceSubscription(
+    workspaceId: string,
+    subscription: SubscriptionType
+  ) {
+    return this.globalCache.set(
+      SUBSCRIPTION_CACHE_KEY + workspaceId,
+      subscription
     );
   }
 
   setSubscriptionRecurring(
     idempotencyKey: string,
     recurring: SubscriptionRecurring,
-    plan?: SubscriptionPlan
+    plan?: SubscriptionPlan,
+    workspaceId?: string
   ) {
     return this.gqlService.gql({
       query: updateSubscriptionMutation,
       variables: {
-        idempotencyKey,
         plan,
         recurring,
+        workspaceId,
+      },
+      context: {
+        headers: {
+          'Idempotency-Key': idempotencyKey,
+        },
       },
     });
   }
@@ -131,7 +191,11 @@ export class SubscriptionStore extends Store {
           ...input,
           successCallbackLink:
             input.successCallbackLink ||
-            getDefaultSubscriptionSuccessCallbackLink(input.plan),
+            getDefaultSubscriptionSuccessCallbackLink(
+              this.serverService.server.baseUrl,
+              input.plan,
+              this.urlService.getClientScheme()
+            ),
         },
       },
     });

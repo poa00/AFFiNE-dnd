@@ -2,16 +2,17 @@ import assert from 'node:assert';
 
 import { Injectable, Logger } from '@nestjs/common';
 
-import { Config } from '../../../fundamentals';
+import { AFFiNEConfig, Config } from '../../../base';
+import { CopilotStartupConfigurations } from '../config';
 import {
   CapabilityToCopilotProvider,
   CopilotCapability,
-  CopilotConfig,
   CopilotProvider,
   CopilotProviderType,
 } from '../types';
 
-type CopilotProviderConfig = CopilotConfig[keyof CopilotConfig];
+type CopilotProviderConfig =
+  CopilotStartupConfigurations[keyof CopilotStartupConfigurations];
 
 interface CopilotProviderDefinition<C extends CopilotProviderConfig> {
   // constructor signature
@@ -37,7 +38,10 @@ const PROVIDER_CAPABILITY_MAP = new Map<
 >();
 
 // config assertions for providers
-const ASSERT_CONFIG = new Map<CopilotProviderType, (config: Config) => void>();
+const ASSERT_CONFIG = new Map<
+  CopilotProviderType,
+  (config: AFFiNEConfig) => void
+>();
 
 export function registerCopilotProvider<
   C extends CopilotProviderConfig = CopilotProviderConfig,
@@ -48,11 +52,11 @@ export function registerCopilotProvider<
     const providerConfig = config.plugins.copilot?.[type];
     if (!provider.assetsConfig(providerConfig as C)) {
       throw new Error(
-        `Invalid configuration for copilot provider ${type}: ${providerConfig}`
+        `Invalid configuration for copilot provider ${type}: ${JSON.stringify(providerConfig)}`
       );
     }
     const instance = new provider(providerConfig as C);
-    logger.log(
+    logger.debug(
       `Copilot provider ${type} registered, capabilities: ${provider.capabilities.join(', ')}`
     );
 
@@ -69,7 +73,7 @@ export function registerCopilotProvider<
     PROVIDER_CAPABILITY_MAP.set(capability, providers);
   }
   // register the provider config assertion
-  ASSERT_CONFIG.set(type, (config: Config) => {
+  ASSERT_CONFIG.set(type, (config: AFFiNEConfig) => {
     assert(config.plugins.copilot);
     const providerConfig = config.plugins.copilot[type];
     if (!providerConfig) return false;
@@ -77,12 +81,21 @@ export function registerCopilotProvider<
   });
 }
 
+export function unregisterCopilotProvider(type: CopilotProviderType) {
+  COPILOT_PROVIDER.delete(type);
+  ASSERT_CONFIG.delete(type);
+  for (const providers of PROVIDER_CAPABILITY_MAP.values()) {
+    const index = providers.indexOf(type);
+    if (index !== -1) {
+      providers.splice(index, 1);
+    }
+  }
+}
+
 /// Asserts that the config is valid for any registered providers
-export function assertProvidersConfigs(config: Config) {
-  return (
-    Array.from(ASSERT_CONFIG.values()).findIndex(assertConfig =>
-      assertConfig(config)
-    ) !== -1
+export function assertProvidersConfigs(config: AFFiNEConfig) {
+  return Array.from(ASSERT_CONFIG.values()).some(assertConfig =>
+    assertConfig(config)
   );
 }
 
@@ -111,16 +124,14 @@ export class CopilotProviderService {
     if (!this.cachedProviders.has(provider)) {
       this.cachedProviders.set(provider, this.create(provider));
     }
-
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    return this.cachedProviders.get(provider)!;
+    return this.cachedProviders.get(provider) as CopilotProvider;
   }
 
-  getProviderByCapability<C extends CopilotCapability>(
+  async getProviderByCapability<C extends CopilotCapability>(
     capability: C,
     model?: string,
     prefer?: CopilotProviderType
-  ): CapabilityToCopilotProvider[C] | null {
+  ): Promise<CapabilityToCopilotProvider[C] | null> {
     const providers = PROVIDER_CAPABILITY_MAP.get(capability);
     if (Array.isArray(providers) && providers.length) {
       let selectedProvider: CopilotProviderType | undefined = prefer;
@@ -137,7 +148,7 @@ export class CopilotProviderService {
           const provider = this.getProvider(selectedProvider);
           if (provider.getCapabilities().includes(capability)) {
             if (model) {
-              if (provider.isModelAvailable(model)) {
+              if (await provider.isModelAvailable(model)) {
                 return provider as CapabilityToCopilotProvider[C];
               }
             } else {
@@ -151,7 +162,36 @@ export class CopilotProviderService {
     }
     return null;
   }
+
+  async getProviderByModel<C extends CopilotCapability>(
+    model: string,
+    prefer?: CopilotProviderType
+  ): Promise<CapabilityToCopilotProvider[C] | null> {
+    const providers = Array.from(COPILOT_PROVIDER.keys());
+    if (providers.length) {
+      let selectedProvider: CopilotProviderType | undefined = prefer;
+      let currentIndex = -1;
+
+      if (!selectedProvider) {
+        currentIndex = 0;
+        selectedProvider = providers[currentIndex];
+      }
+
+      while (selectedProvider) {
+        const provider = this.getProvider(selectedProvider);
+
+        if (await provider.isModelAvailable(model)) {
+          return provider as CapabilityToCopilotProvider[C];
+        }
+
+        currentIndex += 1;
+        selectedProvider = providers[currentIndex];
+      }
+    }
+    return null;
+  }
 }
 
 export { FalProvider } from './fal';
 export { OpenAIProvider } from './openai';
+export { PerplexityProvider } from './perplexity';

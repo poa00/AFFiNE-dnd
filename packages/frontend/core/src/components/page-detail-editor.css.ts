@@ -1,11 +1,11 @@
-import { globalStyle, style } from '@vanilla-extract/css';
+import { style } from '@vanilla-extract/css';
 export const editor = style({
   flex: 1,
   selectors: {
     '&.full-screen': {
       vars: {
         '--affine-editor-width': '100%',
-        '--affine-editor-side-padding': '15px',
+        '--affine-editor-side-padding': '72px',
       },
     },
   },
@@ -22,9 +22,3 @@ export const editor = style({
     },
   },
 });
-globalStyle(
-  `${editor} .affine-page-viewport:not(.affine-embed-synced-doc-editor)`,
-  {
-    paddingBottom: '150px',
-  }
-);

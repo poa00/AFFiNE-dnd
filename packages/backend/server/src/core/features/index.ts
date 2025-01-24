@@ -1,6 +1,11 @@
 import { Module } from '@nestjs/common';
 
+import { UserModule } from '../user';
 import { EarlyAccessType, FeatureManagementService } from './management';
+import {
+  AdminFeatureManagementResolver,
+  FeatureManagementResolver,
+} from './resolver';
 import { FeatureService } from './service';
 
 /**
@@ -10,14 +15,22 @@ import { FeatureService } from './service';
  * - feature statistics
  */
 @Module({
-  providers: [FeatureService, FeatureManagementService],
+  imports: [UserModule],
+  providers: [
+    FeatureService,
+    FeatureManagementService,
+    FeatureManagementResolver,
+    AdminFeatureManagementResolver,
+  ],
   exports: [FeatureService, FeatureManagementService],
 })
 export class FeatureModule {}
 
+export type { FeatureConfigType } from './feature';
 export {
   type CommonFeature,
   commonFeatureSchema,
+  type FeatureConfig,
   FeatureKind,
   Features,
   FeatureType,

@@ -1,28 +1,22 @@
 import { Button, IconButton, Modal } from '@affine/component';
-import { openSettingModalAtom } from '@affine/core/atoms';
-import { useBlurRoot } from '@affine/core/hooks/use-blur-root';
-import { SubscriptionService } from '@affine/core/modules/cloud';
-import { WorkspaceFlavour } from '@affine/env/workspace';
-import { Trans } from '@affine/i18n';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { ArrowLeftSmallIcon } from '@blocksuite/icons';
-import {
-  useLiveData,
-  useServices,
-  WorkspaceService,
-} from '@toeverything/infra';
-import { useSetAtom } from 'jotai';
+import { useBlurRoot } from '@affine/core/components/hooks/use-blur-root';
+import { AuthService, SubscriptionService } from '@affine/core/modules/cloud';
+import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
+import { Trans, useI18n } from '@affine/i18n';
+import { track } from '@affine/track';
+import { ArrowLeftSmallIcon } from '@blocksuite/icons/rc';
+import { useLiveData, useService, useServices } from '@toeverything/infra';
 import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { toggleGeneralAIOnboarding } from './apis';
 import * as baseStyles from './base-style.css';
 import * as styles from './general.dialog.css';
 import { Slider } from './slider';
 import { showAIOnboardingGeneral$ } from './state';
-import type { BaseAIOnboardingDialogProps } from './type';
 
 type PlayListItem = { video: string; title: ReactNode; desc: ReactNode };
-type Translate = ReturnType<typeof useAFFiNEI18N>;
+type Translate = ReturnType<typeof useI18n>;
 
 const getPlayList = (t: Translate): Array<PlayListItem> => [
   {
@@ -86,25 +80,24 @@ function prefetchVideos() {
   prefetched = true;
 }
 
-export const AIOnboardingGeneral = ({
-  onDismiss,
-}: BaseAIOnboardingDialogProps) => {
-  const { workspaceService, subscriptionService } = useServices({
-    WorkspaceService,
+export const AIOnboardingGeneral = () => {
+  const { authService, subscriptionService } = useServices({
+    AuthService,
     SubscriptionService,
   });
 
   const videoWrapperRef = useRef<HTMLDivElement | null>(null);
   const prevVideoRef = useRef<HTMLVideoElement | null>(null);
-  const isCloud =
-    workspaceService.workspace.flavour === WorkspaceFlavour.AFFINE_CLOUD;
-  const t = useAFFiNEI18N();
+  const loginStatus = useLiveData(authService.session.status$);
+  const isLoggedIn = loginStatus === 'authenticated';
+  const t = useI18n();
   const open = useLiveData(showAIOnboardingGeneral$);
   const aiSubscription = useLiveData(subscriptionService.subscription.ai$);
   const [index, setIndex] = useState(0);
   const list = useMemo(() => getPlayList(t), [t]);
-  const setSettingModal = useSetAtom(openSettingModalAtom);
-  useBlurRoot(open && isCloud);
+  const workspaceDialogService = useService(WorkspaceDialogService);
+  const readyToOpen = isLoggedIn;
+  useBlurRoot(open && readyToOpen);
 
   const isFirst = index === 0;
   const isLast = index === list.length - 1;
@@ -114,16 +107,16 @@ export const AIOnboardingGeneral = ({
   }, []);
   const closeAndDismiss = useCallback(() => {
     showAIOnboardingGeneral$.next(false);
-    onDismiss();
-  }, [onDismiss]);
+    toggleGeneralAIOnboarding(false);
+  }, []);
   const goToPricingPlans = useCallback(() => {
-    setSettingModal({
-      open: true,
+    workspaceDialogService.open('setting', {
       activeTab: 'plans',
       scrollAnchor: 'aiPricingPlan',
     });
+    track.$.aiOnboarding.dialog.viewPlans();
     closeAndDismiss();
-  }, [closeAndDismiss, setSettingModal]);
+  }, [closeAndDismiss, workspaceDialogService]);
   const onPrev = useCallback(() => {
     setIndex(i => Math.max(0, i - 1));
   }, []);
@@ -183,12 +176,13 @@ export const AIOnboardingGeneral = ({
     prevVideoRef.current = video;
   }, [index]);
 
-  return isCloud ? (
+  return readyToOpen ? (
     <Modal
+      persistent
       open={open}
       onOpenChange={v => {
         showAIOnboardingGeneral$.next(v);
-        if (!v && isLast) onDismiss();
+        if (!v) toggleGeneralAIOnboarding(false);
       }}
       contentOptions={{ className: styles.dialog }}
       overlayOptions={{ className: baseStyles.dialogOverlay }}
@@ -215,6 +209,7 @@ export const AIOnboardingGeneral = ({
             activeIndex={index}
             itemRenderer={descriptionRenderer}
             transitionDuration={500}
+            preload={5}
           />
         </main>
 
@@ -242,36 +237,26 @@ export const AIOnboardingGeneral = ({
         >
           {isLast ? (
             <>
-              <IconButton
-                size="default"
-                icon={<ArrowLeftSmallIcon width={20} height={20} />}
-                onClick={onPrev}
-                type="plain"
-                className={styles.baseActionButton}
-              />
+              <IconButton size="20" onClick={onPrev}>
+                <ArrowLeftSmallIcon />
+              </IconButton>
               {aiSubscription ? (
                 <Button
-                  className={styles.baseActionButton}
                   size="large"
                   onClick={closeAndDismiss}
-                  type="primary"
+                  variant="primary"
                 >
                   {t['com.affine.ai-onboarding.general.get-started']()}
                 </Button>
               ) : (
                 <div className={styles.subscribeActions}>
-                  <Button
-                    className={styles.baseActionButton}
-                    size="large"
-                    onClick={goToPricingPlans}
-                  >
+                  <Button size="large" onClick={goToPricingPlans}>
                     {t['com.affine.ai-onboarding.general.purchase']()}
                   </Button>
                   <Button
-                    className={styles.baseActionButton}
                     size="large"
                     onClick={closeAndDismiss}
-                    type="primary"
+                    variant="primary"
                   >
                     {t['com.affine.ai-onboarding.general.try-for-free']()}
                   </Button>
@@ -281,21 +266,15 @@ export const AIOnboardingGeneral = ({
           ) : (
             <>
               {isFirst ? (
-                <Button
-                  className={styles.transparentActionButton}
-                  onClick={remindLater}
-                  size="large"
-                  type="default"
-                >
+                <Button onClick={remindLater} size="large">
                   {t['com.affine.ai-onboarding.general.skip']()}
                 </Button>
               ) : (
                 <Button
-                  icon={<ArrowLeftSmallIcon />}
-                  className={styles.baseActionButton}
+                  prefix={<ArrowLeftSmallIcon />}
                   onClick={onPrev}
-                  type="plain"
                   size="large"
+                  variant="plain"
                 >
                   {t['com.affine.ai-onboarding.general.prev']()}
                 </Button>
@@ -304,12 +283,7 @@ export const AIOnboardingGeneral = ({
                 <div>
                   {index + 1} / {list.length}
                 </div>
-                <Button
-                  className={styles.baseActionButton}
-                  size="large"
-                  type="primary"
-                  onClick={onNext}
-                >
+                <Button size="large" variant="primary" onClick={onNext}>
                   {t['com.affine.ai-onboarding.general.next']()}
                 </Button>
               </div>

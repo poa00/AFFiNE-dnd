@@ -1,12 +1,22 @@
-import { Suspense, useCallback, useState } from 'react';
+import { FeatureFlagService } from '@affine/core/modules/feature-flag';
+import { useService } from '@toeverything/infra';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 
 import { AIOnboardingEdgeless } from './edgeless.dialog';
-import { AIOnboardingGeneral } from './general.dialog';
 import { AIOnboardingLocal } from './local.dialog';
 import { AIOnboardingType } from './type';
 
 const useDismiss = (key: AIOnboardingType) => {
   const [dismiss, setDismiss] = useState(localStorage.getItem(key) === 'true');
+
+  useEffect(() => {
+    const handler = (e: StorageEvent) => {
+      if (e.key !== key) return;
+      setDismiss(localStorage.getItem(key) === 'true');
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, [key]);
 
   const onDismiss = useCallback(() => {
     setDismiss(true);
@@ -17,32 +27,25 @@ const useDismiss = (key: AIOnboardingType) => {
 };
 
 export const WorkspaceAIOnboarding = () => {
-  const [dismissGeneral, onDismissGeneral] = useDismiss(
-    AIOnboardingType.GENERAL
-  );
-  const [dismissLocal, onDismissLocal] = useDismiss(AIOnboardingType.LOCAL);
+  const [dismissLocal] = useDismiss(AIOnboardingType.LOCAL);
+  const featureFlagService = useService(FeatureFlagService);
+  const enableAI = featureFlagService.flags.enable_ai.value;
 
   return (
     <Suspense>
-      {dismissGeneral ? null : (
-        <AIOnboardingGeneral onDismiss={onDismissGeneral} />
-      )}
-
-      {dismissLocal ? null : <AIOnboardingLocal onDismiss={onDismissLocal} />}
+      {!enableAI || dismissLocal ? null : <AIOnboardingLocal />}
     </Suspense>
   );
 };
 
 export const PageAIOnboarding = () => {
-  const [dismissEdgeless, onDismissEdgeless] = useDismiss(
-    AIOnboardingType.EDGELESS
-  );
+  const [dismissEdgeless] = useDismiss(AIOnboardingType.EDGELESS);
+  const featureFlagService = useService(FeatureFlagService);
+  const enableAI = featureFlagService.flags.enable_ai.value;
 
   return (
     <Suspense>
-      {dismissEdgeless ? null : (
-        <AIOnboardingEdgeless onDismiss={onDismissEdgeless} />
-      )}
+      {!enableAI || dismissEdgeless ? null : <AIOnboardingEdgeless />}
     </Suspense>
   );
 };

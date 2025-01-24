@@ -3,10 +3,11 @@ import type {
   DeleteCollectionInfo,
   DeletedCollection,
 } from '@affine/env/filter';
-import type { WorkspaceService } from '@toeverything/infra';
 import { LiveData, Service } from '@toeverything/infra';
 import { Observable } from 'rxjs';
 import { Array as YArray } from 'yjs';
+
+import type { WorkspaceService } from '../../workspace';
 
 const SETTING_KEY = 'setting';
 
@@ -49,6 +50,12 @@ export class CollectionService extends Service {
     }),
     []
   );
+
+  collection$(id: string) {
+    return this.collections$.map(collections => {
+      return collections.find(v => v.id === id);
+    });
+  }
 
   readonly collectionsTrash$ = LiveData.from(
     new Observable<DeletedCollection[]>(subscriber => {

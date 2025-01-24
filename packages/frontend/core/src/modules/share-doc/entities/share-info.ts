@@ -2,7 +2,6 @@ import type {
   GetWorkspacePublicPageByIdQuery,
   PublicPageMode,
 } from '@affine/graphql';
-import type { DocService, WorkspaceService } from '@toeverything/infra';
 import {
   backoffRetry,
   catchErrorInto,
@@ -17,11 +16,13 @@ import {
 import { switchMap } from 'rxjs';
 
 import { isBackendError, isNetworkError } from '../../cloud';
+import type { DocService } from '../../doc';
+import type { WorkspaceService } from '../../workspace';
 import type { ShareStore } from '../stores/share';
 
 type ShareInfoType = GetWorkspacePublicPageByIdQuery['workspace']['publicPage'];
 
-export class Share extends Entity {
+export class ShareInfo extends Entity {
   info$ = new LiveData<ShareInfoType | undefined | null>(null);
   isShared$ = this.info$.map(info =>
     // null means not loaded yet, undefined means not shared

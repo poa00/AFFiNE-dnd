@@ -1,41 +1,42 @@
 import { BrowserWarning, LocalDemoTips } from '@affine/component/affine-banner';
-import { WorkspaceFlavour } from '@affine/env/workspace';
-import { Trans } from '@affine/i18n';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { useLiveData, useService, type Workspace } from '@toeverything/infra';
-import { useSetAtom } from 'jotai';
+import { Trans, useI18n } from '@affine/i18n';
+import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useState } from 'react';
 
-import { authAtom } from '../atoms';
-import { useEnableCloud } from '../hooks/affine/use-enable-cloud';
+import { useEnableCloud } from '../components/hooks/affine/use-enable-cloud';
 import { AuthService } from '../modules/cloud';
+import { GlobalDialogService } from '../modules/dialogs';
+import type { Workspace } from '../modules/workspace';
 
 const minimumChromeVersion = 106;
 
 const shouldShowWarning = (() => {
-  if (environment.isDesktop) {
+  if (BUILD_CONFIG.isElectron) {
     // even though desktop has compatibility issues,
     //  we don't want to show the warning
     return false;
   }
-  if (!environment.isBrowser) {
-    // disable in SSR
-    return false;
+  if (BUILD_CONFIG.isMobileEdition) {
+    return true;
   }
-  if (environment.isChrome) {
+  if (environment.isChrome && environment.chromeVersion) {
     return environment.chromeVersion < minimumChromeVersion;
-  } else {
-    return !environment.isMobile;
   }
+  return false;
 })();
 
 const OSWarningMessage = () => {
-  const t = useAFFiNEI18N();
-  const notChrome = environment.isBrowser && !environment.isChrome;
+  const t = useI18n();
+  const notChrome = !environment.isChrome;
   const notGoodVersion =
-    environment.isBrowser &&
     environment.isChrome &&
+    environment.chromeVersion &&
     environment.chromeVersion < minimumChromeVersion;
+
+  // TODO(@L-Sun): remove this message when mobile version is able to edit.
+  if (environment.isMobile) {
+    return <span>{t['com.affine.top-tip.mobile']()}</span>;
+  }
 
   if (notChrome) {
     return (
@@ -49,6 +50,7 @@ const OSWarningMessage = () => {
   } else if (notGoodVersion) {
     return <span>{t['upgradeBrowser']()}</span>;
   }
+
   return null;
 };
 
@@ -66,15 +68,15 @@ export const TopTip = ({
   const [showLocalDemoTips, setShowLocalDemoTips] = useState(true);
   const confirmEnableCloud = useEnableCloud();
 
-  const setAuthModal = useSetAtom(authAtom);
+  const globalDialogService = useService(GlobalDialogService);
   const onLogin = useCallback(() => {
-    setAuthModal({ openModal: true, state: 'signIn' });
-  }, [setAuthModal]);
+    globalDialogService.open('sign-in', {});
+  }, [globalDialogService]);
 
   if (
+    !BUILD_CONFIG.isElectron &&
     showLocalDemoTips &&
-    !environment.isDesktop &&
-    workspace.flavour === WorkspaceFlavour.LOCAL
+    workspace.flavour === 'local'
   ) {
     return (
       <LocalDemoTips

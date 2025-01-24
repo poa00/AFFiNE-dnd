@@ -1,12 +1,12 @@
 import { nanoid } from 'nanoid';
 import { describe, expect, test } from 'vitest';
 
-import { createORMClientType, f, MemoryORMAdapter } from '../';
+import { createORMClient, f, MemoryORMAdapter } from '../';
 
 describe('Schema validations', () => {
   test('primary key must be set', () => {
     expect(() =>
-      createORMClientType({
+      createORMClient({
         tags: {
           id: f.string(),
           name: f.string(),
@@ -19,7 +19,7 @@ describe('Schema validations', () => {
 
   test('primary key must be unique', () => {
     expect(() =>
-      createORMClientType({
+      createORMClient({
         tags: {
           id: f.string().primaryKey(),
           name: f.string().primaryKey(),
@@ -32,7 +32,7 @@ describe('Schema validations', () => {
 
   test('primary key should not be optional without default value', () => {
     expect(() =>
-      createORMClientType({
+      createORMClient({
         tags: {
           id: f.string().primaryKey().optional(),
           name: f.string(),
@@ -45,7 +45,7 @@ describe('Schema validations', () => {
 
   test('primary key can be optional with default value', async () => {
     expect(() =>
-      createORMClientType({
+      createORMClient({
         tags: {
           id: f.string().primaryKey().optional().default(nanoid),
           name: f.string(),
@@ -56,20 +56,21 @@ describe('Schema validations', () => {
 });
 
 describe('Entity validations', () => {
-  const Client = createORMClientType({
+  const Client = createORMClient({
     tags: {
       id: f.string().primaryKey().default(nanoid),
       name: f.string(),
       color: f.string(),
+      status: f.enum('active', 'inactive').optional(),
     },
   });
 
-  function createClient() {
+  function createTagsClient() {
     return new Client(new MemoryORMAdapter());
   }
 
   test('should not update primary key', () => {
-    const client = createClient();
+    const client = createTagsClient();
 
     const tag = client.tags.create({
       name: 'tag',
@@ -83,7 +84,7 @@ describe('Entity validations', () => {
   });
 
   test('should throw when trying to create entity with missing required field', () => {
-    const client = createClient();
+    const client = createTagsClient();
 
     // @ts-expect-error test
     expect(() => client.tags.create({ name: 'test' })).toThrow(
@@ -92,7 +93,7 @@ describe('Entity validations', () => {
   });
 
   test('should throw when trying to create entity with extra field', () => {
-    const client = createClient();
+    const client = createTagsClient();
 
     expect(() =>
       // @ts-expect-error test
@@ -101,26 +102,22 @@ describe('Entity validations', () => {
   });
 
   test('should throw when trying to create entity with unexpected field type', () => {
-    const client = createClient();
+    const client = createTagsClient();
 
-    expect(() =>
-      // @ts-expect-error test
-      client.tags.create({ name: 'test', color: 123 })
-    ).toThrow(
+    // @ts-expect-error test
+    expect(() => client.tags.create({ name: 'test', color: 123 })).toThrow(
       "[Table(tags)]: Field 'color' type mismatch. Expected type 'string' but got 'number'."
     );
 
-    expect(() =>
-      // @ts-expect-error test
-      client.tags.create({ name: 'test', color: [123] })
-    ).toThrow(
+    // @ts-expect-error test
+    expect(() => client.tags.create({ name: 'test', color: [123] })).toThrow(
       "[Table(tags)]: Field 'color' type mismatch. Expected type 'string' but got 'json'"
     );
   });
 
   test('should be able to assign `null` to json field', () => {
     expect(() => {
-      const Client = createORMClientType({
+      const Client = createORMClient({
         tags: {
           id: f.string().primaryKey().default(nanoid),
           info: f.json(),
@@ -133,5 +130,16 @@ describe('Entity validations', () => {
 
       expect(tag.info).toBe(null);
     });
+  });
+
+  test('should throw when trying to create entity with invalid enum value', () => {
+    const client = createTagsClient();
+
+    expect(() =>
+      // @ts-expect-error test
+      client.tags.create({ name: 'test', status: 'not-active' })
+    ).toThrow(
+      "[Table(tags)]: Field 'status' value 'not-active' is not valid. Expected one of [active, inactive]."
+    );
   });
 });

@@ -1,8 +1,8 @@
-import { getRuntimeConfig } from '@affine/cli/src/webpack/runtime-config';
 import { setupGlobal } from '@affine/env/global';
+import { getBuildConfig } from '@affine-tools/utils/build-config';
+import { Package } from '@affine-tools/utils/workspace';
 
-globalThis.runtimeConfig = getRuntimeConfig({
-  distribution: 'browser',
+globalThis.BUILD_CONFIG = getBuildConfig(new Package('@affine/web'), {
   mode: 'development',
   channel: 'canary',
 });

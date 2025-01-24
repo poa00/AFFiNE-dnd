@@ -1,11 +1,12 @@
 import type { CheckboxProps } from '@affine/component';
 import { Checkbox } from '@affine/component';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { MultiSelectIcon } from '@blocksuite/icons';
+import { useCatchEventCallback } from '@affine/core/components/hooks/use-catch-event-hook';
+import { useI18n } from '@affine/i18n';
+import { MultiSelectIcon } from '@blocksuite/icons/rc';
 import clsx from 'clsx';
 import { selectAtom } from 'jotai/utils';
 import type { MouseEventHandler } from 'react';
-import { useCallback } from 'react';
+import { memo, useCallback } from 'react';
 
 import { ListHeaderCell } from './components/list-header-cell';
 import * as styles from './page-header.css';
@@ -19,7 +20,6 @@ import {
   useAtomValue,
 } from './scoped-atoms';
 import type { HeaderColDef, ListItem } from './types';
-import { stopPropagation } from './utils';
 
 // the checkbox on the header has three states:
 // when list selectable = true, the checkbox will be presented
@@ -28,21 +28,19 @@ import { stopPropagation } from './utils';
 const ListHeaderCheckbox = () => {
   const [selectionState, setSelectionState] = useAtom(selectionStateAtom);
   const items = useAtomValue(itemsAtom);
-  const onActivateSelection: MouseEventHandler = useCallback(
-    e => {
-      stopPropagation(e);
-      setSelectionState(true);
-    },
-    [setSelectionState]
-  );
+  const onActivateSelection: MouseEventHandler = useCatchEventCallback(() => {
+    setSelectionState(true);
+  }, [setSelectionState]);
   const handlers = useAtomValue(listHandlersAtom);
-  const onChange: NonNullable<CheckboxProps['onChange']> = useCallback(
-    (e, checked) => {
-      stopPropagation(e);
-      handlers.onSelectedIdsChange?.(checked ? items.map(i => i.id) : []);
-    },
-    [handlers, items]
-  );
+  const onChange: NonNullable<CheckboxProps['onChange']> =
+    useCatchEventCallback(
+      (_e, checked) => {
+        handlers.onSelectedIdsChange?.(
+          checked ? (items ?? []).map(i => i.id) : []
+        );
+      },
+      [handlers, items]
+    );
 
   if (!selectionState.selectable) {
     return null;
@@ -58,11 +56,11 @@ const ListHeaderCheckbox = () => {
         <MultiSelectIcon />
       ) : (
         <Checkbox
-          checked={selectionState.selectedIds?.length === items.length}
+          checked={selectionState.selectedIds?.length === items?.length}
           indeterminate={
             selectionState.selectedIds &&
             selectionState.selectedIds.length > 0 &&
-            selectionState.selectedIds.length < items.length
+            selectionState.selectedIds.length < (items?.length ?? 0)
           }
           onChange={onChange}
         />
@@ -72,7 +70,7 @@ const ListHeaderCheckbox = () => {
 };
 
 export const ListHeaderTitleCell = () => {
-  const t = useAFFiNEI18N();
+  const t = useI18n();
   return (
     <div className={styles.headerTitleCell}>
       <ListHeaderCheckbox />
@@ -81,14 +79,14 @@ export const ListHeaderTitleCell = () => {
   );
 };
 
-const hideHeaderAtom = selectAtom(listPropsAtom, props => props.hideHeader);
+const hideHeaderAtom = selectAtom(listPropsAtom, props => props?.hideHeader);
 
 // the table header for page list
-export const ListTableHeader = ({
+export const ListTableHeader = memo(function ListTableHeader({
   headerCols,
 }: {
   headerCols: HeaderColDef[];
-}) => {
+}) {
   const [sorter, setSorter] = useAtom(sorterAtom);
   const hideHeader = useAtomValue(hideHeaderAtom);
   const selectionState = useAtomValue(selectionStateAtom);
@@ -138,4 +136,4 @@ export const ListTableHeader = ({
       })}
     </div>
   );
-};
+});

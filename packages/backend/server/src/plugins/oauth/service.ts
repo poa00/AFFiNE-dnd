@@ -2,14 +2,14 @@ import { randomUUID } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
 
-import { SessionCache } from '../../fundamentals';
+import { SessionCache } from '../../base';
+import { OAuthProviderName } from './config';
 import { OAuthProviderFactory } from './register';
-import { OAuthProviderName } from './types';
 
 const OAUTH_STATE_KEY = 'OAUTH_STATE';
 
 interface OAuthState {
-  redirectUri: string;
+  redirectUri?: string;
   provider: OAuthProviderName;
 }
 
@@ -19,6 +19,10 @@ export class OAuthService {
     private readonly providerFactory: OAuthProviderFactory,
     private readonly cache: SessionCache
   ) {}
+
+  isValidState(stateStr: string) {
+    return stateStr.length === 36;
+  }
 
   async saveOAuthState(state: OAuthState) {
     const token = randomUUID();

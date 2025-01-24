@@ -1,4 +1,4 @@
-import { ArrowLeftSmallIcon, ArrowRightSmallIcon } from '@blocksuite/icons';
+import { ArrowLeftSmallIcon, ArrowRightSmallIcon } from '@blocksuite/icons/rc';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import clsx from 'clsx';
 import type { HTMLAttributes, PropsWithChildren, ReactNode } from 'react';
@@ -45,6 +45,7 @@ const HeaderLayout = memo(function HeaderLayout({
           const isRight = index === length - 1;
           return (
             <div
+              // eslint-disable-next-line react/no-array-index-key
               key={index}
               data-length={length}
               data-is-left={isLeft}
@@ -79,7 +80,12 @@ export const CalendarLayout = forwardRef<HTMLDivElement, CalendarLayoutProps>(
     ref
   ) => {
     return (
-      <div className={styles.calendarWrapper} ref={ref} data-mode={mode}>
+      <div
+        className={styles.calendarWrapper}
+        ref={ref}
+        data-mode={mode}
+        data-mobile={BUILD_CONFIG.isMobileEdition}
+      >
         <HeaderLayout
           mode={mode}
           length={length}
@@ -123,6 +129,9 @@ interface NavButtonsProps extends PropsWithChildren {
   onPrev?: () => void;
   onNext?: () => void;
 }
+
+const iconButtonSize = BUILD_CONFIG.isMobileEdition ? 28 : 16;
+
 export const NavButtons = memo(function NavButtons({
   children,
   prevDisabled,
@@ -134,8 +143,7 @@ export const NavButtons = memo(function NavButtons({
     <div className={styles.headerNavButtons} key="nav-btn-group">
       <IconButton
         key="nav-btn-prev"
-        size="small"
-        className={styles.focusInteractive}
+        size={iconButtonSize}
         disabled={prevDisabled}
         data-testid="date-picker-nav-prev"
         onClick={onPrev}
@@ -147,8 +155,7 @@ export const NavButtons = memo(function NavButtons({
 
       <IconButton
         key="nav-btn-next"
-        size="small"
-        className={styles.focusInteractive}
+        size={iconButtonSize}
         disabled={nextDisabled}
         data-testid="date-picker-nav-next"
         onClick={onNext}

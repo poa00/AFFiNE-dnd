@@ -2,18 +2,38 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
-import react from '@vitejs/plugin-react-swc';
 import * as fg from 'fast-glob';
+import swc from 'unplugin-swc';
 import { defineConfig } from 'vitest/config';
 
 const rootDir = fileURLToPath(new URL('.', import.meta.url));
 
 export default defineConfig({
   plugins: [
-    react({
-      tsDecorators: true,
-    }),
     vanillaExtractPlugin(),
+    // https://github.com/vitejs/vite-plugin-react-swc/issues/85#issuecomment-2003922124
+    swc.vite({
+      jsc: {
+        preserveAllComments: true,
+        parser: {
+          syntax: 'typescript',
+          dynamicImport: true,
+          tsx: true,
+          decorators: true,
+        },
+        target: 'es2022',
+        externalHelpers: false,
+        transform: {
+          react: {
+            runtime: 'automatic',
+          },
+          useDefineForClassFields: false,
+          decoratorVersion: '2022-03',
+        },
+      },
+      sourceMaps: true,
+      inlineSourcesContent: true,
+    }),
   ],
   assetsInclude: ['**/*.md', '**/*.zip'],
   resolve: {
@@ -27,8 +47,9 @@ export default defineConfig({
   },
   test: {
     setupFiles: [
+      resolve(rootDir, './scripts/setup/polyfill.ts'),
       resolve(rootDir, './scripts/setup/lit.ts'),
-      resolve(rootDir, './scripts/setup/lottie-web.ts'),
+      resolve(rootDir, './scripts/setup/vi-mock.ts'),
       resolve(rootDir, './scripts/setup/global.ts'),
     ],
     include: [
@@ -41,7 +62,7 @@ export default defineConfig({
       '**/dist',
       '**/build',
       '**/out,',
-      '**/packages/frontend/electron',
+      '**/packages/frontend/apps/electron',
     ],
     testTimeout: 5000,
     coverage: {
@@ -49,6 +70,11 @@ export default defineConfig({
       provider: 'istanbul', // or 'c8'
       reporter: ['lcov'],
       reportsDirectory: resolve(rootDir, '.coverage/store'),
+    },
+    server: {
+      deps: {
+        inline: ['@blocksuite/affine/blocks'],
+      },
     },
   },
 });

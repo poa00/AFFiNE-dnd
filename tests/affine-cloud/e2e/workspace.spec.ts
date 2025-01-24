@@ -5,14 +5,14 @@ import {
   enableCloudWorkspace,
   loginUser,
 } from '@affine-test/kit/utils/cloud';
+import { clickPageModeButton } from '@affine-test/kit/utils/editor';
 import {
   clickNewPageButton,
+  getBlockSuiteEditorTitle,
   waitForEditorLoad,
+  waitForEmptyEditor,
 } from '@affine-test/kit/utils/page-logic';
-import {
-  openSettingModal,
-  openWorkspaceSettingPanel,
-} from '@affine-test/kit/utils/setting';
+import { openSettingModal } from '@affine-test/kit/utils/setting';
 import { createLocalWorkspace } from '@affine-test/kit/utils/workspace';
 import { expect } from '@playwright/test';
 
@@ -25,7 +25,7 @@ let user: {
 
 test.beforeEach(async ({ page }) => {
   user = await createRandomUser();
-  await loginUser(page, user.email);
+  await loginUser(page, user);
 });
 
 test('should have pagination in member list', async ({ page }) => {
@@ -55,9 +55,14 @@ test('should have pagination in member list', async ({ page }) => {
   );
 
   await openSettingModal(page);
-  await openWorkspaceSettingPanel(page, 'test');
+  await page
+    .getByTestId('settings-sidebar')
+    .getByTestId('workspace-setting:members')
+    .click();
 
   await page.waitForTimeout(1000);
+
+  await page.getByTestId('confirm-modal-cancel').click();
 
   const firstPageMemberItemCount = await page
     .locator('[data-testid="member-item"]')
@@ -93,4 +98,32 @@ test('should have pagination in member list', async ({ page }) => {
   await navigationItems[3].click();
   await page.waitForTimeout(500);
   expect(await page.locator('[data-testid="member-item"]').count()).toBe(3);
+});
+
+test('should transform local favorites data', async ({ page }) => {
+  await page.reload();
+  await waitForEditorLoad(page);
+  await createLocalWorkspace(
+    {
+      name: 'test',
+    },
+    page
+  );
+  await page.getByTestId('explorer-bar-add-favorite-button').first().click();
+  await clickPageModeButton(page);
+  await waitForEmptyEditor(page);
+
+  await getBlockSuiteEditorTitle(page).fill('this is a new fav page');
+  await expect(
+    page
+      .getByTestId('explorer-favorites')
+      .locator('[draggable] >> text=this is a new fav page')
+  ).toBeVisible();
+
+  await enableCloudWorkspace(page);
+  await expect(
+    page
+      .getByTestId('explorer-favorites')
+      .locator('[draggable] >> text=this is a new fav page')
+  ).toBeVisible();
 });

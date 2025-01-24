@@ -1,6 +1,5 @@
 import {
   gqlFetcherFactory,
-  GraphQLError,
   type GraphQLQuery,
   type QueryOptions,
   type QueryResponse,
@@ -39,14 +38,10 @@ export class GraphQLService extends Service {
     try {
       return await this.rawGql(options);
     } catch (err) {
-      if (err instanceof Array) {
-        for (const error of err) {
-          if (error instanceof GraphQLError && error.extensions?.code === 403) {
-            this.framework.get(AuthService).session.revalidate();
-          }
-        }
-        throw new BackendError(new Error('Graphql Error'));
+      if (err instanceof BackendError && err.status === 403) {
+        this.framework.get(AuthService).session.revalidate();
       }
+
       throw err;
     }
   };

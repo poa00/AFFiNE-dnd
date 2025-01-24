@@ -1,15 +1,8 @@
 import { nanoid } from 'nanoid';
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  test as t,
-  type TestAPI,
-} from 'vitest';
+import { beforeEach, describe, expect, test as t, type TestAPI } from 'vitest';
 
 import {
-  createORMClientType,
+  createORMClient,
   type DBSchemaBuilder,
   f,
   MemoryORMAdapter,
@@ -24,18 +17,14 @@ const TEST_SCHEMA = {
   },
 } satisfies DBSchemaBuilder;
 
-const Client = createORMClientType(TEST_SCHEMA);
+const ORMClient = createORMClient(TEST_SCHEMA);
+
 type Context = {
-  client: InstanceType<typeof Client>;
+  client: InstanceType<typeof ORMClient>;
 };
 
 beforeEach<Context>(async t => {
-  t.client = new Client(new MemoryORMAdapter());
-  await t.client.connect();
-});
-
-afterEach<Context>(async t => {
-  await t.client.disconnect();
+  t.client = new ORMClient(new MemoryORMAdapter());
 });
 
 const test = t as TestAPI<Context>;
@@ -106,7 +95,7 @@ describe('ORM entity CRUD', () => {
     });
 
     // old tag should not be updated
-    expect(tag.name).not.toBe(tag2.name);
+    expect(tag.name).not.toBe(tag2!.name);
   });
 
   test('should be able to delete entity', async t => {
@@ -121,5 +110,30 @@ describe('ORM entity CRUD', () => {
 
     const tag2 = client.tags.get(tag.id);
     expect(tag2).toBe(null);
+  });
+
+  test('should be able to recover entity', t => {
+    const { client } = t;
+
+    client.tags.create({
+      id: '1',
+      name: 'test',
+      color: 'red',
+    });
+
+    client.tags.delete('1');
+
+    client.tags.create({
+      id: '1',
+      name: 'test',
+      color: 'red',
+    });
+
+    const tag = client.tags.get('1');
+    expect(tag).toEqual({
+      id: '1',
+      name: 'test',
+      color: 'red',
+    });
   });
 });

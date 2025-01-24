@@ -1,6 +1,6 @@
-import type { DocsService } from '@toeverything/infra';
 import { Entity, LiveData } from '@toeverything/infra';
 
+import type { DocsService } from '../../doc';
 import { Tag } from '../entities/tag';
 import type { TagStore } from '../stores/tag';
 
@@ -12,8 +12,18 @@ export class TagList extends Entity {
     super();
   }
 
+  private readonly pool = new Map<string, Tag>();
+
   readonly tags$ = LiveData.from(this.store.watchTagIds(), []).map(ids => {
-    return ids.map(id => this.framework.createEntity(Tag, { id }));
+    return ids.map(id => {
+      const exists = this.pool.get(id);
+      if (exists) {
+        return exists;
+      }
+      const record = this.framework.createEntity(Tag, { id });
+      this.pool.set(id, record);
+      return record;
+    });
   });
 
   createTag(value: string, color: string) {
@@ -68,12 +78,6 @@ export class TagList extends Entity {
       return get(this.tags$).filter(tag =>
         this.filterFn(get(tag.value$), name)
       );
-    });
-  }
-
-  tagByTagValue$(value: string) {
-    return LiveData.computed(get => {
-      return get(this.tags$).find(tag => this.filterFn(get(tag.value$), value));
     });
   }
 }

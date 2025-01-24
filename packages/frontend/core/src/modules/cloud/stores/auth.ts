@@ -1,15 +1,15 @@
 import {
-  getUserQuery,
   removeAvatarMutation,
   updateUserProfileMutation,
   uploadAvatarMutation,
 } from '@affine/graphql';
-import type { GlobalStateService } from '@toeverything/infra';
 import { Store } from '@toeverything/infra';
 
+import type { GlobalState } from '../../storage';
 import type { AuthSessionInfo } from '../entities/session';
 import type { FetchService } from '../services/fetch';
 import type { GraphQLService } from '../services/graphql';
+import type { ServerService } from '../services/server';
 
 export interface AccountProfile {
   id: string;
@@ -24,19 +24,26 @@ export class AuthStore extends Store {
   constructor(
     private readonly fetchService: FetchService,
     private readonly gqlService: GraphQLService,
-    private readonly globalStateService: GlobalStateService
+    private readonly globalState: GlobalState,
+    private readonly serverService: ServerService
   ) {
     super();
   }
 
   watchCachedAuthSession() {
-    return this.globalStateService.globalState.watch<AuthSessionInfo>(
-      'affine-cloud-auth'
+    return this.globalState.watch<AuthSessionInfo>(
+      `${this.serverService.server.id}-auth`
+    );
+  }
+
+  getCachedAuthSession() {
+    return this.globalState.get<AuthSessionInfo>(
+      `${this.serverService.server.id}-auth`
     );
   }
 
   setCachedAuthSession(session: AuthSessionInfo | null) {
-    this.globalStateService.globalState.set('affine-cloud-auth', session);
+    this.globalState.set(`${this.serverService.server.id}-auth`, session);
   }
 
   async fetchSession() {
@@ -83,15 +90,24 @@ export class AuthStore extends Store {
   }
 
   async checkUserByEmail(email: string) {
-    const data = await this.gqlService.gql({
-      query: getUserQuery,
-      variables: {
-        email,
+    const res = await this.fetchService.fetch('/api/auth/preflight', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+      headers: {
+        'content-type': 'application/json',
       },
     });
-    return {
-      isExist: !!data.user,
-      hasPassword: !!data.user?.hasPassword,
+
+    if (!res.ok) {
+      throw new Error(`Failed to check user by email: ${email}`);
+    }
+
+    const data = (await res.json()) as {
+      registered: boolean;
+      hasPassword: boolean;
+      magicLink: boolean;
     };
+
+    return data;
   }
 }

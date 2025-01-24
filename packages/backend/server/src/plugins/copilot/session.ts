@@ -1,19 +1,29 @@
 import { randomUUID } from 'node:crypto';
 
 import { Injectable, Logger } from '@nestjs/common';
-import { AiPromptRole, PrismaClient } from '@prisma/client';
+import { AiPromptRole, Prisma, PrismaClient } from '@prisma/client';
 
+import {
+  CopilotActionTaken,
+  CopilotMessageNotFound,
+  CopilotPromptNotFound,
+  CopilotQuotaExceeded,
+  CopilotSessionDeleted,
+  CopilotSessionNotFound,
+  PrismaTransaction,
+} from '../../base';
 import { FeatureManagementService } from '../../core/features';
 import { QuotaService } from '../../core/quota';
-import { PaymentRequiredException } from '../../fundamentals';
 import { ChatMessageCache } from './message';
-import { ChatPrompt, PromptService } from './prompt';
+import { PromptService } from './prompt';
 import {
   AvailableModel,
   ChatHistory,
   ChatMessage,
   ChatMessageSchema,
+  ChatSessionForkOptions,
   ChatSessionOptions,
+  ChatSessionPromptUpdateOptions,
   ChatSessionState,
   getTokenEncoder,
   ListHistoriesOptions,
@@ -41,10 +51,10 @@ export class ChatSession implements AsyncDisposable {
       userId,
       workspaceId,
       docId,
-      prompt: { name: promptName },
+      prompt: { name: promptName, config: promptConfig },
     } = this.state;
 
-    return { sessionId, userId, workspaceId, docId, promptName };
+    return { sessionId, userId, workspaceId, docId, promptName, promptConfig };
   }
 
   get stashMessages() {
@@ -58,16 +68,23 @@ export class ChatSession implements AsyncDisposable {
       this.state.messages.length > 0 &&
       message.role === 'user'
     ) {
-      throw new Error('Action has been taken, no more messages allowed');
+      throw new CopilotActionTaken();
     }
     this.state.messages.push(message);
     this.stashMessageCount += 1;
   }
 
+  revertLatestMessage() {
+    const messages = this.state.messages;
+    messages.splice(
+      messages.findLastIndex(({ role }) => role === AiPromptRole.user) + 1
+    );
+  }
+
   async getMessageById(messageId: string) {
     const message = await this.messageCache.get(messageId);
     if (!message || message.sessionId !== this.state.sessionId) {
-      throw new Error(`Message not found: ${messageId}`);
+      throw new CopilotMessageNotFound({ messageId });
     }
     return message;
   }
@@ -75,7 +92,7 @@ export class ChatSession implements AsyncDisposable {
   async pushByMessageId(messageId: string) {
     const message = await this.messageCache.get(messageId);
     if (!message || message.sessionId !== this.state.sessionId) {
-      throw new Error(`Message not found: ${messageId}`);
+      throw new CopilotMessageNotFound({ messageId });
     }
 
     this.push({
@@ -122,7 +139,7 @@ export class ChatSession implements AsyncDisposable {
     // we should combine it with the user message in the prompt
     if (
       messages.length === 1 &&
-      firstMessage?.content &&
+      firstMessage &&
       this.state.prompt.paramKeys.includes('content')
     ) {
       const normalizedParams = {
@@ -134,7 +151,17 @@ export class ChatSession implements AsyncDisposable {
         normalizedParams,
         this.config.sessionId
       );
-      finished[0].attachments = firstMessage.attachments;
+
+      // attachments should be combined with the first user message
+      const firstUserMessage =
+        finished.find(m => m.role === 'user') || finished[0];
+      firstUserMessage.attachments = [
+        finished[0].attachments || [],
+        firstMessage.attachments || [],
+      ]
+        .flat()
+        .filter(v => !!v?.trim());
+
       return finished;
     }
 
@@ -157,7 +184,6 @@ export class ChatSession implements AsyncDisposable {
   }
 
   async [Symbol.asyncDispose]() {
-    this.state.prompt.free();
     await this.save?.();
   }
 }
@@ -174,34 +200,53 @@ export class ChatSessionService {
     private readonly prompt: PromptService
   ) {}
 
+  private async haveSession(
+    sessionId: string,
+    userId: string,
+    tx?: PrismaTransaction,
+    params?: Prisma.AiSessionCountArgs['where']
+  ) {
+    const executor = tx ?? this.db;
+    return await executor.aiSession
+      .count({
+        where: {
+          id: sessionId,
+          userId,
+          ...params,
+        },
+      })
+      .then(c => c > 0);
+  }
+
   private async setSession(state: ChatSessionState): Promise<string> {
     return await this.db.$transaction(async tx => {
       let sessionId = state.sessionId;
 
       // find existing session if session is chat session
       if (!state.prompt.action) {
-        const { id } =
+        const extraCondition: Record<string, any> = {};
+        if (state.parentSessionId) {
+          // also check session id if provided session is forked session
+          extraCondition.id = state.sessionId;
+          extraCondition.parentSessionId = state.parentSessionId;
+        }
+        const { id, deletedAt } =
           (await tx.aiSession.findFirst({
             where: {
               userId: state.userId,
               workspaceId: state.workspaceId,
               docId: state.docId,
               prompt: { action: { equals: null } },
+              parentSessionId: null,
+              ...extraCondition,
             },
-            select: { id: true },
+            select: { id: true, deletedAt: true },
           })) || {};
+        if (deletedAt) throw new CopilotSessionDeleted();
         if (id) sessionId = id;
       }
 
-      const haveSession = await tx.aiSession
-        .count({
-          where: {
-            id: sessionId,
-            userId: state.userId,
-          },
-        })
-        .then(c => c > 0);
-
+      const haveSession = await this.haveSession(sessionId, state.userId, tx);
       if (haveSession) {
         // message will only exists when setSession call by session.save
         if (state.messages.length) {
@@ -213,6 +258,21 @@ export class ChatSessionService {
               sessionId,
             })),
           });
+
+          // only count message generated by user
+          const userMessages = state.messages.filter(m => m.role === 'user');
+          await tx.aiSession.update({
+            where: { id: sessionId },
+            data: {
+              messageCost: { increment: userMessages.length },
+              tokenCost: {
+                increment: this.calculateTokenSize(
+                  userMessages,
+                  state.prompt.model as AvailableModel
+                ),
+              },
+            },
+          });
         }
       } else {
         await tx.aiSession.create({
@@ -223,6 +283,7 @@ export class ChatSessionService {
             // connect
             userId: state.userId,
             promptName: state.prompt.name,
+            parentSessionId: state.parentSessionId,
           },
         });
       }
@@ -236,43 +297,31 @@ export class ChatSessionService {
   ): Promise<ChatSessionState | undefined> {
     return await this.db.aiSession
       .findUnique({
-        where: { id: sessionId },
+        where: { id: sessionId, deletedAt: null },
         select: {
           id: true,
           userId: true,
           workspaceId: true,
           docId: true,
+          parentSessionId: true,
           messages: {
             select: {
+              id: true,
               role: true,
               content: true,
+              attachments: true,
               createdAt: true,
             },
-            orderBy: {
-              createdAt: 'asc',
-            },
+            orderBy: { createdAt: 'asc' },
           },
-          prompt: {
-            select: {
-              name: true,
-              action: true,
-              model: true,
-              messages: {
-                select: {
-                  role: true,
-                  content: true,
-                  createdAt: true,
-                },
-                orderBy: {
-                  idx: 'asc',
-                },
-              },
-            },
-          },
+          promptName: true,
         },
       })
       .then(async session => {
         if (!session) return;
+        const prompt = await this.prompt.get(session.promptName);
+        if (!prompt)
+          throw new CopilotPromptNotFound({ name: session.promptName });
 
         const messages = ChatMessageSchema.array().safeParse(session.messages);
 
@@ -281,10 +330,43 @@ export class ChatSessionService {
           userId: session.userId,
           workspaceId: session.workspaceId,
           docId: session.docId,
-          prompt: ChatPrompt.createFromPrompt(session.prompt),
+          parentSessionId: session.parentSessionId,
+          prompt,
           messages: messages.success ? messages.data : [],
         };
       });
+  }
+
+  // revert the latest messages not generate by user
+  // after revert, we can retry the action
+  async revertLatestMessage(sessionId: string) {
+    await this.db.$transaction(async tx => {
+      const id = await tx.aiSession
+        .findUnique({
+          where: { id: sessionId, deletedAt: null },
+          select: { id: true },
+        })
+        .then(session => session?.id);
+      if (!id) {
+        throw new CopilotSessionNotFound();
+      }
+      const ids = await tx.aiSessionMessage
+        .findMany({
+          where: { sessionId: id },
+          select: { id: true, role: true },
+          orderBy: { createdAt: 'asc' },
+        })
+        .then(roles =>
+          roles
+            .slice(
+              roles.findLastIndex(({ role }) => role === AiPromptRole.user) + 1
+            )
+            .map(({ id }) => id)
+        );
+      if (ids.length) {
+        await tx.aiSessionMessage.deleteMany({ where: { id: { in: ids } } });
+      }
+    });
   }
 
   private calculateTokenSize(
@@ -293,26 +375,18 @@ export class ChatSessionService {
   ): number {
     const encoder = getTokenEncoder(model);
     return messages
-      .map(m => encoder?.encode_ordinary(m.content).length || 0)
+      .map(m => encoder?.count(m.content) ?? 0)
       .reduce((total, length) => total + length, 0);
   }
 
-  private async countUserActions(userId: string): Promise<number> {
-    return await this.db.aiSession.count({
-      where: { userId, prompt: { action: { not: null } } },
+  private async countUserMessages(userId: string): Promise<number> {
+    const sessions = await this.db.aiSession.findMany({
+      where: { userId },
+      select: { messageCost: true, prompt: { select: { action: true } } },
     });
-  }
-
-  private async countUserChats(userId: string): Promise<number> {
-    const chats = await this.db.aiSession.findMany({
-      where: { userId, prompt: { action: null } },
-      select: {
-        _count: {
-          select: { messages: { where: { role: AiPromptRole.user } } },
-        },
-      },
-    });
-    return chats.reduce((prev, chat) => prev + chat._count.messages, 0);
+    return sessions
+      .map(({ messageCost, prompt: { action } }) => (action ? 1 : messageCost))
+      .reduce((prev, cost) => prev + cost, 0);
   }
 
   async listSessions(
@@ -329,6 +403,7 @@ export class ChatSessionService {
           prompt: {
             action: options?.action ? { not: null } : null,
           },
+          deletedAt: null,
         },
         select: { id: true },
       })
@@ -342,23 +417,46 @@ export class ChatSessionService {
     options?: ListHistoriesOptions,
     withPrompt = false
   ): Promise<ChatHistory[]> {
+    const extraCondition = [];
+
+    if (!options?.action && options?.fork) {
+      // only query forked session if fork == true and action == false
+      extraCondition.push({
+        userId: { not: userId },
+        workspaceId: workspaceId,
+        docId: workspaceId === docId ? undefined : docId,
+        id: options?.sessionId ? { equals: options.sessionId } : undefined,
+        // should only find forked session
+        parentSessionId: { not: null },
+        deletedAt: null,
+      });
+    }
+
     return await this.db.aiSession
       .findMany({
         where: {
-          userId,
-          workspaceId: workspaceId,
-          docId: workspaceId === docId ? undefined : docId,
-          prompt: {
-            action: options?.action ? { not: null } : null,
-          },
-          id: options?.sessionId ? { equals: options.sessionId } : undefined,
+          OR: [
+            {
+              userId,
+              workspaceId: workspaceId,
+              docId: workspaceId === docId ? undefined : docId,
+              id: options?.sessionId
+                ? { equals: options.sessionId }
+                : undefined,
+              deletedAt: null,
+            },
+            ...extraCondition,
+          ],
         },
         select: {
           id: true,
+          userId: true,
           promptName: true,
+          tokenCost: true,
           createdAt: true,
           messages: {
             select: {
+              id: true,
               role: true,
               content: true,
               attachments: true,
@@ -366,60 +464,78 @@ export class ChatSessionService {
               createdAt: true,
             },
             orderBy: {
-              createdAt: 'asc',
+              // message order is asc by default
+              createdAt: options?.messageOrder === 'desc' ? 'desc' : 'asc',
             },
           },
         },
         take: options?.limit,
         skip: options?.skip,
-        orderBy: { createdAt: 'desc' },
+        orderBy: {
+          // session order is desc by default
+          createdAt: options?.sessionOrder === 'asc' ? 'asc' : 'desc',
+        },
       })
       .then(sessions =>
         Promise.all(
-          sessions.map(async ({ id, promptName, messages, createdAt }) => {
-            try {
-              const ret = ChatMessageSchema.array().safeParse(messages);
-              if (ret.success) {
+          sessions.map(
+            async ({
+              id,
+              userId: uid,
+              promptName,
+              tokenCost,
+              messages,
+              createdAt,
+            }) => {
+              try {
                 const prompt = await this.prompt.get(promptName);
                 if (!prompt) {
-                  throw new Error(`Prompt not found: ${promptName}`);
+                  throw new CopilotPromptNotFound({ name: promptName });
                 }
-                const tokens = this.calculateTokenSize(
-                  ret.data,
-                  prompt.model as AvailableModel
-                );
+                if (
+                  // filter out the user's session that not match the action option
+                  (uid === userId && !!options?.action !== !!prompt.action) ||
+                  // filter out the non chat session from other user
+                  (uid !== userId && !!prompt.action)
+                ) {
+                  return undefined;
+                }
 
-                // render system prompt
-                const preload = withPrompt
-                  ? prompt
-                      .finish(ret.data[0]?.params || {}, id)
-                      .filter(({ role }) => role !== 'system')
-                  : [];
+                const ret = ChatMessageSchema.array().safeParse(messages);
+                if (ret.success) {
+                  // render system prompt
+                  const preload = withPrompt
+                    ? prompt
+                        .finish(ret.data[0]?.params || {}, id)
+                        .filter(({ role }) => role !== 'system')
+                    : [];
 
-                // `createdAt` is required for history sorting in frontend, let's fake the creating time of prompt messages
-                (preload as ChatMessage[]).forEach((msg, i) => {
-                  msg.createdAt = new Date(
-                    createdAt.getTime() - preload.length - i - 1
+                  // `createdAt` is required for history sorting in frontend
+                  // let's fake the creating time of prompt messages
+                  (preload as ChatMessage[]).forEach((msg, i) => {
+                    msg.createdAt = new Date(
+                      createdAt.getTime() - preload.length - i - 1
+                    );
+                  });
+
+                  return {
+                    sessionId: id,
+                    action: prompt.action || undefined,
+                    tokens: tokenCost,
+                    createdAt,
+                    messages: preload.concat(ret.data),
+                  };
+                } else {
+                  this.logger.error(
+                    `Unexpected message schema: ${JSON.stringify(ret.error)}`
                   );
-                });
-
-                return {
-                  sessionId: id,
-                  action: prompt.action || undefined,
-                  tokens,
-                  createdAt,
-                  messages: preload.concat(ret.data),
-                };
-              } else {
-                this.logger.error(
-                  `Unexpected message schema: ${JSON.stringify(ret.error)}`
-                );
+                }
+              } catch (e) {
+                this.logger.error('Unexpected error in listHistories', e);
               }
-            } catch (e) {
-              this.logger.error('Unexpected error in listHistories', e);
+              return undefined;
             }
-            return undefined;
-          })
+          )
         )
       )
       .then(histories =>
@@ -436,18 +552,15 @@ export class ChatSessionService {
       limit = quota.feature.copilotActionLimit;
     }
 
-    const actions = await this.countUserActions(userId);
-    const chats = await this.countUserChats(userId);
+    const used = await this.countUserMessages(userId);
 
-    return { limit, used: actions + chats };
+    return { limit, used };
   }
 
   async checkQuota(userId: string) {
     const { limit, used } = await this.getQuota(userId);
     if (limit && Number.isFinite(limit) && used >= limit) {
-      throw new PaymentRequiredException(
-        `You have reached the limit of actions in this workspace, please upgrade your plan.`
-      );
+      throw new CopilotQuotaExceeded();
     }
   }
 
@@ -456,13 +569,114 @@ export class ChatSessionService {
     const prompt = await this.prompt.get(options.promptName);
     if (!prompt) {
       this.logger.error(`Prompt not found: ${options.promptName}`);
-      throw new Error('Prompt not found');
+      throw new CopilotPromptNotFound({ name: options.promptName });
     }
+
     return await this.setSession({
       ...options,
       sessionId,
       prompt,
       messages: [],
+      // when client create chat session, we always find root session
+      parentSessionId: null,
+    });
+  }
+
+  async updateSessionPrompt(
+    options: ChatSessionPromptUpdateOptions
+  ): Promise<string> {
+    const prompt = await this.prompt.get(options.promptName);
+    if (!prompt) {
+      this.logger.error(`Prompt not found: ${options.promptName}`);
+      throw new CopilotPromptNotFound({ name: options.promptName });
+    }
+    return await this.db.$transaction(async tx => {
+      let sessionId = options.sessionId;
+      const haveSession = await this.haveSession(
+        sessionId,
+        options.userId,
+        tx,
+        { prompt: { action: null } }
+      );
+      if (haveSession) {
+        await tx.aiSession.update({
+          where: { id: sessionId },
+          data: { promptName: prompt.name },
+        });
+      }
+      return sessionId;
+    });
+  }
+
+  async fork(options: ChatSessionForkOptions): Promise<string> {
+    const state = await this.getSession(options.sessionId);
+    if (!state) {
+      throw new CopilotSessionNotFound();
+    }
+    const lastMessageIdx = state.messages.findLastIndex(
+      ({ id, role }) =>
+        role === AiPromptRole.assistant && id === options.latestMessageId
+    );
+    if (lastMessageIdx < 0) {
+      throw new CopilotMessageNotFound({ messageId: options.latestMessageId });
+    }
+    const messages = state.messages
+      .slice(0, lastMessageIdx + 1)
+      .map(m => ({ ...m, id: undefined }));
+
+    const forkedState = {
+      ...state,
+      userId: options.userId,
+      sessionId: randomUUID(),
+      messages: [],
+      parentSessionId: options.sessionId,
+    };
+    // create session
+    await this.setSession(forkedState);
+    // save message
+    return await this.setSession({ ...forkedState, messages });
+  }
+
+  async cleanup(
+    options: Omit<ChatSessionOptions, 'promptName'> & { sessionIds: string[] }
+  ) {
+    return await this.db.$transaction(async tx => {
+      const sessions = await tx.aiSession.findMany({
+        where: {
+          id: { in: options.sessionIds },
+          userId: options.userId,
+          workspaceId: options.workspaceId,
+          docId: options.docId,
+          deletedAt: null,
+        },
+        select: { id: true, promptName: true },
+      });
+      const sessionIds = sessions.map(({ id }) => id);
+      // cleanup all messages
+      await tx.aiSessionMessage.deleteMany({
+        where: { sessionId: { in: sessionIds } },
+      });
+
+      // only mark action session as deleted
+      // chat session always can be reuse
+      const actionIds = (
+        await Promise.all(
+          sessions.map(({ id, promptName }) =>
+            this.prompt
+              .get(promptName)
+              .then(prompt => ({ id, action: !!prompt?.action }))
+          )
+        )
+      )
+        .filter(({ action }) => action)
+        .map(({ id }) => id);
+
+      await tx.aiSession.updateMany({
+        where: { id: { in: actionIds } },
+        data: { deletedAt: new Date() },
+      });
+
+      return [...sessionIds, ...actionIds];
     });
   }
 

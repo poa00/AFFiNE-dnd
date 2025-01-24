@@ -1,10 +1,10 @@
-import { mixpanel } from '@affine/core/utils';
-import { DebugLogger } from '@affine/debug';
-import type { EditorHost } from '@blocksuite/block-std';
-import type { ElementModel } from '@blocksuite/blocks';
-import { AIProvider } from '@blocksuite/presets';
-import type { BlockModel } from '@blocksuite/store';
+import { AIProvider } from '@affine/core/blocksuite/presets/ai';
+import { mixpanel, track } from '@affine/track';
+import type { EditorHost } from '@blocksuite/affine/block-std';
+import type { BlockModel } from '@blocksuite/affine/store';
 import { lowerCase, omit } from 'lodash-es';
+
+type ElementModel = BlockSuite.SurfaceElementModel;
 
 type AIActionEventName =
   | 'AI action invoked'
@@ -13,27 +13,32 @@ type AIActionEventName =
   | 'AI result accepted';
 
 type AIActionEventProperties = {
-  page: 'doc-editor' | 'whiteboard-editor';
+  page: 'doc' | 'edgeless';
   segment:
     | 'AI action panel'
     | 'right side bar'
     | 'inline chat panel'
-    | 'AI result panel';
+    | 'AI result panel'
+    | 'AI chat block';
   module:
     | 'exit confirmation'
     | 'AI action panel'
     | 'AI chat panel'
     | 'inline chat panel'
-    | 'AI result panel';
+    | 'AI result panel'
+    | 'AI chat block';
   control:
     | 'stop button'
     | 'format toolbar'
     | 'AI chat send button'
+    | 'Block action bar'
     | 'paywall'
     | 'policy wall'
     | 'server error'
+    | 'login required'
     | 'insert'
     | 'replace'
+    | 'use as caption'
     | 'discard'
     | 'retry'
     | 'add note'
@@ -57,8 +62,6 @@ type BlocksuiteActionEvent = Parameters<
   Parameters<typeof AIProvider.slots.actions.on>[0]
 >[0];
 
-const logger = new DebugLogger('affine:ai-tracker');
-
 const trackAction = ({
   eventName,
   properties,
@@ -66,14 +69,11 @@ const trackAction = ({
   eventName: AIActionEventName;
   properties: AIActionEventProperties;
 }) => {
-  logger.debug('trackAction', eventName, properties);
   mixpanel.track(eventName, properties);
 };
 
 const inferPageMode = (host: EditorHost) => {
-  return host.querySelector('affine-page-root')
-    ? 'doc-editor'
-    : 'whiteboard-editor';
+  return host.querySelector('affine-page-root') ? 'doc' : 'edgeless';
 };
 
 const defaultActionOptions = [
@@ -133,12 +133,14 @@ function inferObjectType(event: BlocksuiteActionEvent) {
 function inferSegment(
   event: BlocksuiteActionEvent
 ): AIActionEventProperties['segment'] {
-  if (event.action === 'chat') {
+  if (event.options.where === 'inline-chat-panel') {
     return 'inline chat panel';
   } else if (event.event.startsWith('result:')) {
     return 'AI result panel';
   } else if (event.options.where === 'chat-panel') {
     return 'right side bar';
+  } else if (event.options.where === 'ai-chat-block') {
+    return 'AI chat block';
   } else {
     return 'AI action panel';
   }
@@ -147,14 +149,16 @@ function inferSegment(
 function inferModule(
   event: BlocksuiteActionEvent
 ): AIActionEventProperties['module'] {
-  if (event.action === 'chat') {
+  if (event.options.where === 'chat-panel') {
     return 'AI chat panel';
   } else if (event.event === 'result:discard') {
     return 'exit confirmation';
   } else if (event.event.startsWith('result:')) {
     return 'AI result panel';
-  } else if (event.options.where === 'chat-panel') {
+  } else if (event.options.where === 'inline-chat-panel') {
     return 'inline chat panel';
+  } else if (event.options.where === 'ai-chat-block') {
+    return 'AI chat block';
   } else {
     return 'AI action panel';
   }
@@ -184,8 +188,12 @@ function inferControl(
     return 'paywall';
   } else if (event.event === 'aborted:server-error') {
     return 'server error';
+  } else if (event.event === 'aborted:login-required') {
+    return 'login required';
   } else if (event.options.control === 'chat-send') {
     return 'AI chat send button';
+  } else if (event.options.control === 'block-action-bar') {
+    return 'Block action bar';
   } else if (event.event === 'result:add-note') {
     return 'add note';
   } else if (event.event === 'result:add-page') {
@@ -196,6 +204,8 @@ function inferControl(
     return 'insert';
   } else if (event.event === 'result:replace') {
     return 'replace';
+  } else if (event.event === 'result:use-as-caption') {
+    return 'use as caption';
   } else if (event.event === 'result:discard') {
     return 'discard';
   } else if (event.event === 'result:retry') {
@@ -241,15 +251,11 @@ const toTrackedOptions = (
 
 export function setupTracker() {
   AIProvider.slots.requestUpgradePlan.on(() => {
-    mixpanel.track('AI', {
-      action: 'requestUpgradePlan',
-    });
+    track.$.paywall.aiAction.viewPlans();
   });
 
   AIProvider.slots.requestLogin.on(() => {
-    mixpanel.track('AI', {
-      action: 'requestLogin',
-    });
+    track.doc.editor.aiActions.requestSignIn();
   });
 
   AIProvider.slots.actions.on(event => {
